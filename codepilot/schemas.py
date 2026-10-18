@@ -1,6 +1,7 @@
 """Data contracts shared by the model, agent, and tool layers."""
 
 import json
+import uuid
 from pathlib import Path
 from typing import Any, Literal
 
@@ -89,6 +90,8 @@ class ModelReply(BaseModel):
 
     text: str | None = None
     tool_calls: list[ToolCall] = Field(default_factory=list)
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
 
     def to_assistant_message(self) -> ChatMessage:
         """Preserve the assistant turn before tool results are appended."""
@@ -104,10 +107,14 @@ class Task(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    task_id: str = Field(default_factory=lambda: uuid.uuid4().hex, min_length=1)
     repo_path: Path
     instruction: str = Field(min_length=1)
     test_command: list[str] = Field(min_length=1)
     max_steps: int = Field(default=12, ge=1, le=50)
+    max_test_attempts: int = Field(default=3, ge=1, le=20)
+    max_elapsed_seconds: float = Field(default=300, gt=0)
+    max_total_tokens: int | None = Field(default=None, gt=0)
 
 
 class ToolResult(BaseModel):
@@ -124,7 +131,15 @@ class ToolResult(BaseModel):
     error_type: str | None = None
 
 
-AgentStatus = Literal["running", "success", "failed", "max_steps"]
+AgentStatus = Literal[
+    "running",
+    "success",
+    "failed",
+    "timeout",
+    "budget_exceeded",
+    "needs_approval",
+    "max_steps",
+]
 
 
 class AgentState(BaseModel):
@@ -137,6 +152,8 @@ class AgentState(BaseModel):
     step_count: int = 0
     last_tool_result: ToolResult | None = None
     attempts: dict[str, int] = Field(default_factory=dict)
+    workspace_path: Path | None = None
+    tokens: int = Field(default=0, ge=0)
     status: AgentStatus = "running"
 
 
@@ -146,10 +163,16 @@ class RunResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: AgentStatus
+    run_id: str
     final_text: str = ""
     diff: str = ""
     test_result: ToolResult | None = None
     tool_results: list[ToolResult] = Field(default_factory=list)
     steps: int = 0
+    tokens: int = Field(default=0, ge=0)
     elapsed_ms: int = Field(default=0, ge=0)
+    trace_file: Path | None = None
+    report_file: Path | None = None
+    workspace_path: Path | None = None
+    failure_type: Literal["model", "tool", "test", "policy", "budget"] | None = None
     error: str | None = None

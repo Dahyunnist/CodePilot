@@ -1,0 +1,6 @@
+case_id,category,status,agent_status,baseline_exit_code,visible_passed,hidden_passed,steps,tokens,elapsed_ms,model,temperature,prompt_version,base_commit,trace_file,error
+clamp-boundary,boundary-condition,success,success,1,True,True,6,0,1762,scripted-oracle,0.0,explicit-loop-v1,3bec9a7eef4ac3952803d96ffcbc3657a140f4e8,reports/traces/5a2e70bbd0b34e57ac8d49518ceb8d5b-clamp-boundary.jsonl,
+parse-config,empty-input,success,success,1,True,True,6,0,1113,scripted-oracle,0.0,explicit-loop-v1,209e5f4605c0588f7aaad14dda999e8073f80b24,reports/traces/5a2e70bbd0b34e57ac8d49518ceb8d5b-parse-config.jsonl,
+parse-port,exception-handling,success,success,1,True,True,6,0,1855,scripted-oracle,0.0,explicit-loop-v1,49a6f69c329a3fa59609739cd479a0784de8202c,reports/traces/5a2e70bbd0b34e57ac8d49518ceb8d5b-parse-port.jsonl,
+slug-refactor,small-refactor,success,success,1,True,True,6,0,1786,scripted-oracle,0.0,explicit-loop-v1,a91929c6a15ea76a011a800db714673aaf4c0d4a,reports/traces/5a2e70bbd0b34e57ac8d49518ceb8d5b-slug-refactor.jsonl,
+timeout-config,configuration,success,success,1,True,True,6,0,1726,scripted-oracle,0.0,explicit-loop-v1,d8ef8e0872fc6f1b4477868316493454ffd0a8af,reports/traces/5a2e70bbd0b34e57ac8d49518ceb8d5b-timeout-config.jsonl,

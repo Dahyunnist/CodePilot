@@ -114,6 +114,13 @@ def test_cli_repairs_demo_repository(tmp_path, capsys) -> None:
             "python -m pytest tests -q",
             "--max-steps",
             "8",
+            "--execution",
+            "host",
+            "--approve-host-tests",
+            "--workspace-root",
+            str(tmp_path / "workspaces"),
+            "--reports-root",
+            str(tmp_path / "reports"),
         ],
         model_client=RepairScriptModel(),
     )
@@ -125,4 +132,10 @@ def test_cli_repairs_demo_repository(tmp_path, capsys) -> None:
     assert "Tests: passed" in output
     assert "-        if not line and text:" in output
     assert "+        if not line:" in output
-    assert "if not line:\n" in (repo / "config_parser.py").read_text(encoding="utf-8")
+    workspace = next((tmp_path / "workspaces").iterdir())
+    assert "if not line:\n" in (workspace / "config_parser.py").read_text(encoding="utf-8")
+    assert "if not line and text:\n" in (repo / "config_parser.py").read_text(
+        encoding="utf-8"
+    )
+    assert len(list((tmp_path / "reports" / "traces").glob("*.jsonl"))) == 1
+    assert len(list((tmp_path / "reports" / "runs").glob("*.md"))) == 1

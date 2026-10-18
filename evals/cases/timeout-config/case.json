@@ -1,0 +1,10 @@
+{
+  "case_id": "timeout-config",
+  "category": "configuration",
+  "instruction": "read timeout_seconds from configuration and keep the documented default",
+  "test_command": ["python", "-m", "pytest", "tests", "-q"],
+  "search_query": "def timeout_seconds",
+  "path": "settings.py",
+  "old_text": "config.get(\"timeot_seconds\", 30)",
+  "new_text": "config.get(\"timeout_seconds\", 30)"
+}

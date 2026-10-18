@@ -62,7 +62,13 @@ class ModelClient:
         if message.content is None and not tool_calls:
             raise ModelResponseError("model returned neither text nor tool calls")
 
-        return ModelReply(text=message.content, tool_calls=tool_calls)
+        usage = getattr(completion, "usage", None)
+        return ModelReply(
+            text=message.content,
+            tool_calls=tool_calls,
+            input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
+            output_tokens=getattr(usage, "completion_tokens", 0) or 0,
+        )
 
     @staticmethod
     def _parse_tool_call(raw_call: Any) -> ToolCall:

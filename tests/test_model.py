@@ -63,7 +63,8 @@ def test_builds_sdk_client_with_connection_settings(
 
 def test_returns_text_and_forwards_request_settings() -> None:
     response = SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content="done", tool_calls=[]))]
+        choices=[SimpleNamespace(message=SimpleNamespace(content="done", tool_calls=[]))],
+        usage=SimpleNamespace(prompt_tokens=11, completion_tokens=4),
     )
     completions = FakeCompletions(response=response)
     client = ModelClient(model_config(), sdk_client=fake_sdk(completions))
@@ -72,6 +73,8 @@ def test_returns_text_and_forwards_request_settings() -> None:
 
     assert reply.text == "done"
     assert reply.tool_calls == []
+    assert reply.input_tokens == 11
+    assert reply.output_tokens == 4
     assert completions.request == {
         "model": "test-model",
         "messages": [{"role": "user", "content": "hello"}],

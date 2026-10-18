@@ -52,11 +52,30 @@ class ToolRegistry:
         test_command: list[str],
         *,
         test_timeout_seconds: float = 30,
+        execution_mode: str = "host",
+        docker_image: str = "codepilot-runner:0.1",
+        host_tests_approved: bool = False,
     ) -> None:
         self.repo_root = repo_root.resolve(strict=True)
         self.test_command = test_command
         self.test_timeout_seconds = test_timeout_seconds
+        self.execution_mode = execution_mode
+        self.docker_image = docker_image
+        self.host_tests_approved = host_tests_approved
+        self._approved_call_ids: set[str] = set()
         self.specs = self._build_specs()
+
+    def requires_approval(self, call: ToolCall) -> bool:
+        """Require explicit approval before tests execute on the host."""
+        return (
+            call.name == "run_tests"
+            and self.execution_mode == "host"
+            and not self.host_tests_approved
+            and call.id not in self._approved_call_ids
+        )
+
+    def approve(self, call: ToolCall) -> None:
+        self._approved_call_ids.add(call.id)
 
     def execute(self, call: ToolCall) -> ToolResult:
         """Validate one untrusted model call and return a safe observation."""
@@ -85,10 +104,14 @@ class ToolRegistry:
                 output = git_diff(self.repo_root)
             elif call.name == "run_tests":
                 NoArguments.model_validate(call.arguments)
+                if self.requires_approval(call):
+                    raise PermissionError("host test execution requires approval")
                 return run_tests(
                     self.repo_root,
                     self.test_command,
                     self.test_timeout_seconds,
+                    execution_mode=self.execution_mode,
+                    docker_image=self.docker_image,
                 )
             else:
                 raise ValueError(f"unknown tool: {call.name}")
