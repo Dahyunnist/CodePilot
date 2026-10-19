@@ -84,8 +84,8 @@ def test_workspace_rejects_tracked_secret_files(tmp_path) -> None:
     source = tmp_path / "source"
     source.mkdir()
     init_repo(source)
-    (source / ".env").write_text("TOKEN=secret\n", encoding="utf-8")
-    subprocess.run(["git", "add", "-f", ".env"], cwd=source, check=True)
+    (source / ".env.production").write_text("TOKEN=secret\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-f", ".env.production"], cwd=source, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "bad baseline"], cwd=source, check=True)
 
     with pytest.raises(WorkspaceError, match="tracks sensitive"):

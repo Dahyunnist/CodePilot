@@ -8,6 +8,8 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+from codepilot.security import is_sensitive_file
+
 
 class WorkspaceError(RuntimeError):
     """Raised when an isolated workspace cannot be prepared."""
@@ -45,11 +47,7 @@ class WorkspaceManager:
                 "source repository must be clean before applying agent changes"
             )
         tracked = _git_output(source, ["ls-files"]).splitlines()
-        sensitive = [
-            path
-            for path in tracked
-            if Path(path).name == ".env" or Path(path).suffix.lower() in {".key", ".pem"}
-        ]
+        sensitive = [path for path in tracked if is_sensitive_file(path)]
         if sensitive:
             raise WorkspaceError(
                 "source tracks sensitive files: " + ", ".join(sensitive[:5])

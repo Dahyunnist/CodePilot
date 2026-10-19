@@ -6,12 +6,11 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from codepilot.security import is_sensitive_file
+
 
 IGNORED_PARTS = {".git", "__pycache__", ".pytest_cache"}
-DENIED_NAMES = {".env"}
-DENIED_SUFFIXES = {".key", ".pem"}
 _IGNORED_PARTS_CASEFOLD = {part.casefold() for part in IGNORED_PARTS}
-_DENIED_NAMES_CASEFOLD = {name.casefold() for name in DENIED_NAMES}
 
 
 class RepositoryToolError(RuntimeError):
@@ -35,7 +34,7 @@ def resolve_repo_path(
         raise PathPolicyError("absolute paths are not allowed")
     if any(part.casefold() in _IGNORED_PARTS_CASEFOLD for part in relative.parts):
         raise PathPolicyError("internal repository paths are not allowed")
-    if relative.name.casefold() in _DENIED_NAMES_CASEFOLD or relative.suffix.lower() in DENIED_SUFFIXES:
+    if is_sensitive_file(relative):
         raise PathPolicyError("sensitive files are not allowed")
 
     candidate = (root / relative).resolve(strict=False)
@@ -44,7 +43,7 @@ def resolve_repo_path(
     resolved_relative = candidate.relative_to(root)
     if any(part.casefold() in _IGNORED_PARTS_CASEFOLD for part in resolved_relative.parts):
         raise PathPolicyError("internal repository paths are not allowed")
-    if resolved_relative.name.casefold() in _DENIED_NAMES_CASEFOLD or resolved_relative.suffix.lower() in DENIED_SUFFIXES:
+    if is_sensitive_file(resolved_relative):
         raise PathPolicyError("sensitive files are not allowed")
     if must_exist and not candidate.exists():
         raise FileNotFoundError(raw_path)
@@ -62,7 +61,7 @@ def list_files(repo_root: Path, path: str = ".", max_files: int = 200) -> str:
         relative = candidate.relative_to(root)
         if any(part.casefold() in _IGNORED_PARTS_CASEFOLD for part in relative.parts):
             continue
-        if candidate.name.casefold() in _DENIED_NAMES_CASEFOLD or candidate.suffix.lower() in DENIED_SUFFIXES:
+        if is_sensitive_file(candidate):
             continue
         if candidate.is_file():
             files.append(relative.as_posix())
@@ -123,17 +122,21 @@ def search_code(
             "!.git/**",
             "--glob",
             "!__pycache__/**",
-            "--glob",
+            "--iglob",
             "!.env",
-            "--glob",
+            "--iglob",
             "!**/.env",
-            "--glob",
+            "--iglob",
+            "!.env.*",
+            "--iglob",
+            "!**/.env.*",
+            "--iglob",
             "!*.key",
-            "--glob",
+            "--iglob",
             "!**/*.key",
-            "--glob",
+            "--iglob",
             "!*.pem",
-            "--glob",
+            "--iglob",
             "!**/*.pem",
             "--",
             query,
@@ -162,7 +165,7 @@ def search_code(
         relative = candidate.relative_to(root)
         if any(part.casefold() in _IGNORED_PARTS_CASEFOLD for part in relative.parts):
             continue
-        if candidate.name.casefold() in _DENIED_NAMES_CASEFOLD or candidate.suffix.lower() in DENIED_SUFFIXES:
+        if is_sensitive_file(candidate):
             continue
         if not candidate.resolve(strict=False).is_relative_to(root):
             continue

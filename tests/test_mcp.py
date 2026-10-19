@@ -16,6 +16,7 @@ def make_repo(tmp_path: Path) -> Path:
     (repo / ".git").mkdir()
     (repo / "sample.py").write_text("def calculate():\n    return 2\n", encoding="utf-8")
     (repo / ".env").write_text("SECRET=never-read\n", encoding="utf-8")
+    (repo / ".env.production").write_text("SECRET=production-never-read\n", encoding="utf-8")
     return repo
 
 
@@ -71,16 +72,21 @@ def test_mcp_rejects_traversal_sensitive_paths_and_unlisted_tools(tmp_path) -> N
             sensitive = await client.call_tool(
                 "repo_read", {"path": ".env", "reason": "读取配置。"}
             )
+            dotenv_variant = await client.call_tool(
+                "repo_read", {"path": ".env.production", "reason": "读取生产配置。"}
+            )
             unauthorized = await client.call_tool(
                 "apply_patch", {"path": "sample.py", "old_text": "2", "new_text": "3"}
             )
-            return traversal, sensitive, unauthorized
+            return traversal, sensitive, dotenv_variant, unauthorized
 
-    traversal, sensitive, unauthorized = asyncio.run(attack())
+    traversal, sensitive, dotenv_variant, unauthorized = asyncio.run(attack())
     assert traversal.is_error
     assert sensitive.is_error
+    assert dotenv_variant.is_error
     assert unauthorized.is_error
     assert "never-read" not in str(sensitive.content)
+    assert "production-never-read" not in str(dotenv_variant.content)
     assert (tmp_path / "repo" / "sample.py").read_text(encoding="utf-8").endswith("return 2\n")
 
 

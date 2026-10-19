@@ -26,10 +26,14 @@ def test_list_search_and_bounded_read(tmp_path) -> None:
         "def target():\n    return 1\n", encoding="utf-8"
     )
     (tmp_path / ".env").write_text("SECRET=value", encoding="utf-8")
+    (tmp_path / ".env.local").write_text("SECRET=local-value", encoding="utf-8")
+    (tmp_path / ".ENV.production").write_text("SECRET=uppercase-prod-value", encoding="utf-8")
 
     assert list_files(tmp_path) == "app.py"
     assert "app.py:1:def target" in search_code(tmp_path, "def target")
     assert search_code(tmp_path, "SECRET") == ""
+    with pytest.raises(PathPolicyError, match="sensitive"):
+        read_file(tmp_path, ".env.local")
     assert read_file(tmp_path, "app.py", 2, 2) == "2:     return 1"
 
 
@@ -67,6 +71,8 @@ def test_rejects_path_traversal_and_secrets(tmp_path) -> None:
         read_file(tmp_path, ".env")
     with pytest.raises(PathPolicyError, match="sensitive"):
         read_file(tmp_path, ".ENV")
+    with pytest.raises(PathPolicyError, match="sensitive"):
+        read_file(tmp_path, ".ENV.production")
     with pytest.raises(PathPolicyError, match="internal"):
         read_file(tmp_path, ".GIT/config")
     with pytest.raises(FileNotFoundError):
@@ -111,10 +117,18 @@ def test_exact_patch_and_git_diff(tmp_path) -> None:
 def test_git_diff_hides_sensitive_files(tmp_path) -> None:
     init_repo(tmp_path)
     secret = tmp_path / ".env"
+    local_secret = tmp_path / ".env.local"
+    uppercase_secret = tmp_path / ".ENV.production"
     secret.write_text("TOKEN=old\n", encoding="utf-8")
+    local_secret.write_text("TOKEN=old\n", encoding="utf-8")
+    uppercase_secret.write_text("TOKEN=old\n", encoding="utf-8")
     subprocess.run(["git", "add", ".env"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "-f", ".env.local"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "-f", ".ENV.production"], cwd=tmp_path, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "baseline"], cwd=tmp_path, check=True)
     secret.write_text("TOKEN=new\n", encoding="utf-8")
+    local_secret.write_text("TOKEN=new\n", encoding="utf-8")
+    uppercase_secret.write_text("TOKEN=new\n", encoding="utf-8")
 
     assert git_diff(tmp_path) == ""
 
