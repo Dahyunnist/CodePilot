@@ -59,4 +59,6 @@ def _argument_summary(call: ToolCall) -> dict[str, Any]:
         summary["path"] = str(call.arguments["path"])[:300]
     if call.name == "search_code" and "query" in call.arguments:
         summary["query_chars"] = len(str(call.arguments["query"]))
+    if call.name == "read_file" and "reason" in call.arguments:
+        summary["reason"] = str(call.arguments["reason"])[:240]
     return summary

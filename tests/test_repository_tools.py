@@ -32,6 +32,31 @@ def test_list_search_and_bounded_read(tmp_path) -> None:
     assert read_file(tmp_path, "app.py", 2, 2) == "2:     return 1"
 
 
+def test_read_file_requires_reason_and_deduplicates_reads(tmp_path) -> None:
+    from codepilot.tools.registry import ToolRegistry
+    from codepilot.schemas import ToolCall
+
+    (tmp_path / "app.py").write_text("value = 1\n", encoding="utf-8")
+    tools = ToolRegistry(tmp_path, ["python", "-m", "pytest"])
+    missing_reason = tools.execute(
+        ToolCall(id="missing", name="read_file", arguments={"path": "app.py"})
+    )
+    first = tools.execute(
+        ToolCall(id="first", name="read_file", arguments={"path": "app.py", "reason": "Search found target."})
+    )
+    duplicate = tools.execute(
+        ToolCall(id="duplicate", name="read_file", arguments={"path": "app.py", "reason": "Read it again."})
+    )
+    outside = tools.execute(
+        ToolCall(id="outside", name="read_file", arguments={"path": "../outside.py", "reason": "Try an unrelated path."})
+    )
+
+    assert not missing_reason.ok
+    assert first.ok and "value = 1" in first.stdout
+    assert duplicate.ok and "Duplicate read omitted" in duplicate.stdout
+    assert not outside.ok and outside.error_type == "PathPolicyError"
+
+
 def test_rejects_path_traversal_and_secrets(tmp_path) -> None:
     (tmp_path / "safe.py").write_text("safe = True", encoding="utf-8")
 

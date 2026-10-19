@@ -29,6 +29,7 @@ class SearchCodeArguments(ToolArguments):
 
 class ReadFileArguments(ToolArguments):
     path: str
+    reason: str = Field(min_length=1, max_length=240)
     start_line: int = Field(default=1, ge=1)
     end_line: int | None = Field(default=None, ge=1)
 
@@ -63,6 +64,7 @@ class ToolRegistry:
         self.docker_image = docker_image
         self.host_tests_approved = host_tests_approved
         self._approved_call_ids: set[str] = set()
+        self._read_cache: dict[tuple[str, int, int | None], str] = {}
         self.specs = self._build_specs()
 
     def requires_approval(self, call: ToolCall) -> bool:
@@ -91,14 +93,23 @@ class ToolRegistry:
                 )
             elif call.name == "read_file":
                 args = ReadFileArguments.model_validate(call.arguments)
-                output = read_file(
-                    self.repo_root, args.path, args.start_line, args.end_line
-                )
+                key = (args.path.replace("\\", "/"), args.start_line, args.end_line)
+                if key in self._read_cache:
+                    output = "Duplicate read omitted; use a new line range or search result."
+                else:
+                    output = read_file(
+                        self.repo_root, args.path, args.start_line, args.end_line
+                    )
+                    self._read_cache[key] = output
             elif call.name == "apply_patch":
                 args = ApplyPatchArguments.model_validate(call.arguments)
                 output = apply_patch(
                     self.repo_root, args.path, args.old_text, args.new_text
                 )
+                self._read_cache = {
+                    key: value for key, value in self._read_cache.items()
+                    if key[0] != args.path.replace("\\", "/")
+                }
             elif call.name == "git_diff":
                 NoArguments.model_validate(call.arguments)
                 output = git_diff(self.repo_root)
@@ -144,7 +155,7 @@ class ToolRegistry:
         return [
             _spec("list_files", "List files inside the repository.", ListFilesArguments),
             _spec("search_code", "Search repository text for an exact string.", SearchCodeArguments),
-            _spec("read_file", "Read a bounded line range from one file.", ReadFileArguments),
+            _spec("read_file", "Read a bounded line range from one candidate file. Give a short reason tied to task evidence.", ReadFileArguments),
             _spec("apply_patch", "Replace one exact text block in one file.", ApplyPatchArguments),
             _spec("run_tests", "Run the task's configured pytest command.", NoArguments),
             _spec("git_diff", "Show the current Git diff.", NoArguments),

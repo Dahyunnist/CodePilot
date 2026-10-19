@@ -60,7 +60,7 @@ class ScriptedRepairModel:
             ModelReply(
                 tool_calls=[
                     ToolCall(
-                        id="read", name="read_file", arguments={"path": case.path}
+                        id="read", name="read_file", arguments={"path": case.path, "reason": "Inspect the search match for the reported bug."}
                     )
                 ]
             ),

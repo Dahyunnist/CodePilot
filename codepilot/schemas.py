@@ -116,6 +116,7 @@ class Task(BaseModel):
     max_test_attempts: int = Field(default=3, ge=1, le=20)
     max_elapsed_seconds: float = Field(default=300, gt=0)
     max_total_tokens: int | None = Field(default=None, gt=0)
+    max_context_chars: int = Field(default=30_000, ge=2_000, le=200_000)
 
 
 class ToolResult(BaseModel):

@@ -43,6 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--max-test-attempts", type=int, default=3)
     run_parser.add_argument("--max-elapsed", type=float, default=300)
     run_parser.add_argument("--max-tokens", type=int)
+    run_parser.add_argument("--context-budget-chars", type=int, default=30_000)
     run_parser.add_argument("--test-timeout", type=float, default=30)
     run_parser.add_argument(
         "--execution", choices=("docker", "host"), default="docker"
@@ -77,6 +78,7 @@ def main(
             max_test_attempts=args.max_test_attempts,
             max_elapsed_seconds=args.max_elapsed,
             max_total_tokens=args.max_tokens,
+            max_context_chars=args.context_budget_chars,
         )
         model = model_client or ModelClient(ModelConfig.from_env())
         tools = ToolRegistry(

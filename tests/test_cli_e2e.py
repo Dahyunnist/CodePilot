@@ -26,7 +26,7 @@ class RepairScriptModel:
                     ToolCall(
                         id="call-read",
                         name="read_file",
-                        arguments={"path": "config_parser.py"},
+                        arguments={"path": "config_parser.py", "reason": "Inspect the search match for the failing parser behavior."},
                     )
                 ]
             ),

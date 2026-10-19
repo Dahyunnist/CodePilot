@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
+import json
 from typing import Protocol, Sequence
 
 from codepilot.model import ModelClientError
@@ -94,6 +95,25 @@ class Agent:
                     last_test,
                     started,
                     error="elapsed time budget exceeded",
+                    failure_type="budget",
+                )
+            compacted = _fit_context(state.messages, task.max_context_chars)
+            if compacted:
+                self._trace(
+                    "context_compacted",
+                    state.step_count,
+                    tool_messages=compacted,
+                    context_chars=_context_chars(state.messages),
+                    budget_chars=task.max_context_chars,
+                )
+            if _context_chars(state.messages) > task.max_context_chars:
+                state.status = "budget_exceeded"
+                return self._finish(
+                    state,
+                    tool_results,
+                    last_test,
+                    started,
+                    error="conversation context budget exceeded",
                     failure_type="budget",
                 )
             state.step_count += 1
@@ -281,4 +301,24 @@ class Agent:
     @staticmethod
     def _elapsed_seconds(started: float) -> float:
         return time.perf_counter() - started
+
+
+def _context_chars(messages: list[ChatMessage]) -> int:
+    return sum(len(json.dumps(message.to_api_dict(), ensure_ascii=False)) for message in messages)
+
+
+def _fit_context(messages: list[ChatMessage], budget: int) -> int:
+    compacted = 0
+    for message in messages:
+        if _context_chars(messages) <= budget:
+            break
+        if message.role != "tool" or message.content is None:
+            continue
+        original_chars = len(message.content)
+        message.content = json.dumps(
+            {"compacted": True, "original_chars": original_chars},
+            separators=(",", ":"),
+        )
+        compacted += 1
+    return compacted
 

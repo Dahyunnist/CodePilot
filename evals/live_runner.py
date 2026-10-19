@@ -34,6 +34,7 @@ def run_live_evaluation(
     docker_image: str,
     max_total_tokens: int,
     max_elapsed: float,
+    context_budget_chars: int,
 ) -> list[dict[str, object]]:
     """Run clean, isolated copies and independently verify every repair."""
     if execution == "host" and not approve_host_tests:
@@ -120,6 +121,7 @@ def run_live_evaluation(
                 max_test_attempts=3,
                 max_elapsed_seconds=max_elapsed,
                 max_total_tokens=max_total_tokens,
+                max_context_chars=context_budget_chars,
             )
         )
 
@@ -245,6 +247,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--approve-host-tests", action="store_true")
     parser.add_argument("--docker-image", default="codepilot-runner:0.1")
     parser.add_argument("--max-total-tokens", type=int, default=15000)
+    parser.add_argument("--context-budget-chars", type=int, default=30_000)
     parser.add_argument("--max-elapsed", type=float, default=180)
     return parser
 
@@ -261,6 +264,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         docker_image=args.docker_image,
         max_total_tokens=args.max_total_tokens,
         max_elapsed=args.max_elapsed,
+        context_budget_chars=args.context_budget_chars,
     )
     accepted = sum(row["accepted"] is True for row in rows)
     print(f"Live model evaluation: {accepted}/{len(rows)} accepted")

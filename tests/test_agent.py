@@ -108,6 +108,26 @@ def test_finishing_without_tests_is_failure(tmp_path) -> None:
     assert result.error == "model finished before running tests"
 
 
+def test_agent_cannot_claim_success_while_tests_fail(tmp_path) -> None:
+    class FailingTestTools(StubTools):
+        def execute(self, call: ToolCall) -> ToolResult:
+            if call.name == "run_tests":
+                return ToolResult(tool_name="run_tests", ok=False, exit_code=1)
+            return super().execute(call)
+
+    model = ScriptedModel(
+        [
+            ModelReply(tool_calls=[ToolCall(id="failed-test", name="run_tests", arguments={})]),
+            ModelReply(text="done"),
+        ]
+    )
+
+    result = Agent(model, FailingTestTools()).run(task(tmp_path))
+
+    assert result.status == "failed"
+    assert result.error == "model finished while tests were failing"
+
+
 def test_agent_requires_retest_after_successful_patch(tmp_path) -> None:
     model = ScriptedModel(
         [
@@ -193,6 +213,41 @@ def test_agent_enforces_token_budget(tmp_path) -> None:
 
     assert result.status == "budget_exceeded"
     assert result.tokens == 13
+
+
+def test_agent_compacts_old_tool_output_and_keeps_tool_call_id(tmp_path) -> None:
+    class LargeOutputTools(StubTools):
+        def execute(self, call: ToolCall) -> ToolResult:
+            return ToolResult(tool_name=call.name, ok=True, stdout="x" * 3_000)
+
+    model = ScriptedModel(
+        [
+            ModelReply(tool_calls=[ToolCall(id="call-1", name="search_code", arguments={})]),
+            ModelReply(text="done"),
+        ]
+    )
+    limited_task = task(tmp_path)
+    limited_task.max_context_chars = 2_000
+
+    Agent(model, LargeOutputTools()).run(limited_task)
+
+    observed = model.requests[1][-1]
+    assert observed.role == "tool"
+    assert observed.tool_call_id == "call-1"
+    assert '"compacted":true' in observed.content
+
+
+def test_agent_fails_when_prompt_alone_exceeds_context_budget(tmp_path) -> None:
+    model = ScriptedModel([])
+    oversized_task = task(tmp_path)
+    oversized_task.instruction = "x" * 2_100
+    oversized_task.max_context_chars = 2_000
+
+    result = Agent(model, StubTools()).run(oversized_task)
+
+    assert result.status == "budget_exceeded"
+    assert result.error == "conversation context budget exceeded"
+    assert model.requests == []
 
 
 def test_agent_maps_tool_timeout_to_timeout_status(tmp_path) -> None:
