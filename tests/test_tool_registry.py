@@ -73,3 +73,41 @@ def test_registry_applies_tool_declared_approval_policy(tmp_path) -> None:
     registry.approve(call)
     assert not registry.requires_approval(call)
     assert registry.execute(call).ok
+
+
+def test_registry_accepts_tools_after_initialization(tmp_path) -> None:
+    registry = ToolRegistry(tmp_path, ["python", "-m", "pytest"])
+    registry.register_tool(EchoTool(registry.context))
+
+    tools = {tool.function.name: tool for tool in registry.read_tools()}
+    result = registry.execute(
+        ToolCall(id="dynamic-echo", name="echo", arguments={"value": "hello"})
+    )
+
+    assert "echo" in tools
+    assert result.ok and result.stdout == "hello"
+
+
+def test_registry_registers_validated_string_functions(tmp_path) -> None:
+    registry = ToolRegistry(tmp_path, ["python", "-m", "pytest"])
+    registry.register_function(
+        "uppercase",
+        "Convert input text to uppercase.",
+        str.upper,
+    )
+
+    tools = {tool.function.name: tool for tool in registry.read_tools()}
+    result = registry.execute(
+        ToolCall(
+            id="uppercase-call",
+            name="uppercase",
+            arguments={"input": "hello"},
+        )
+    )
+    invalid = registry.execute(
+        ToolCall(id="uppercase-invalid", name="uppercase", arguments={})
+    )
+
+    assert "input" in tools["uppercase"].function.parameters["required"]
+    assert result.ok and result.stdout == "HELLO"
+    assert not invalid.ok and invalid.error_type == "validation"

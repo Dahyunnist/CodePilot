@@ -25,6 +25,8 @@ RunResult -> terminal report + Markdown + JSONL trace + Git diff
   method through the `Tool` base class.
 - `ToolRegistry` builds the model schemas from registered tool instances,
   validates untrusted arguments through each tool, and dispatches by name.
+- Tools can be registered at initialization or at runtime. Simple string
+  functions use a validated function-tool adapter.
 - `Agent` gets tool names, descriptions, and JSON parameter schemas from
   `ToolRegistry.read_tools()` for each model request. Tool observations reuse
   those descriptions, so display labels do not duplicate the tool catalogue.
