@@ -2,7 +2,7 @@
 
 ## 目标与结论
 
-S0 把当前多文件修复能力固化成可复查基线。固定评测共 12 个案例；DeepSeek 真实模型在 7 个复杂案例上通过 7/7。该结果仅代表本项目构造的固定案例，不代表真实公司仓库或 SWE-bench 的泛化成功率。
+S0 把当前多文件修复能力固化成可复查基线。固定评测共 12 个案例。首次 DeepSeek 真实模型运行通过 7/7；在提交 `9b49978` 的干净 clone 上复跑为 6/7。两次结果都保留；当前证据说明模型结果存在波动，不能把首次 7/7 当作可重复成功率。所有案例都是本项目构造的 fixture，不代表真实公司仓库或 SWE-bench 的泛化成功率。
 
 ## 数据流与关键代码
 
@@ -34,7 +34,11 @@ python -m evals.runner --execution docker --output .tmp/s0-evals.csv --work-root
 python -m evals.live_runner --execution docker --case-ids multi-file-discount multi-bug-invoice notification-batch-performance bulk-audit-write-performance atomic-csv-import cursor-pagination retry-transient-only --max-total-tokens 35000 --max-elapsed 240 --output-root reports/s0-live --work-root .tmp/s0-live-work
 ```
 
-S0 记录：完整单测 **73 passed**；Docker scripted-oracle **12/12**；真实 DeepSeek **7/7 accepted**；总计 **125,881 tokens**，费用估算 **$0.009210 USD**，案例累计全流程耗时 **92.3 秒**。保存的逐例数据位于 `reports/live-model-20261019-complex/`。费用按运行时非高峰价格计算；中国法定节假日和账单取整等差异以实际账单为准。
+S0 首轮：完整单测 **73 passed**；Docker scripted-oracle **12/12**；真实 DeepSeek **7/7 accepted**；总计 **125,881 tokens**，费用估算 **$0.009210 USD**，案例累计全流程耗时 **92.3 秒**。逐例数据位于 `reports/live-model-20261019-complex/`。
+
+干净提交复跑：在 `9b49978` 新 clone 上完整单测 **73 passed**、Docker scripted-oracle **12/12**；真实 DeepSeek **6/7 accepted**，总计 **125,471 tokens**，费用估算 **$0.009926 USD**，案例累计全流程耗时 **94.2 秒**。唯一失败是 `multi-bug-invoice`：Agent 自身和独立可见测试通过，隐藏验收失败；生成的 `billing/request.py` 把显式 `None` 作为默认折扣 0。提示写了“默认折扣为 0”，没有明确区分“字段缺失”与“字段存在但为 null”。这是模型一次对边界条件的错误解释，也暴露了任务文字需要进一步明确；报告如实保留该次失败，不计作通过。逐例证据位于 `reports/live-model-20261019-s0-clean/`。
+
+费用按运行时非高峰价格计算；中国法定节假日和账单取整等差异以实际账单为准。两轮差异是小样本观察，不能据此估计稳定成功率。
 
 ## 10–20 分钟亲手实验
 
