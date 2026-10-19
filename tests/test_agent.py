@@ -222,7 +222,7 @@ def test_agent_compacts_old_tool_output_and_keeps_tool_call_id(tmp_path) -> None
 
     model = ScriptedModel(
         [
-            ModelReply(tool_calls=[ToolCall(id="call-1", name="search_code", arguments={})]),
+            ModelReply(tool_calls=[ToolCall(id="call-1", name="search_code", arguments={"query": "x" * 3_000})]),
             ModelReply(text="done"),
         ]
     )
@@ -235,6 +235,7 @@ def test_agent_compacts_old_tool_output_and_keeps_tool_call_id(tmp_path) -> None
     assert observed.role == "tool"
     assert observed.tool_call_id == "call-1"
     assert '"compacted":true' in observed.content
+    assert model.requests[1][2].tool_calls[0].arguments == {}
 
 
 def test_agent_fails_when_prompt_alone_exceeds_context_budget(tmp_path) -> None:

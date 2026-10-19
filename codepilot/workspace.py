@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import subprocess
+import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -28,6 +30,8 @@ class WorkspaceManager:
 
     def prepare(self, source: Path, run_id: str) -> Workspace:
         """Clone committed source state into a new, unique directory."""
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", run_id):
+            raise WorkspaceError("run_id must be a safe directory name")
         source = source.resolve(strict=True)
         if not (source / ".git").exists():
             raise WorkspaceError("source must be a Git repository")
@@ -47,23 +51,28 @@ class WorkspaceManager:
             raise WorkspaceError(f"workspace already exists: {destination}")
         destination.parent.mkdir(parents=True, exist_ok=True)
 
-        completed = subprocess.run(
-            ["git", "clone", "--quiet", "--no-hardlinks", str(source), str(destination)],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-            check=False,
-            shell=False,
-        )
-        if completed.returncode != 0:
-            raise WorkspaceError(completed.stderr.strip() or "git clone failed")
+        try:
+            completed = subprocess.run(
+                ["git", "clone", "--quiet", "--no-hardlinks", str(source), str(destination)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                check=False,
+                shell=False,
+            )
+            if completed.returncode != 0:
+                raise WorkspaceError(completed.stderr.strip() or "git clone failed")
 
-        commit = _git_output(destination, ["rev-parse", "HEAD"])
-        if _git_output(destination, ["status", "--porcelain"]):
-            raise WorkspaceError("new workspace is not clean")
-        return Workspace(source=source, path=destination, base_commit=commit)
+            commit = _git_output(destination, ["rev-parse", "HEAD"])
+            if _git_output(destination, ["status", "--porcelain"]):
+                raise WorkspaceError("new workspace is not clean")
+            return Workspace(source=source, path=destination, base_commit=commit)
+        except Exception:
+            if destination.exists() and destination.parent == self.base_dir:
+                shutil.rmtree(destination)
+            raise
 
 
 def _git_output(repo: Path, arguments: list[str]) -> str:

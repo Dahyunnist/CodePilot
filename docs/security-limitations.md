@@ -5,12 +5,17 @@
 - Each run edits a clean local Git clone, not the source repository.
 - Tracked `.env`, `*.key`, and `*.pem` files cause workspace preparation to fail.
 - Repository paths cannot leave the workspace.
+- Resolved paths are checked too, including case-insensitive sensitive names and
+  symlink or junction targets.
 - Tool arguments use strict Pydantic validation.
 - Test execution uses an argv list with `shell=False`.
 - Docker runs as a non-root user with no network, dropped capabilities, a
   read-only container root, and CPU, memory, process, output, and time limits.
 - Trace events exclude source text, patch contents, stdout, stderr, and API keys.
 - Host execution requires approval and receives a minimal environment.
+- Workspace run IDs are restricted to safe directory names; failed clones remove
+  their partial destination.
+- Docker cleanup errors do not replace the original test timeout result.
 
 ## Risks not solved
 

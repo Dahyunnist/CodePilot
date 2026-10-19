@@ -312,6 +312,15 @@ def _fit_context(messages: list[ChatMessage], budget: int) -> int:
     for message in messages:
         if _context_chars(messages) <= budget:
             break
+        if message.role == "assistant" and message.tool_calls:
+            for call in message.tool_calls:
+                if call.arguments:
+                    call.arguments = {}
+                    compacted += 1
+            if message.content:
+                message.content = "Historical tool-call details compacted."
+                compacted += 1
+            continue
         if message.role != "tool" or message.content is None:
             continue
         original_chars = len(message.content)

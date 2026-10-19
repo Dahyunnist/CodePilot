@@ -1,4 +1,5 @@
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -44,6 +45,39 @@ def test_workspace_rejects_duplicate_run_id(tmp_path) -> None:
 
     with pytest.raises(WorkspaceError, match="already exists"):
         manager.prepare(source, "same")
+
+
+def test_workspace_rejects_run_id_path_traversal(tmp_path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    init_repo(source)
+
+    with pytest.raises(WorkspaceError, match="safe directory name"):
+        WorkspaceManager(tmp_path / "workspaces").prepare(source, "../escape")
+
+
+def test_workspace_removes_partial_clone_after_failure(tmp_path, monkeypatch) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    init_repo(source)
+    (source / "app.py").write_text("pass\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "baseline"], cwd=source, check=True)
+    manager = WorkspaceManager(tmp_path / "workspaces")
+    real_run = subprocess.run
+
+    def fail_clone(command, **kwargs):
+        if command[:2] == ["git", "clone"]:
+            Path(command[-1]).mkdir(parents=True)
+            return subprocess.CompletedProcess(command, 1, "", "clone failed")
+        return real_run(command, **kwargs)
+
+    monkeypatch.setattr("codepilot.workspace.subprocess.run", fail_clone)
+
+    with pytest.raises(WorkspaceError, match="clone failed"):
+        manager.prepare(source, "partial")
+
+    assert not (tmp_path / "workspaces" / "partial").exists()
 
 
 def test_workspace_rejects_tracked_secret_files(tmp_path) -> None:

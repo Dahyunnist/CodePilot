@@ -93,13 +93,16 @@ def run_tests(
         )
     except subprocess.TimeoutExpired as exc:
         if container_name:
-            subprocess.run(
-                ["docker", "rm", "-f", container_name],
-                capture_output=True,
-                timeout=10,
-                check=False,
-                shell=False,
-            )
+            try:
+                subprocess.run(
+                    ["docker", "rm", "-f", container_name],
+                    capture_output=True,
+                    timeout=10,
+                    check=False,
+                    shell=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                pass
         return ToolResult(
             tool_name="run_tests",
             ok=False,

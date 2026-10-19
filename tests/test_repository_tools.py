@@ -1,3 +1,4 @@
+import os
 import subprocess
 
 import pytest
@@ -64,8 +65,35 @@ def test_rejects_path_traversal_and_secrets(tmp_path) -> None:
         read_file(tmp_path, "../outside.py")
     with pytest.raises(PathPolicyError, match="sensitive"):
         read_file(tmp_path, ".env")
+    with pytest.raises(PathPolicyError, match="sensitive"):
+        read_file(tmp_path, ".ENV")
+    with pytest.raises(PathPolicyError, match="internal"):
+        read_file(tmp_path, ".GIT/config")
     with pytest.raises(FileNotFoundError):
         read_file(tmp_path, "missing.py")
+
+
+def test_symlink_cannot_escape_repository(tmp_path) -> None:
+    outside_dir = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside_dir.mkdir()
+    (outside_dir / "secret.txt").write_text("outside secret", encoding="utf-8")
+    link = tmp_path / "escape"
+    try:
+        link.symlink_to(outside_dir, target_is_directory=True)
+    except OSError as exc:
+        if os.name != "nt":
+            pytest.skip(f"symlink creation unavailable: {exc}")
+        completed = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(outside_dir)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            pytest.skip(f"junction creation unavailable: {completed.stderr}")
+
+    with pytest.raises(PathPolicyError, match="escapes"):
+        read_file(tmp_path, "escape/secret.txt")
 
 
 def test_exact_patch_and_git_diff(tmp_path) -> None:

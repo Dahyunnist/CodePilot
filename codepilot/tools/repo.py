@@ -10,6 +10,8 @@ from pathlib import Path
 IGNORED_PARTS = {".git", "__pycache__", ".pytest_cache"}
 DENIED_NAMES = {".env"}
 DENIED_SUFFIXES = {".key", ".pem"}
+_IGNORED_PARTS_CASEFOLD = {part.casefold() for part in IGNORED_PARTS}
+_DENIED_NAMES_CASEFOLD = {name.casefold() for name in DENIED_NAMES}
 
 
 class RepositoryToolError(RuntimeError):
@@ -31,14 +33,19 @@ def resolve_repo_path(
     relative = Path(raw_path)
     if relative.is_absolute():
         raise PathPolicyError("absolute paths are not allowed")
-    if any(part in IGNORED_PARTS for part in relative.parts):
+    if any(part.casefold() in _IGNORED_PARTS_CASEFOLD for part in relative.parts):
         raise PathPolicyError("internal repository paths are not allowed")
-    if relative.name in DENIED_NAMES or relative.suffix.lower() in DENIED_SUFFIXES:
+    if relative.name.casefold() in _DENIED_NAMES_CASEFOLD or relative.suffix.lower() in DENIED_SUFFIXES:
         raise PathPolicyError("sensitive files are not allowed")
 
     candidate = (root / relative).resolve(strict=False)
     if not candidate.is_relative_to(root):
         raise PathPolicyError("path escapes repository root")
+    resolved_relative = candidate.relative_to(root)
+    if any(part.casefold() in _IGNORED_PARTS_CASEFOLD for part in resolved_relative.parts):
+        raise PathPolicyError("internal repository paths are not allowed")
+    if resolved_relative.name.casefold() in _DENIED_NAMES_CASEFOLD or resolved_relative.suffix.lower() in DENIED_SUFFIXES:
+        raise PathPolicyError("sensitive files are not allowed")
     if must_exist and not candidate.exists():
         raise FileNotFoundError(raw_path)
     return candidate
@@ -53,9 +60,9 @@ def list_files(repo_root: Path, path: str = ".", max_files: int = 200) -> str:
 
     for candidate in candidates:
         relative = candidate.relative_to(root)
-        if any(part in IGNORED_PARTS for part in relative.parts):
+        if any(part.casefold() in _IGNORED_PARTS_CASEFOLD for part in relative.parts):
             continue
-        if candidate.name in DENIED_NAMES or candidate.suffix.lower() in DENIED_SUFFIXES:
+        if candidate.name.casefold() in _DENIED_NAMES_CASEFOLD or candidate.suffix.lower() in DENIED_SUFFIXES:
             continue
         if candidate.is_file():
             files.append(relative.as_posix())
@@ -153,9 +160,9 @@ def search_code(
         if not candidate.is_file() or candidate.stat().st_size > 1_000_000:
             continue
         relative = candidate.relative_to(root)
-        if any(part in IGNORED_PARTS for part in relative.parts):
+        if any(part.casefold() in _IGNORED_PARTS_CASEFOLD for part in relative.parts):
             continue
-        if candidate.name in DENIED_NAMES or candidate.suffix.lower() in DENIED_SUFFIXES:
+        if candidate.name.casefold() in _DENIED_NAMES_CASEFOLD or candidate.suffix.lower() in DENIED_SUFFIXES:
             continue
         if not candidate.resolve(strict=False).is_relative_to(root):
             continue

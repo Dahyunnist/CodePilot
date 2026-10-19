@@ -106,6 +106,44 @@ def test_docker_daemon_permission_error_is_not_a_test_failure(tmp_path, monkeypa
     assert result.error_type == "execution"
 
 
+def test_docker_timeout_survives_failed_container_cleanup(tmp_path, monkeypatch) -> None:
+    calls = 0
+
+    def timed_out(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise subprocess.TimeoutExpired(args[0], 0.1, output="partial")
+        raise subprocess.TimeoutExpired(args[0], 10)
+
+    monkeypatch.setattr("codepilot.tools.execute.subprocess.run", timed_out)
+
+    result = run_tests(
+        tmp_path,
+        ["python", "-m", "pytest", "-q"],
+        timeout_seconds=0.1,
+        execution_mode="docker",
+    )
+
+    assert result.ok is False
+    assert result.error_type == "timeout"
+    assert calls == 2
+
+
+def test_missing_docker_executable_is_execution_error(tmp_path, monkeypatch) -> None:
+    def unavailable(*args, **kwargs):
+        raise FileNotFoundError("docker executable missing")
+
+    monkeypatch.setattr("codepilot.tools.execute.subprocess.run", unavailable)
+
+    result = run_tests(
+        tmp_path, ["python", "-m", "pytest"], execution_mode="docker"
+    )
+
+    assert result.ok is False
+    assert result.error_type == "execution"
+
+
 def test_host_tests_do_not_receive_model_api_key(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("LLM_API_KEY", "must-not-reach-tests")
     (tmp_path / "test_env.py").write_text(

@@ -168,3 +168,17 @@ def test_model_errors_include_provider_status_without_api_key() -> None:
     assert "HTTP 422" in str(error.value)
     assert "test-key" not in str(error.value)
 
+
+def test_model_errors_redact_deepseek_style_key() -> None:
+    exposed = "sk-1234567890abcdef_secret"
+    client = ModelClient(
+        model_config(),
+        sdk_client=fake_sdk(FakeCompletions(error=RuntimeError(exposed))),
+    )
+
+    with pytest.raises(ModelClientError) as error:
+        client.complete([ChatMessage(role="user", content="hello")])
+
+    assert exposed not in str(error.value)
+    assert "[redacted]" in str(error.value)
+
