@@ -4,4 +4,6 @@
 __pycache__/
 .pytest_cache/
 *.py[cod]
+reports/*.sqlite
+reports/*.sqlite-*
 

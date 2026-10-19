@@ -115,11 +115,11 @@ python -m codepilot run `
   --max-elapsed 120
 ```
 
-退出码：`0` 表示成功，`1` 表示 Agent 或测试失败，`2` 表示输入或配置无效。默认只修改独立工作副本，源仓库保持不变。检查终端显示的工作副本路径、JSONL 轨迹、Markdown 报告和 Git 差异。
+退出码：`0` 表示成功，`1` 表示 Agent 或测试失败，`2` 表示输入或配置无效，`3` 表示等待回写审批。默认只修改独立工作副本，源仓库保持不变。检查终端显示的工作副本路径、JSONL 轨迹、Markdown 报告和 Git 差异。
 
 ### 修复 CodePilot 目录之外的项目
 
-`--repo` 可以指向任意本机 Git 仓库，包括 CodePilot 安装目录之外的公司项目。Agent 的搜索、读取、补丁和测试都针对该仓库的独立工作副本；默认不会写入源仓库。若希望测试通过后自动回写，添加 `--apply-to-repo`：
+`--repo` 可以指向任意本机 Git 仓库，包括 CodePilot 安装目录之外的公司项目。Agent 的搜索、读取、补丁和测试都针对该仓库的独立工作副本；默认不会写入源仓库。添加 `--apply-to-repo` 后，测试通过会暂停并等待人工审批：
 
 ```powershell
 python -m codepilot run `
@@ -129,7 +129,16 @@ python -m codepilot run `
   --apply-to-repo
 ```
 
-回写前会检查源仓库干净且 HEAD 与工作副本基线一致，并用 `git apply --check` 检查补丁；源仓库有未提交或未跟踪文件、运行期间被改动、补丁无法干净应用，都会拒绝回写。Agent 测试失败时也不会回写。默认隔离模式仍可用于保留源仓库现有未提交状态的评估，但它的工作副本仅从已提交版本创建。
+审批时会显示补丁差异、基线提交和 SHA-256。运行状态保存在 `reports/run-state.sqlite`，Agent 每轮还会保存消息和工具结果；进程中断后用 `resume --continue-run` 接续。审批通过或拒绝：
+
+```powershell
+python -m codepilot resume --run-id <运行ID> --approve
+python -m codepilot resume --run-id <运行ID> --reject
+```
+
+若进程在 Agent 工作时意外退出，运行 `python -m codepilot resume --run-id <运行ID> --continue-run --state-db reports/demo.sqlite` 接续。每轮消息与工具结果都保存在 SQLite；若中断发生在模型响应到达、检查点落盘之前，该轮模型请求可能重发。
+
+回写前会检查源仓库干净且 HEAD 与工作副本基线一致，并核对等待期间补丁 SHA-256 未变化，再用 `git apply --check` 检查补丁。源仓库有未提交或未跟踪文件、运行期间被改动、补丁变化或无法干净应用，都会拒绝回写。Agent 测试失败时也不会进入审批。
 
 主机模式只用于可信仓库的回退，需要显式审批：
 

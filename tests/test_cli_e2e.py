@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import re
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -109,6 +110,7 @@ def test_cli_repairs_demo_repository(tmp_path, capsys) -> None:
     repo = make_demo_repo(tmp_path)
 
     model = RepairScriptModel()
+    state_db = tmp_path / "reports" / "run-state.sqlite"
     exit_code = main(
         [
             "run",
@@ -165,6 +167,7 @@ def test_cli_can_apply_successful_patch_to_external_repository(tmp_path, capsys)
     repo = make_demo_repo(tmp_path)
 
     model = RepairScriptModel()
+    state_db = tmp_path / "reports" / "run-state.sqlite"
     exit_code = main(
         [
             "run",
@@ -184,12 +187,25 @@ def test_cli_can_apply_successful_patch_to_external_repository(tmp_path, capsys)
             "--reports-root",
             str(tmp_path / "reports"),
             "--apply-to-repo",
+            "--state-db",
+            str(state_db),
         ],
         model_client=model,
     )
 
+    assert exit_code == 3
+    pending = capsys.readouterr().out
+    match = re.search(r"运行 ID：([A-Za-z0-9_-]+)", pending)
+    assert match
+    run_id = match.group(1)
+    assert "回写审批待处理" in pending
+    assert "if not line and text:" in (repo / "config_parser.py").read_text(encoding="utf-8")
+
+    exit_code = main(
+        ["resume", "--run-id", run_id, "--approve", "--state-db", str(state_db), "--reports-root", str(tmp_path / "reports")]
+    )
     assert exit_code == 0
-    assert "已应用到 --repo 指定的源仓库" in capsys.readouterr().out
+    assert "回写状态：applied" in capsys.readouterr().out
     assert "if not line:\n" in (repo / "config_parser.py").read_text(encoding="utf-8")
     source_tests = subprocess.run(
         ["python", "-m", "pytest", "-p", "no:cacheprovider", "tests", "-q"],
@@ -208,6 +224,68 @@ def test_cli_can_apply_successful_patch_to_external_repository(tmp_path, capsys)
         ["git", "status", "--short"], cwd=repo, capture_output=True, text=True
     )
     assert changed.stdout.splitlines() == [" M config_parser.py"]
+
+    duplicate = main(
+        ["resume", "--run-id", run_id, "--approve", "--state-db", str(state_db)]
+    )
+    assert duplicate == 2
+    assert "拒绝重复恢复" in capsys.readouterr().err
+
+
+def test_cli_rejects_writeback_after_restart(tmp_path, capsys) -> None:
+    repo = make_demo_repo(tmp_path)
+    state_db = tmp_path / "reports" / "run-state.sqlite"
+    exit_code = main(
+        [
+            "run", "--repo", str(repo), "--task", "修复 parse_config 空输入问题。",
+            "--test-command", "python -m pytest tests -q", "--execution", "host",
+            "--approve-host-tests", "--workspace-root", str(tmp_path / "workspaces"),
+            "--reports-root", str(tmp_path / "reports"), "--apply-to-repo",
+            "--state-db", str(state_db),
+        ],
+        model_client=RepairScriptModel(),
+    )
+    assert exit_code == 3
+    match = re.search(r"运行 ID：([A-Za-z0-9_-]+)", capsys.readouterr().out)
+    assert match
+
+    rejected = main(
+        ["resume", "--run-id", match.group(1), "--reject", "--state-db", str(state_db)]
+    )
+    assert rejected == 1
+    assert "回写状态：rejected" in capsys.readouterr().out
+    assert "if not line and text:\n" in (repo / "config_parser.py").read_text(encoding="utf-8")
+
+
+def test_cli_invalidates_approval_if_patch_changes_while_paused(tmp_path, capsys) -> None:
+    repo = make_demo_repo(tmp_path)
+    state_db = tmp_path / "reports" / "run-state.sqlite"
+    workspace_root = tmp_path / "workspaces"
+    exit_code = main(
+        [
+            "run", "--repo", str(repo), "--task", "修复 parse_config 空输入问题。",
+            "--test-command", "python -m pytest tests -q", "--execution", "host",
+            "--approve-host-tests", "--workspace-root", str(workspace_root),
+            "--reports-root", str(tmp_path / "reports"), "--apply-to-repo",
+            "--state-db", str(state_db),
+        ],
+        model_client=RepairScriptModel(),
+    )
+    assert exit_code == 3
+    match = re.search(r"运行 ID：([A-Za-z0-9_-]+)", capsys.readouterr().out)
+    assert match
+    (workspace_root / match.group(1) / "config_parser.py").write_text(
+        "changed after approval pause\n", encoding="utf-8"
+    )
+
+    resumed = main(
+        ["resume", "--run-id", match.group(1), "--approve", "--state-db", str(state_db)]
+    )
+    assert resumed == 1
+    output = capsys.readouterr().out
+    assert "回写状态：stale_patch" in output
+    assert "旧测试和审批均作废" in output
+    assert "if not line and text:\n" in (repo / "config_parser.py").read_text(encoding="utf-8")
 
 
 def test_cli_refuses_to_apply_when_external_repository_is_dirty(tmp_path, capsys) -> None:

@@ -181,6 +181,48 @@ def test_agent_cannot_claim_success_while_tests_fail(tmp_path) -> None:
     assert result.error == "model finished while tests were failing"
 
 
+def test_agent_resumes_from_persisted_tool_result_without_repeating_tool(tmp_path) -> None:
+    class SimulatedProcessExit(Exception):
+        pass
+
+    stored: dict[str, object] = {}
+    current_task = task(tmp_path)
+
+    def crash_after_search(snapshot: dict[str, object]) -> None:
+        stored.update(snapshot)
+        calls = snapshot.get("tool_results", [])
+        if calls and calls[-1]["tool_name"] == "search_code":
+            raise SimulatedProcessExit
+
+    first = Agent(
+        ScriptedModel(
+            [ModelReply(tool_calls=[ToolCall(id="search-1", name="search_code", arguments={})])]
+        ),
+        StubTools(),
+    )
+    try:
+        first.run(current_task, progress_callback=crash_after_search)
+    except SimulatedProcessExit:
+        pass
+    else:
+        raise AssertionError("expected simulated process exit")
+
+    resumed_model = ScriptedModel(
+        [
+            ModelReply(tool_calls=[ToolCall(id="tests-1", name="run_tests", arguments={})]),
+            ModelReply(text="已修复"),
+        ]
+    )
+    result = Agent(resumed_model, StubTools()).run(
+        current_task, resume_data=stored
+    )
+
+    assert result.status == "success"
+    assert result.steps == 3
+    assert len(result.tool_results) == 2
+    assert resumed_model.requests[0][-1].tool_call_id == "search-1"
+
+
 def test_agent_requires_retest_after_successful_patch(tmp_path) -> None:
     model = ScriptedModel(
         [

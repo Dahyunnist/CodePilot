@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 import uuid
 import json
-from typing import Protocol, Sequence
+from typing import Any, Callable, Protocol, Sequence
 
 from codepilot.model import ModelClientError
 from codepilot.prompts import SYSTEM_PROMPT, task_prompt
@@ -75,23 +75,47 @@ class Agent:
         self.tracer = tracer
         self.run_id = run_id or uuid.uuid4().hex
 
-    def run(self, task: Task) -> RunResult:
+    def run(
+        self,
+        task: Task,
+        *,
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
+        resume_data: dict[str, Any] | None = None,
+    ) -> RunResult:
         """Run until the model finishes, errors, or exhausts max_steps."""
         started = time.perf_counter()
-        state = AgentState(
-            task=task,
-            messages=[
-                ChatMessage(role="developer", content=SYSTEM_PROMPT),
-                ChatMessage(role="user", content=task_prompt(task)),
-            ],
-            workspace_path=task.repo_path,
-        )
-        tool_results: list[ToolResult] = []
-        last_test: ToolResult | None = None
+        elapsed_before_ms = int((resume_data or {}).get("elapsed_ms", 0))
+        self._progress_callback = progress_callback
+        self._progress_started = started
+        self._progress_elapsed_before_ms = elapsed_before_ms
+        if resume_data and resume_data.get("done"):
+            return RunResult.model_validate(resume_data["result"])
+        if resume_data and "agent_state" in resume_data:
+            state = AgentState.model_validate(resume_data["agent_state"])
+            if state.task.task_id != task.task_id:
+                raise ValueError("持久化任务与恢复任务 ID 不匹配")
+            tool_results = [
+                ToolResult.model_validate(item)
+                for item in resume_data.get("tool_results", [])
+            ]
+            raw_last_test = resume_data.get("last_test")
+            last_test = ToolResult.model_validate(raw_last_test) if raw_last_test else None
+        else:
+            state = AgentState(
+                task=task,
+                messages=[
+                    ChatMessage(role="developer", content=SYSTEM_PROMPT),
+                    ChatMessage(role="user", content=task_prompt(task)),
+                ],
+                workspace_path=task.repo_path,
+            )
+            tool_results = []
+            last_test = None
+        self._save_progress(state, tool_results, last_test)
         self._trace("run_started", 0, task_id=task.task_id)
 
         while state.step_count < task.max_steps:
-            if self._elapsed_seconds(started) >= task.max_elapsed_seconds:
+            if self._elapsed_seconds(started) + elapsed_before_ms / 1000 >= task.max_elapsed_seconds:
                 state.status = "budget_exceeded"
                 return self._finish(
                     state,
@@ -121,6 +145,7 @@ class Agent:
                     failure_type="budget",
                 )
             state.step_count += 1
+            self._save_progress(state, tool_results, last_test)
             available_tools = self.tools.read_tools()
             try:
                 reply = self.model.complete(state.messages, available_tools)
@@ -154,7 +179,7 @@ class Agent:
                     error="token budget exceeded",
                     failure_type="budget",
                 )
-            if self._elapsed_seconds(started) >= task.max_elapsed_seconds:
+            if self._elapsed_seconds(started) + elapsed_before_ms / 1000 >= task.max_elapsed_seconds:
                 state.status = "budget_exceeded"
                 return self._finish(
                     state,
@@ -166,6 +191,7 @@ class Agent:
                 )
 
             state.messages.append(reply.to_assistant_message())
+            self._save_progress(state, tool_results, last_test)
             if not reply.tool_calls:
                 if last_test is None:
                     state.status = "failed"
@@ -203,6 +229,7 @@ class Agent:
                     last_test = self._record_tool_result(
                         state, tool_results, last_test, call, result, available_tools
                     )
+                    self._save_progress(state, tool_results, last_test)
                     if result.error_type == "timeout":
                         state.status = "timeout"
                         return self._finish(
@@ -249,6 +276,7 @@ class Agent:
                     last_test = self._record_tool_result(
                         state, tool_results, last_test, call, result, available_tools
                     )
+                    self._save_progress(state, tool_results, last_test)
                     if result.error_type == "timeout":
                         state.status = "timeout"
                         return self._finish(
@@ -323,12 +351,14 @@ class Agent:
             tool_results=tool_results,
             steps=state.step_count,
             tokens=state.tokens,
-            elapsed_ms=max(0, round((time.perf_counter() - started) * 1000)),
+            elapsed_ms=getattr(self, "_progress_elapsed_before_ms", 0)
+            + max(0, round((time.perf_counter() - started) * 1000)),
             trace_file=getattr(self.tracer, "path", None),
             workspace_path=state.workspace_path,
             failure_type=failure_type,
             error=error,
         )
+        self._save_progress(state, tool_results, last_test, result=result)
         self._trace(
             "run_finished",
             state.step_count,
@@ -346,6 +376,30 @@ class Agent:
     @staticmethod
     def _elapsed_seconds(started: float) -> float:
         return time.perf_counter() - started
+
+    def _save_progress(
+        self,
+        state: AgentState,
+        tool_results: list[ToolResult],
+        last_test: ToolResult | None,
+        *,
+        result: RunResult | None = None,
+    ) -> None:
+        callback = getattr(self, "_progress_callback", None)
+        if callback is None:
+            return
+        started = getattr(self, "_progress_started", time.perf_counter())
+        elapsed_before_ms = getattr(self, "_progress_elapsed_before_ms", 0)
+        snapshot: dict[str, Any] = {
+            "agent_state": state.model_dump(mode="json"),
+            "tool_results": [item.model_dump(mode="json") for item in tool_results],
+            "last_test": last_test.model_dump(mode="json") if last_test else None,
+            "elapsed_ms": elapsed_before_ms + max(0, round((time.perf_counter() - started) * 1000)),
+            "done": result is not None,
+        }
+        if result is not None:
+            snapshot["result"] = result.model_dump(mode="json")
+        callback(snapshot)
 
 
 def _context_chars(messages: list[ChatMessage]) -> int:
