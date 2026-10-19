@@ -158,3 +158,64 @@ def test_cli_repairs_demo_repository(tmp_path, capsys) -> None:
     )
     assert len(list((tmp_path / "reports" / "traces").glob("*.jsonl"))) == 1
     assert len(list((tmp_path / "reports" / "runs").glob("*.md"))) == 1
+
+
+def test_cli_can_apply_successful_patch_to_external_repository(tmp_path, capsys) -> None:
+    repo = make_demo_repo(tmp_path)
+
+    model = RepairScriptModel()
+    exit_code = main(
+        [
+            "run",
+            "--repo",
+            str(repo),
+            "--task",
+            "修复 parse_config 的空输入问题。",
+            "--test-command",
+            "python -m pytest tests -q",
+            "--max-steps",
+            "8",
+            "--execution",
+            "host",
+            "--approve-host-tests",
+            "--workspace-root",
+            str(tmp_path / "workspaces"),
+            "--reports-root",
+            str(tmp_path / "reports"),
+            "--apply-to-repo",
+        ],
+        model_client=model,
+    )
+
+    assert exit_code == 0
+    assert "已应用到 --repo 指定的源仓库" in capsys.readouterr().out
+    assert "if not line:\n" in (repo / "config_parser.py").read_text(encoding="utf-8")
+
+
+def test_cli_refuses_to_apply_when_external_repository_is_dirty(tmp_path, capsys) -> None:
+    repo = make_demo_repo(tmp_path)
+    (repo / "local.py").write_text("uncommitted = True\n", encoding="utf-8")
+    model = RepairScriptModel()
+
+    exit_code = main(
+        [
+            "run",
+            "--repo",
+            str(repo),
+            "--task",
+            "修复 parse_config 的空输入问题。",
+            "--test-command",
+            "python -m pytest tests -q",
+            "--apply-to-repo",
+            "--workspace-root",
+            str(tmp_path / "workspaces"),
+            "--reports-root",
+            str(tmp_path / "reports"),
+        ],
+        model_client=model,
+    )
+
+    assert exit_code == 2
+    assert not model.requests
+    assert (repo / "local.py").read_text(encoding="utf-8") == "uncommitted = True\n"
+    assert "must be clean" in capsys.readouterr().err

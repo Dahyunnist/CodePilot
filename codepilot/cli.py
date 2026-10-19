@@ -52,6 +52,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--approve-host-tests", action="store_true", help="明确批准在主机运行测试")
     run_parser.add_argument("--workspace-root", type=Path, default=Path(".tmp/workspaces"), help="隔离工作区目录")
     run_parser.add_argument("--reports-root", type=Path, default=Path("reports"), help="报告与轨迹目录")
+    run_parser.add_argument(
+        "--apply-to-repo",
+        action="store_true",
+        help="测试通过后，将补丁安全应用回 --repo 指定的仓库",
+    )
     return parser
 
 
@@ -69,7 +74,10 @@ def main(
 
     run_id = uuid.uuid4().hex
     try:
-        workspace = WorkspaceManager(args.workspace_root).prepare(repo, run_id)
+        workspace_manager = WorkspaceManager(args.workspace_root)
+        workspace = workspace_manager.prepare(
+            repo, run_id, require_clean_source=args.apply_to_repo
+        )
         task = Task(
             repo_path=workspace.path,
             instruction=args.task,
@@ -113,6 +121,19 @@ def main(
         tracer=trace,
         run_id=run_id,
     ).run(task)
+    if args.apply_to_repo and result.status == "success":
+        try:
+            changed = workspace_manager.apply_changes(workspace)
+        except WorkspaceError as exc:
+            result.status = "failed"
+            result.failure_type = "policy"
+            result.error = f"补丁未能回写到源仓库：{exc}"
+        else:
+            result.final_text += (
+                "\n修复补丁已应用到 --repo 指定的源仓库。"
+                if changed
+                else "\n源仓库没有需要回写的补丁。"
+            )
     report_path = args.reports_root / "runs" / f"{run_id}.md"
     result.report_file = write_markdown_report(result, report_path)
     print(format_run_report(result))

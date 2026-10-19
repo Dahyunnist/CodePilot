@@ -103,7 +103,21 @@ python -m codepilot run `
   --max-elapsed 120
 ```
 
-退出码：`0` 表示成功，`1` 表示 Agent 或测试失败，`2` 表示输入或配置无效。源仓库不会被直接修改。检查终端显示的工作副本路径、JSONL 轨迹、Markdown 报告和 Git 差异。
+退出码：`0` 表示成功，`1` 表示 Agent 或测试失败，`2` 表示输入或配置无效。默认只修改独立工作副本，源仓库保持不变。检查终端显示的工作副本路径、JSONL 轨迹、Markdown 报告和 Git 差异。
+
+### 修复 CodePilot 目录之外的项目
+
+`--repo` 可以指向任意本机 Git 仓库，包括 CodePilot 安装目录之外的公司项目。Agent 的搜索、读取、补丁和测试都针对该仓库的独立工作副本；默认不会写入源仓库。若希望测试通过后自动回写，添加 `--apply-to-repo`：
+
+```powershell
+python -m codepilot run `
+  --repo E:\work\company-service `
+  --task "修复订单折扣金额计算错误" `
+  --test-command "python -m pytest tests -q" `
+  --apply-to-repo
+```
+
+回写前会检查源仓库干净且 HEAD 与工作副本基线一致，并用 `git apply --check` 检查补丁；源仓库有未提交或未跟踪文件、运行期间被改动、补丁无法干净应用，都会拒绝回写。Agent 测试失败时也不会回写。默认隔离模式仍可用于保留源仓库现有未提交状态的评估，但它的工作副本仅从已提交版本创建。
 
 主机模式只用于可信仓库的回退，需要显式审批：
 
@@ -123,7 +137,7 @@ python -m evals.live_runner `
 
 ## 工具边界
 
-- 文件路径必须留在目标仓库内。
+- 文件路径必须留在 `--repo` 指定的目标仓库内；目标仓库本身可以位于 CodePilot 安装目录之外。
 - `.git`、`.env`、`*.key` 和 `*.pem` 文件不可读取或修改。
 - `apply_patch` 只替换唯一匹配的 UTF-8 文本块。
 - 命令工具只允许运行 pytest，不调用 shell。
