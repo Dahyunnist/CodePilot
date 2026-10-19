@@ -8,7 +8,9 @@ import hashlib
 import json
 import shutil
 import subprocess
+import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
 
@@ -51,6 +53,7 @@ def run_live_evaluation(
         raise ValueError("没有找到匹配的评测案例")
 
     for case in cases:
+        case_started = time.perf_counter()
         assert case.case_dir is not None
         base = run_root / "bases" / case.case_id
         base.parent.mkdir(parents=True, exist_ok=True)
@@ -90,7 +93,13 @@ def run_live_evaluation(
                 "hidden_ok": False,
                 "steps": 0,
                 "tokens": 0,
+                "input_tokens": 0,
+                "cached_input_tokens": 0,
+                "output_tokens": 0,
+                "cost_usd_estimate": "",
+                "pricing_period": "unknown",
                 "elapsed_ms": baseline.duration_ms,
+                "evaluation_elapsed_ms": round((time.perf_counter() - case_started) * 1000),
                 "patch_sha256": "",
                 "trace_file": "",
             }
@@ -126,6 +135,7 @@ def run_live_evaluation(
         )
 
         patch_hash = hashlib.sha256(result.diff.encode()).hexdigest() if result.diff else ""
+        usage = _trace_usage(trace.path, config.model)
         visible = None
         hidden = None
         if result.diff:
@@ -178,7 +188,9 @@ def run_live_evaluation(
             "hidden_ok": bool(hidden and hidden.ok),
             "steps": result.steps,
             "tokens": result.tokens,
+            **usage,
             "elapsed_ms": result.elapsed_ms,
+            "evaluation_elapsed_ms": round((time.perf_counter() - case_started) * 1000),
             "patch_sha256": patch_hash,
             "trace_file": str(trace.path),
         }
@@ -221,8 +233,85 @@ def run_live_evaluation(
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
+    _write_summary(output_root / "summary.md", rows, config.model)
     print(f"结果文件：{csv_path.resolve()}")
     return rows
+
+
+def _trace_usage(trace_path: Path, model: str) -> dict[str, object]:
+    input_tokens = cached_tokens = output_tokens = 0
+    if trace_path.exists():
+        for line in trace_path.read_text(encoding="utf-8").splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("event") == "model_finished":
+                input_tokens += int(event.get("input_tokens", 0))
+                cached_tokens += int(event.get("cached_input_tokens", 0))
+                output_tokens += int(event.get("output_tokens", 0))
+    cached_tokens = min(cached_tokens, input_tokens)
+    if "deepseek" not in model.casefold():
+        return {
+            "input_tokens": input_tokens,
+            "cached_input_tokens": cached_tokens,
+            "output_tokens": output_tokens,
+            "cost_usd_estimate": "",
+            "pricing_period": "unknown",
+        }
+    period = _deepseek_pricing_period()
+    rates = {
+        "off-peak": (0.003, 0.15, 0.60),
+        "peak": (0.006, 0.30, 1.20),
+    }
+    cached_rate, input_rate, output_rate = rates[period]
+    cost = (
+        cached_tokens * cached_rate
+        + (input_tokens - cached_tokens) * input_rate
+        + output_tokens * output_rate
+    ) / 1_000_000
+    return {
+        "input_tokens": input_tokens,
+        "cached_input_tokens": cached_tokens,
+        "output_tokens": output_tokens,
+        "cost_usd_estimate": f"{cost:.6f}",
+        "pricing_period": period,
+    }
+
+
+def _deepseek_pricing_period() -> str:
+    now = datetime.now(timezone.utc)
+    peak = now.weekday() < 5 and (
+        1 <= now.hour < 4 or 6 <= now.hour < 10
+    )
+    return "peak" if peak else "off-peak"
+
+
+def _write_summary(path: Path, rows: list[dict[str, object]], model: str) -> None:
+    accepted = sum(row.get("accepted") is True for row in rows)
+    total_tokens = sum(int(row.get("tokens", 0)) for row in rows)
+    total_cost = sum(float(row.get("cost_usd_estimate") or 0) for row in rows)
+    total_ms = sum(int(row.get("evaluation_elapsed_ms", 0)) for row in rows)
+    lines = [
+        "# 真实模型评测报告", "",
+        f"- 模型：`{model}`", f"- 验收：{accepted}/{len(rows)}",
+        f"- 成功：{accepted}，失败：{len(rows) - accepted}",
+        f"- 总 Token：{total_tokens:,}", f"- 估算费用：${total_cost:.6f} USD",
+        f"- 案例累计耗时：{total_ms / 1000:.1f} 秒",
+        "- 费用为按 API usage Token 与 DeepSeek 官方费率估算；实际账单以平台为准。",
+        "- 费率时段依据运行时 UTC 时段判断；中国法定节假日可能按非高峰计价。",
+        "", "| 案例 | 验收 | 输入 | 缓存输入 | 输出 | 费用 USD | Agent 秒 | 全流程秒 |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in rows:
+        lines.append(
+            f"| {row.get('case_id')} | {'通过' if row.get('accepted') else '失败'} | "
+            f"{row.get('input_tokens', 0)} | {row.get('cached_input_tokens', 0)} | "
+            f"{row.get('output_tokens', 0)} | {row.get('cost_usd_estimate', '')} | "
+            f"{int(row.get('elapsed_ms', 0)) / 1000:.1f} | "
+            f"{int(row.get('evaluation_elapsed_ms', 0)) / 1000:.1f} |"
+        )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _git(repo: Path, arguments: list[str]) -> None:

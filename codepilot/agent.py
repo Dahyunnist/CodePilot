@@ -140,6 +140,7 @@ class Agent:
                 "model_finished",
                 state.step_count,
                 input_tokens=reply.input_tokens,
+                cached_input_tokens=reply.cached_input_tokens,
                 output_tokens=reply.output_tokens,
                 tool_calls=len(reply.tool_calls),
             )

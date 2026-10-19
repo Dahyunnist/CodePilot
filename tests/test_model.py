@@ -82,6 +82,38 @@ def test_returns_text_and_forwards_request_settings() -> None:
     }
 
 
+def test_returns_cached_input_token_usage() -> None:
+    response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="ok", tool_calls=[]))],
+        usage=SimpleNamespace(
+            prompt_tokens=100,
+            completion_tokens=8,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=60),
+        ),
+    )
+    client = ModelClient(model_config(), sdk_client=fake_sdk(FakeCompletions(response)))
+
+    reply = client.complete([ChatMessage(role="user", content="hello")])
+
+    assert reply.input_tokens == 100
+    assert reply.cached_input_tokens == 60
+    assert reply.output_tokens == 8
+
+
+def test_reads_legacy_provider_cache_usage_field() -> None:
+    response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="ok", tool_calls=[]))],
+        usage=SimpleNamespace(
+            prompt_tokens=20,
+            completion_tokens=2,
+            prompt_cache_hit_tokens=7,
+        ),
+    )
+    client = ModelClient(model_config(), sdk_client=fake_sdk(FakeCompletions(response)))
+
+    assert client.complete([ChatMessage(role="user", content="hello")]).cached_input_tokens == 7
+
+
 def test_serializes_developer_message_as_system_for_chat_completions() -> None:
     response = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="done", tool_calls=[]))]

@@ -6,9 +6,9 @@ from evals.runner import MODEL_NAME, ScriptedRepairModel, load_cases
 def test_eval_set_has_distinct_cases_and_a_cross_module_repair() -> None:
     cases = load_cases(Path("evals/cases"))
 
-    assert len(cases) == 9
-    assert len({case.case_id for case in cases}) == 9
-    assert len({case.category for case in cases}) == 9
+    assert len(cases) == 12
+    assert len({case.case_id for case in cases}) == 12
+    assert len({case.category for case in cases}) == 12
     multi_file = next(case for case in cases if case.case_id == "multi-file-discount")
     assert len(multi_file.patches) == 2
     assert {patch.path for patch in multi_file.patches} == {
@@ -75,6 +75,9 @@ def test_scripted_model_covers_cross_module_multi_bug_and_performance_cases() ->
             "audit/store.py",
             "audit/writer.py",
         ],
+        "atomic-csv-import": ["storage.py", "importer.py"],
+        "cursor-pagination": ["catalog/store.py", "catalog/page.py"],
+        "retry-transient-only": ["policy.py", "client.py"],
     }.items():
         model = ScriptedRepairModel(cases[case_id])
         assert [call.arguments["path"] for call in model.replies[1].tool_calls] == expected_paths

@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 from collections.abc import Sequence
@@ -190,6 +191,23 @@ def test_cli_can_apply_successful_patch_to_external_repository(tmp_path, capsys)
     assert exit_code == 0
     assert "已应用到 --repo 指定的源仓库" in capsys.readouterr().out
     assert "if not line:\n" in (repo / "config_parser.py").read_text(encoding="utf-8")
+    source_tests = subprocess.run(
+        ["python", "-m", "pytest", "-p", "no:cacheprovider", "tests", "-q"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+    assert source_tests.returncode == 0, source_tests.stdout + source_tests.stderr
+    source_diff = subprocess.run(
+        ["git", "diff", "--check"], cwd=repo, capture_output=True, text=True
+    )
+    assert source_diff.returncode == 0, source_diff.stderr
+    changed = subprocess.run(
+        ["git", "status", "--short"], cwd=repo, capture_output=True, text=True
+    )
+    assert changed.stdout.splitlines() == [" M config_parser.py"]
 
 
 def test_cli_refuses_to_apply_when_external_repository_is_dirty(tmp_path, capsys) -> None:

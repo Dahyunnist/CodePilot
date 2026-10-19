@@ -1,0 +1,25 @@
+{
+  "case_id": "retry-transient-only",
+  "category": "multi-file-resilience-and-backoff-policy",
+  "instruction": "??????????? TimeoutError ? ConnectionError ????????? 3 ??????? 0.1?0.2 ??????????? sleep ?????ValueError ???????????????????????????????????",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "tests",
+    "-q"
+  ],
+  "search_query": "fetch_with_retry",
+  "patches": [
+    {
+      "path": "policy.py",
+      "old_text": "def retry_call(operation, sleep):\n    try:\n        return operation()\n    except Exception:\n        sleep(0)\n        return operation()",
+      "new_text": "import time\n\n\ndef retry_call(operation, sleep=time.sleep):\n    for attempt in range(3):\n        try:\n            return operation()\n        except (TimeoutError, ConnectionError):\n            if attempt == 2:\n                raise\n            sleep(0.1 * (2 ** attempt))"
+    },
+    {
+      "path": "client.py",
+      "old_text": "from policy import retry_call\n\ndef fetch_with_retry(operation, sleep):\n    return retry_call(operation, sleep)",
+      "new_text": "from policy import retry_call\n\ndef fetch_with_retry(operation, sleep):\n    return retry_call(operation, sleep)"
+    }
+  ]
+}

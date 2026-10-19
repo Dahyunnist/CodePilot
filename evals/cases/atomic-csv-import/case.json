@@ -1,0 +1,25 @@
+{
+  "case_id": "atomic-csv-import",
+  "category": "multi-file-import-atomicity-and-throughput",
+  "instruction": "???? CSV ???????????????????? record_id ? value??? ID ????????????????????????? bulk_insert?????????? importer ?????????????????????",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "tests",
+    "-q"
+  ],
+  "search_query": "import_records",
+  "patches": [
+    {
+      "path": "storage.py",
+      "old_text": "    def insert(self, row):\n        self.write_calls += 1\n        self.rows.append(row)\n        self.record_ids.add(row[\"record_id\"])",
+      "new_text": "    def bulk_insert(self, rows):\n        if not rows:\n            return\n        self.write_calls += 1\n        self.rows.extend(rows)\n        self.record_ids.update(row[\"record_id\"] for row in rows)"
+    },
+    {
+      "path": "importer.py",
+      "old_text": "def import_records(store: Store, rows: list[dict]) -> int:\n    inserted = 0\n    for row in rows:\n        if row[\"record_id\"] not in store.record_ids:\n            store.insert(row)\n            inserted += 1\n    return inserted",
+      "new_text": "def import_records(store: Store, rows: list[dict]) -> int:\n    seen = set(store.record_ids)\n    pending = []\n    for row in rows:\n        record_id = row.get(\"record_id\")\n        if not record_id or \"value\" not in row:\n            raise ValueError(\"each row requires record_id and value\")\n        if record_id not in seen:\n            seen.add(record_id)\n            pending.append(row)\n    store.bulk_insert(pending)\n    return len(pending)"
+    }
+  ]
+}

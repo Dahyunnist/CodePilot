@@ -74,10 +74,15 @@ class ModelClient:
             raise ModelResponseError("model returned neither text nor tool calls")
 
         usage = getattr(completion, "usage", None)
+        prompt_details = getattr(usage, "prompt_tokens_details", None)
+        cached_input_tokens = getattr(prompt_details, "cached_tokens", None)
+        if cached_input_tokens is None:
+            cached_input_tokens = getattr(usage, "prompt_cache_hit_tokens", 0)
         return ModelReply(
             text=message.content,
             tool_calls=tool_calls,
             input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
+            cached_input_tokens=cached_input_tokens or 0,
             output_tokens=getattr(usage, "completion_tokens", 0) or 0,
         )
 

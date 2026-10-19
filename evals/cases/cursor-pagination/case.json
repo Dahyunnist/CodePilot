@@ -1,0 +1,25 @@
+{
+  "case_id": "cursor-pagination",
+  "category": "multi-file-pagination-correctness-and-query-efficiency",
+  "instruction": "?????????????? (created_at, item_id) ???????cursor ??????????????????? cursor ????? limit ?????????????????????limit ?? 1 ?? ValueError??????????",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "tests",
+    "-q"
+  ],
+  "search_query": "get_page",
+  "patches": [
+    {
+      "path": "catalog/store.py",
+      "old_text": "    def all_items(self):\n        self.read_calls += 1\n        return list(self.items)",
+      "new_text": "    def all_items(self):\n        self.read_calls += 1\n        return list(self.items)"
+    },
+    {
+      "path": "catalog/page.py",
+      "old_text": "def get_page(store, limit: int, cursor=None):\n    items = sorted(store.all_items(), key=lambda item: item[\"created_at\"])\n    start = 0\n    if cursor is not None:\n        for index, item in enumerate(items):\n            if item[\"created_at\"] >= cursor:\n                start = index + 1\n    return items[start : start + limit]",
+      "new_text": "def get_page(store, limit: int, cursor=None):\n    if limit < 1:\n        raise ValueError(\"limit must be positive\")\n    items = sorted(\n        store.all_items(),\n        key=lambda item: (item[\"created_at\"], item[\"item_id\"]),\n    )\n    if cursor is not None:\n        cursor_key = tuple(cursor)\n        items = [\n            item for item in items\n            if (item[\"created_at\"], item[\"item_id\"]) > cursor_key\n        ]\n    return items[:limit]"
+    }
+  ]
+}

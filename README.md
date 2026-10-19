@@ -54,7 +54,7 @@ LLM_MAX_COMPLETION_TOKENS=1024
 
 ## 运行固定评测
 
-以下命令从九个干净 fixture 运行搜索、读取、基线测试、补丁、可见测试、隐藏测试，并生成轨迹和 CSV。案例覆盖多文件契约修复、请求/定价/发票链路的多个金额缺陷，以及以查询/写入调用次数为指标的通知和审计批处理性能目标：
+以下命令从十二个干净 fixture 运行搜索、读取、基线测试、补丁、可见测试、隐藏测试，并生成轨迹和 CSV。案例覆盖跨文件契约与金额修复、多缺陷发票、批量导入原子性、游标分页、瞬时错误重试，以及以查询/写入调用次数为指标的性能目标：
 
 ```powershell
 python -m evals.runner --docker-image codepilot-runner:0.1
@@ -62,7 +62,7 @@ python -m evals.runner --docker-image codepilot-runner:0.1
 
 该评测使用 `scripted-oracle`，温度为 `0.0`。它验证评测和工具流程，不衡量真实模型的推理能力。查看 `reports/eval_results.csv` 和 `reports/failure-analysis.md`。
 
-## 用真实模型复核三项修复
+## 用真实模型评测复杂修复
 
 先确认当前目录是 `E:\job\codepilot-lite`、Conda 环境为 `NN`，并且 Docker Desktop 已启动且镜像已构建。运行：
 
@@ -73,7 +73,19 @@ python -m evals.live_runner `
   --work-root .tmp/live-model-run
 ```
 
-这会使用 `.env` 中的模型配置，在三个干净 fixture 上运行真实模型。模型 API 请求由本机发出；基线、修复后可见测试和隐藏测试由 Docker 容器执行。容器不联网。每项会生成 JSON 结果、JSONL 轨迹和测试日志，汇总写入 `results.csv`，包含模型名、token 数、状态、测试结果和补丁 SHA-256。报告不会写入 API key。真实模型调用会产生 API 用量费用。
+默认命令会在三个基础 fixture 上运行真实模型。要运行所有复杂多文件、多缺陷和性能案例，可指定：
+
+```powershell
+python -m evals.live_runner `
+  --execution docker `
+  --case-ids multi-file-discount multi-bug-invoice notification-batch-performance bulk-audit-write-performance atomic-csv-import cursor-pagination retry-transient-only `
+  --max-total-tokens 35000 `
+  --max-elapsed 240 `
+  --output-root reports/live-model-complex `
+  --work-root .tmp/live-model-complex
+```
+
+模型 API 请求由本机发出；基线、修复后可见测试和隐藏测试由 Docker 容器执行。容器不联网。每项会生成 JSON 结果、JSONL 轨迹和测试日志，`results.csv` 和 `summary.md` 汇总通过/失败、输入/缓存/输出 Token、Agent 与全流程耗时、按模型费率估算的 API 费用，以及补丁 SHA-256。费用是估算值，实际账单以提供商平台为准。报告不会写入 API key。真实模型调用会产生 API 用量费用。
 
 成功时终端会显示 `Live model evaluation: 3/3 accepted`。若 Docker 无法连接，先运行 `docker version` 检查 Client 和 Server，再重试；若仍失败，可把命令输出和 `reports/live-model-run/results.csv` 发回排查。
 
