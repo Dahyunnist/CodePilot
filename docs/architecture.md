@@ -21,7 +21,10 @@ RunResult -> terminal report + Markdown + JSONL trace + Git diff
 
 - `Task` owns instructions, workspace path, test command, and budgets.
 - `AgentState` owns messages, counters, latest result, status, and token usage.
-- `ToolRegistry` validates untrusted model arguments before dispatch.
+- Each concrete tool owns its metadata, Pydantic argument model, and execution
+  method through the `Tool` base class.
+- `ToolRegistry` builds the model schemas from registered tool instances,
+  validates untrusted arguments through each tool, and dispatches by name.
 - `Agent` gets tool names, descriptions, and JSON parameter schemas from
   `ToolRegistry.read_tools()` for each model request. Tool observations reuse
   those descriptions, so display labels do not duplicate the tool catalogue.
