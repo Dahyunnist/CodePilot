@@ -1,0 +1,24 @@
+{
+  "case_id": "multi-bug-invoice",
+  "category": "cross-module-financial-contract",
+  "instruction": "修复账单金额链路中的多个问题：API 的 discount_percent 必须按 0 到 100 的百分数解释并返回原百分数；折扣计算要以折后金额为准，金额使用 Decimal 并按分四舍五入；默认折扣为 0，拒绝负数、超过 100 和非有限数。保持订单明细与小计契约。",
+  "test_command": ["python", "-m", "pytest", "tests", "-q"],
+  "search_query": "discount",
+  "patches": [
+    {
+      "path": "billing/request.py",
+      "old_text": "from typing import Any\n\n\ndef parse_order(payload: dict[str, Any]) -> dict[str, Any]:\n    discount = float(payload.get(\"discount\", 0.0))\n    if not 0.0 <= discount <= 1.0:\n        raise ValueError(\"discount must be between 0 and 1\")\n    return {\"items\": payload[\"items\"], \"discount\": discount}",
+      "new_text": "from decimal import Decimal, InvalidOperation\nfrom typing import Any\n\n\ndef parse_order(payload: dict[str, Any]) -> dict[str, Any]:\n    try:\n        discount_percent = Decimal(str(payload.get(\"discount_percent\", 0)))\n    except (InvalidOperation, ValueError) as exc:\n        raise ValueError(\"discount_percent must be between 0 and 100\") from exc\n    if not discount_percent.is_finite() or not Decimal(\"0\") <= discount_percent <= Decimal(\"100\"):\n        raise ValueError(\"discount_percent must be between 0 and 100\")\n    return {\"items\": payload[\"items\"], \"discount_percent\": discount_percent}"
+    },
+    {
+      "path": "billing/pricing.py",
+      "old_text": "from typing import Any\n\n\ndef calculate_totals(items: list[dict[str, Any]], discount: float) -> dict[str, float]:\n    subtotal = sum(round(float(item[\"unit_price\"]) * int(item[\"quantity\"]), 2) for item in items)\n    discount_amount = round(subtotal * discount, 2)\n    return {\"subtotal\": subtotal, \"discount_amount\": discount_amount, \"total\": round(subtotal - discount_amount, 2)}",
+      "new_text": "from decimal import Decimal, ROUND_HALF_UP\nfrom typing import Any\n\n\nCENT = Decimal(\"0.01\")\n\n\ndef calculate_totals(items: list[dict[str, Any]], discount_percent: Decimal) -> dict[str, float]:\n    raw_subtotal = sum(\n        (Decimal(str(item[\"unit_price\"])) * int(item[\"quantity\"]) for item in items),\n        Decimal(\"0\"),\n    )\n    subtotal = raw_subtotal.quantize(CENT, rounding=ROUND_HALF_UP)\n    discount_amount = (subtotal * discount_percent / Decimal(\"100\")).quantize(\n        CENT, rounding=ROUND_HALF_UP\n    )\n    total = (subtotal - discount_amount).quantize(CENT, rounding=ROUND_HALF_UP)\n    return {\n        \"subtotal\": float(subtotal),\n        \"discount_amount\": float(discount_amount),\n        \"total\": float(total),\n    }"
+    },
+    {
+      "path": "billing/invoice.py",
+      "old_text": "from billing.pricing import calculate_totals\nfrom billing.request import parse_order\n\n\ndef create_invoice(payload: dict) -> dict:\n    order = parse_order(payload)\n    totals = calculate_totals(order[\"items\"], order[\"discount\"])\n    return {**totals, \"discount_percent\": order[\"discount\"] * 100}",
+      "new_text": "from billing.pricing import calculate_totals\nfrom billing.request import parse_order\n\n\ndef create_invoice(payload: dict) -> dict:\n    order = parse_order(payload)\n    totals = calculate_totals(order[\"items\"], order[\"discount_percent\"])\n    return {**totals, \"discount_percent\": float(order[\"discount_percent\"])}"
+    }
+  ]
+}

@@ -54,7 +54,7 @@ LLM_MAX_COMPLETION_TOKENS=1024
 
 ## 运行固定评测
 
-以下命令从五个干净 fixture 运行搜索、读取、基线测试、补丁、可见测试、隐藏测试，并生成轨迹和 CSV：
+以下命令从九个干净 fixture 运行搜索、读取、基线测试、补丁、可见测试、隐藏测试，并生成轨迹和 CSV。案例覆盖多文件契约修复、请求/定价/发票链路的多个金额缺陷，以及以查询/写入调用次数为指标的通知和审计批处理性能目标：
 
 ```powershell
 python -m evals.runner --docker-image codepilot-runner:0.1

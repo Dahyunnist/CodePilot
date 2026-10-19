@@ -1,0 +1,19 @@
+{
+  "case_id": "notification-batch-performance",
+  "category": "query-complexity-and-idempotency",
+  "instruction": "修复通知派发的正确性和性能问题：对订阅使用一次批量查询，不能每个收件人单独查询；收件人重复时只发送一次；跳过不存在或已停用的订阅；保留收件人首次出现顺序和原有消息字段。性能验收以查询次数为准，不用不稳定的墙钟时间。",
+  "test_command": ["python", "-m", "pytest", "tests", "-q"],
+  "search_query": "get_subscription",
+  "patches": [
+    {
+      "path": "notify/store.py",
+      "old_text": "    def get_subscription(self, recipient_id: int) -> dict | None:\n        self.query_count += 1\n        return self._subscriptions.get(recipient_id)",
+      "new_text": "    def get_subscriptions(self, recipient_ids: list[int]) -> dict[int, dict]:\n        self.query_count += 1\n        return {\n            recipient_id: self._subscriptions[recipient_id]\n            for recipient_id in recipient_ids\n            if recipient_id in self._subscriptions\n        }"
+    },
+    {
+      "path": "notify/dispatch.py",
+      "old_text": "def prepare_deliveries(store, recipient_ids: list[int], event: str) -> list[dict]:\n    deliveries = []\n    for recipient_id in recipient_ids:\n        subscription = store.get_subscription(recipient_id)\n        if subscription and subscription[\"active\"]:\n            deliveries.append(\n                {\"recipient_id\": recipient_id, \"channel\": subscription[\"channel\"], \"event\": event}\n            )\n    return deliveries",
+      "new_text": "def prepare_deliveries(store, recipient_ids: list[int], event: str) -> list[dict]:\n    unique_ids = list(dict.fromkeys(recipient_ids))\n    if not unique_ids:\n        return []\n    subscriptions = store.get_subscriptions(unique_ids)\n    deliveries = []\n    for recipient_id in unique_ids:\n        subscription = subscriptions.get(recipient_id)\n        if subscription and subscription[\"active\"]:\n            deliveries.append(\n                {\"recipient_id\": recipient_id, \"channel\": subscription[\"channel\"], \"event\": event}\n            )\n    return deliveries"
+    }
+  ]
+}
