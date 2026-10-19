@@ -1,8 +1,14 @@
 {
   "case_id": "parse-port",
   "category": "exception-handling",
-  "instruction": "parse_port must return its default for invalid strings and None",
-  "test_command": ["python", "-m", "pytest", "tests", "-q"],
+  "instruction": "修复 parse_port，使无效字符串和 None 都返回默认值。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "tests",
+    "-q"
+  ],
   "search_query": "def parse_port",
   "path": "ports.py",
   "old_text": "except TypeError:",

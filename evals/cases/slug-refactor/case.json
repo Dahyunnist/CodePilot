@@ -1,8 +1,14 @@
 {
   "case_id": "slug-refactor",
   "category": "small-refactor",
-  "instruction": "extract shared normalize_slug behavior so user and project slugs handle spaces and underscores consistently",
-  "test_command": ["python", "-m", "pytest", "tests", "-q"],
+  "instruction": "提取共用的 normalize_slug 行为，让用户和项目 slug 对空格、下划线的处理保持一致。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "tests",
+    "-q"
+  ],
   "search_query": "def project_slug",
   "path": "slugs.py",
   "old_text": "def user_slug(name: str) -> str:\n    return name.strip().lower().replace(\" \", \"-\")\n\n\ndef project_slug(name: str) -> str:\n    return name.strip().lower().replace(\"_\", \"-\")",

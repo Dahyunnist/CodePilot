@@ -1,8 +1,14 @@
 {
   "case_id": "clamp-boundary",
   "category": "boundary-condition",
-  "instruction": "clamp must include the upper boundary while preserving range validation",
-  "test_command": ["python", "-m", "pytest", "tests", "-q"],
+  "instruction": "调整 clamp 使其包含上边界，同时保留范围校验。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "tests",
+    "-q"
+  ],
   "search_query": "def clamp",
   "path": "bounds.py",
   "old_text": "return max(lower, min(value, upper - 1))",

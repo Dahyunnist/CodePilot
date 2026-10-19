@@ -83,7 +83,7 @@ class ScriptedRepairModel:
             ModelReply(
                 tool_calls=[ToolCall(id="fixed-test", name="run_tests", arguments={})]
             ),
-            ModelReply(text="Applied the scoped repair and verified visible tests."),
+            ModelReply(text="\u5df2\u5b8c\u6210\u9488\u5bf9\u6027\u4fee\u590d\uff0c\u5e76\u901a\u8fc7\u53ef\u89c1\u6d4b\u8bd5\u3002"),
         ]
 
     def complete(
@@ -287,8 +287,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.docker_image,
     )
     succeeded = sum(row["status"] == "success" for row in rows)
-    print(f"Evaluation: {succeeded}/{len(rows)} passed")
-    print(f"CSV: {args.output.resolve()}")
+    print(f"\u8bc4\u6d4b\uff1a{succeeded}/{len(rows)} \u9879\u901a\u8fc7")
+    print(f"\u7ed3\u679c\u6587\u4ef6\uff1a{args.output.resolve()}")
     return 0 if succeeded == len(rows) else 1
 
 

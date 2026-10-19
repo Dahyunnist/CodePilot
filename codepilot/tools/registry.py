@@ -29,7 +29,7 @@ class SearchCodeArguments(ToolArguments):
 
 class ReadFileArguments(ToolArguments):
     path: str
-    reason: str = Field(min_length=1, max_length=240)
+    reason: str = Field(min_length=1, max_length=240, description="\u7528\u7b80\u4f53\u4e2d\u6587\u8bf4\u660e\u8bfb\u53d6\u539f\u56e0\uff0c\u5e76\u5173\u8054\u4efb\u52a1\u6216\u6d4b\u8bd5\u8bc1\u636e\u3002")
     start_line: int = Field(default=1, ge=1)
     end_line: int | None = Field(default=None, ge=1)
 
@@ -95,7 +95,7 @@ class ToolRegistry:
                 args = ReadFileArguments.model_validate(call.arguments)
                 key = (args.path.replace("\\", "/"), args.start_line, args.end_line)
                 if key in self._read_cache:
-                    output = "Duplicate read omitted; use a new line range or search result."
+                    output = "\u5df2\u7701\u7565\u91cd\u590d\u8bfb\u53d6\uff1b\u8bf7\u4f7f\u7528\u65b0\u7684\u884c\u8303\u56f4\u6216\u6839\u636e\u641c\u7d22\u7ed3\u679c\u8bfb\u53d6\u5176\u4ed6\u4f4d\u7f6e\u3002"
                 else:
                     output = read_file(
                         self.repo_root, args.path, args.start_line, args.end_line
@@ -153,12 +153,12 @@ class ToolRegistry:
     @staticmethod
     def _build_specs() -> list[ToolSpec]:
         return [
-            _spec("list_files", "List files inside the repository.", ListFilesArguments),
-            _spec("search_code", "Search repository text for an exact string.", SearchCodeArguments),
-            _spec("read_file", "Read a bounded line range from one candidate file. Give a short reason tied to task evidence.", ReadFileArguments),
-            _spec("apply_patch", "Replace one exact text block in one file.", ApplyPatchArguments),
-            _spec("run_tests", "Run the task's configured pytest command.", NoArguments),
-            _spec("git_diff", "Show the current Git diff.", NoArguments),
+            _spec("list_files", "\u5217\u51fa\u4ed3\u5e93\u5185\u7684\u6587\u4ef6\u3002", ListFilesArguments),
+            _spec("search_code", "\u5728\u4ed3\u5e93\u6587\u672c\u4e2d\u641c\u7d22\u6307\u5b9a\u5b57\u7b26\u4e32\uff0c\u5148\u6839\u636e\u7ed3\u679c\u9009\u62e9\u5019\u9009\u6587\u4ef6\u3002", SearchCodeArguments),
+            _spec("read_file", "\u8bfb\u53d6\u5019\u9009\u6587\u4ef6\u7684\u9650\u5b9a\u884c\u6bb5\uff0c\u7528\u7b80\u4f53\u4e2d\u6587\u8bf4\u660e\u8bfb\u53d6\u7406\u7531\u3002", ReadFileArguments),
+            _spec("apply_patch", "\u5728\u6587\u4ef6\u4e2d\u7cbe\u786e\u66ff\u6362\u552f\u4e00\u5339\u914d\u7684\u6587\u672c\u5757\u3002", ApplyPatchArguments),
+            _spec("run_tests", "\u8fd0\u884c\u4efb\u52a1\u914d\u7f6e\u7684 pytest \u6d4b\u8bd5\u547d\u4ee4\u3002", NoArguments),
+            _spec("git_diff", "\u67e5\u770b\u5f53\u524d Git \u5dee\u5f02\u3002", NoArguments),
         ]
 
 

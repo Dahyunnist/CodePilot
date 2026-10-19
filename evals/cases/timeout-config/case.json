@@ -1,8 +1,14 @@
 {
   "case_id": "timeout-config",
   "category": "configuration",
-  "instruction": "read timeout_seconds from configuration and keep the documented default",
-  "test_command": ["python", "-m", "pytest", "tests", "-q"],
+  "instruction": "从配置中读取 timeout_seconds，并保留文档规定的默认值。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "tests",
+    "-q"
+  ],
   "search_query": "def timeout_seconds",
   "path": "settings.py",
   "old_text": "config.get(\"timeot_seconds\", 30)",

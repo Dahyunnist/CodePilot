@@ -11,6 +11,8 @@ class RepairScriptModel:
     """Deterministic model substitute for the full repair workflow."""
 
     def __init__(self) -> None:
+        self.requests: list[list[ChatMessage]] = []
+        self.requests: list[list[ChatMessage]] = []
         self.replies = [
             ModelReply(
                 tool_calls=[
@@ -58,7 +60,7 @@ class RepairScriptModel:
                     ToolCall(id="call-diff", name="git_diff", arguments={})
                 ]
             ),
-            ModelReply(text="Fixed empty input handling and verified all tests."),
+            ModelReply(text="\u5df2\u4fee\u590d\u7a7a\u8f93\u5165\u5904\u7406\uff0c\u5e76\u901a\u8fc7\u5168\u90e8\u6d4b\u8bd5\u3002"),
         ]
 
     def complete(
@@ -67,6 +69,7 @@ class RepairScriptModel:
         tools: Sequence[ToolSpec] = (),
     ) -> ModelReply:
         assert tools
+        self.requests.append(list(messages))
         return self.replies.pop(0)
 
 
@@ -103,13 +106,15 @@ def make_demo_repo(tmp_path: Path) -> Path:
 def test_cli_repairs_demo_repository(tmp_path, capsys) -> None:
     repo = make_demo_repo(tmp_path)
 
+    model = RepairScriptModel()
+    model = RepairScriptModel()
     exit_code = main(
         [
             "run",
             "--repo",
             str(repo),
             "--task",
-            "parse_config crashes on empty input; fix it",
+            "\u4fee\u590d parse_config \u5904\u7406\u7a7a\u8f93\u5165\u65f6\u5d29\u6e83\u7684\u95ee\u9898\u3002",
             "--test-command",
             "python -m pytest tests -q",
             "--max-steps",
@@ -122,14 +127,20 @@ def test_cli_repairs_demo_repository(tmp_path, capsys) -> None:
             "--reports-root",
             str(tmp_path / "reports"),
         ],
-        model_client=RepairScriptModel(),
+        model_client=model,
     )
 
+    assert "始终使用简体中文" in model.requests[0][0].content
+    assert "请用简体中文" in model.requests[0][1].content
+    assert model.requests[1][-1].content.startswith("工具执行结果：搜索代码")
+    assert "始终使用简体中文" in model.requests[0][0].content
+    assert "请用简体中文" in model.requests[0][1].content
+    assert model.requests[1][-1].content.startswith("工具执行结果：搜索代码")
     output = capsys.readouterr().out
     assert exit_code == 0
-    assert "Status: success" in output
-    assert "Steps: 7" in output
-    assert "Tests: passed" in output
+    assert "\u72b6\u6001\uff1a\u6210\u529f" in output
+    assert "\u6a21\u578b\u6b65\u9aa4\uff1a7" in output
+    assert "\u6d4b\u8bd5\uff1a\u901a\u8fc7" in output
     assert "-        if not line and text:" in output
     assert "+        if not line:" in output
     workspace = next((tmp_path / "workspaces").iterdir())

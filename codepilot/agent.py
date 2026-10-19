@@ -228,7 +228,7 @@ class Agent:
                     ChatMessage(
                         role="tool",
                         tool_call_id=call.id,
-                        content=result.model_dump_json(),
+                        content=_tool_observation(call.name, result),
                     )
                 )
                 if result.error_type == "timeout":
@@ -305,6 +305,32 @@ class Agent:
 
 def _context_chars(messages: list[ChatMessage]) -> int:
     return sum(len(json.dumps(message.to_api_dict(), ensure_ascii=False)) for message in messages)
+
+
+def _tool_observation(tool_name: str, result: ToolResult) -> str:
+    labels = {
+        "list_files": "列出文件",
+        "search_code": "搜索代码",
+        "read_file": "读取文件",
+        "apply_patch": "修改文件",
+        "run_tests": "运行测试",
+        "git_diff": "查看 Git 差异",
+    }
+    status = "成功" if result.ok else "失败"
+    lines = [
+        f"工具执行结果：{labels.get(tool_name, '工具')}（{tool_name}）",
+        f"执行状态：{status}",
+    ]
+    if result.exit_code is not None:
+        lines.append(f"退出码：{result.exit_code}")
+    if result.error_type:
+        lines.append(f"错误类型：{result.error_type}")
+    if result.stdout:
+        output = "（无输出）" if result.stdout == "(no output)" else result.stdout
+        lines.extend(["标准输出：", output])
+    if result.stderr:
+        lines.extend(["错误输出：", result.stderr])
+    return "\n".join(lines)
 
 
 def _fit_context(messages: list[ChatMessage], budget: int) -> int:

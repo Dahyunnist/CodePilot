@@ -1,8 +1,14 @@
 {
   "case_id": "parse-config",
   "category": "empty-input",
-  "instruction": "parse_config crashes on empty input; return an empty mapping and preserve other behavior",
-  "test_command": ["python", "-m", "pytest", "tests", "-q"],
+  "instruction": "修复 parse_config 处理空输入时崩溃的问题；返回空字典，并保持其他行为不变。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "tests",
+    "-q"
+  ],
   "search_query": "def parse_config",
   "path": "config_parser.py",
   "old_text": "if not line and text:\n            continue",

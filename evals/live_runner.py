@@ -38,7 +38,7 @@ def run_live_evaluation(
 ) -> list[dict[str, object]]:
     """Run clean, isolated copies and independently verify every repair."""
     if execution == "host" and not approve_host_tests:
-        raise ValueError("host execution requires --approve-host-tests")
+        raise ValueError("主机测试必须显式使用 --approve-host-tests 批准")
 
     config = ModelConfig.from_env()
     run_group = uuid.uuid4().hex[:12]
@@ -48,7 +48,7 @@ def run_live_evaluation(
 
     cases = [case for case in load_cases(cases_root) if case.case_id in case_ids]
     if not cases:
-        raise ValueError("no matching cases selected")
+        raise ValueError("没有找到匹配的评测案例")
 
     for case in cases:
         assert case.case_dir is not None
@@ -95,7 +95,7 @@ def run_live_evaluation(
                 "trace_file": "",
             }
             rows.append(row)
-            print(f"{case.case_id}: skipped; baseline execution failed")
+            print(f"{case.case_id}：跳过；基线测试无法执行")
             continue
         run_id = f"{run_group}-{case.case_id}-{uuid.uuid4().hex[:8]}"
         workspace = WorkspaceManager(run_root / "workspaces").prepare(base, run_id)
@@ -212,8 +212,8 @@ def run_live_evaluation(
             encoding="utf-8",
         )
         print(
-            f"{case.case_id}: status={result.status}, accepted={accepted}, "
-            f"tokens={result.tokens}, patch_sha256={patch_hash}"
+            f"{case.case_id}：状态={result.status}，验收通过={accepted}，"
+            f"Token 数={result.tokens}，补丁 SHA-256={patch_hash}"
         )
 
     csv_path = output_root / "results.csv"
@@ -221,7 +221,7 @@ def run_live_evaluation(
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
-    print(f"CSV: {csv_path.resolve()}")
+    print(f"结果文件：{csv_path.resolve()}")
     return rows
 
 
@@ -238,7 +238,7 @@ def _git(repo: Path, arguments: list[str]) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m evals.live_runner")
+    parser = argparse.ArgumentParser(prog="python -m evals.live_runner", description="使用真实模型运行修复评测")
     parser.add_argument("--cases", type=Path, default=Path("evals/cases"))
     parser.add_argument("--case-ids", nargs="+", default=["parse-config", "parse-port", "timeout-config"])
     parser.add_argument("--output-root", type=Path, default=Path("reports/live-model"))
@@ -267,7 +267,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         context_budget_chars=args.context_budget_chars,
     )
     accepted = sum(row["accepted"] is True for row in rows)
-    print(f"Live model evaluation: {accepted}/{len(rows)} accepted")
+    print(f"真实模型评测：{accepted}/{len(rows)} 项通过验收")
     return 0 if accepted == len(rows) else 1
 
 
