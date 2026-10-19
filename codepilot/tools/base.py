@@ -27,6 +27,7 @@ class ToolContext:
     execution_mode: str = "host"
     docker_image: str = "codepilot-runner:0.1"
     read_cache: dict[tuple[str, int, int | None], str] = field(default_factory=dict)
+    last_test_result: ToolResult | None = None
 
 
 class Tool(ABC, Generic[ArgumentsT]):

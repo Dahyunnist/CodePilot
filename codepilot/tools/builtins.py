@@ -125,12 +125,36 @@ class RunTestsTool(Tool[NoArguments]):
     approval_policy = "host_tests"
 
     def run(self, arguments: NoArguments) -> ToolResult:
-        return run_tests(
+        result = run_tests(
             self.context.repo_root,
             self.context.test_command,
             self.context.test_timeout_seconds,
             execution_mode=self.context.execution_mode,
             docker_image=self.context.docker_image,
+        )
+        self.context.last_test_result = result
+        return result
+
+
+class TestStatusTool(Tool[NoArguments]):
+    name = "test_status"
+    description = "读取本次 MCP 会话最近一次测试的结果；没有测试时返回尚未运行。"
+    arguments_model = NoArguments
+    parallel_safe = True
+
+    def run(self, arguments: NoArguments) -> ToolResult:
+        result = self.context.last_test_result
+        if result is None:
+            return ToolResult(
+                tool_name=self.name, ok=True, stdout="尚未运行测试。"
+            )
+        status = "通过" if result.ok else "失败"
+        details = result.stdout or result.stderr or "（无输出）"
+        return ToolResult(
+            tool_name=self.name,
+            ok=True,
+            exit_code=result.exit_code,
+            stdout=f"最近一次测试：{status}\n{details}",
         )
 
 
@@ -151,4 +175,5 @@ BUILTIN_TOOL_TYPES: tuple[type[Tool], ...] = (
     ApplyPatchTool,
     RunTestsTool,
     GitDiffTool,
+    TestStatusTool,
 )

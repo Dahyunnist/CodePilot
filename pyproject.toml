@@ -8,10 +8,12 @@ dependencies = [
     "python-dotenv>=1,<2",
     "langgraph>=1,<2",
     "langgraph-checkpoint-sqlite>=2,<4",
+    "mcp>=2,<3",
 ]
 
 [project.scripts]
 codepilot = "codepilot.cli:entrypoint"
+codepilot-mcp = "codepilot.mcp_server:entrypoint"
 
 [project.optional-dependencies]
 dev = [

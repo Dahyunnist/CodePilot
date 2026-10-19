@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shlex
 import sys
 import uuid
@@ -10,10 +11,12 @@ from pathlib import Path
 from typing import Sequence
 
 from pydantic import ValidationError
+from mcp.client.stdio import StdioServerParameters
 
 from codepilot.agent import Agent, ModelLike
 from codepilot.config import ModelConfig
 from codepilot.model import ModelClient
+from codepilot.mcp_client import HybridMCPToolRegistry, MCPClientError, MCPToolRegistry
 from codepilot.report import format_run_report, write_markdown_report
 from codepilot.run_graph import resume_durable_run, start_durable_run
 from codepilot.schemas import RunResult, Task, ToolCall
@@ -33,10 +36,104 @@ class ConsoleApproval:
         return answer.strip().lower() in {"y", "yes"}
 
 
+class MCPBackedAgent:
+    """Run Agent through a persistent MCP stdio client session."""
+
+    def __init__(
+        self,
+        model: ModelLike,
+        server: StdioServerParameters,
+        *,
+        execution_mode: str,
+        docker_image: str,
+        test_timeout_seconds: float,
+        host_tests_approved: bool,
+        approval: object | None,
+        tracer: TraceLogger,
+        run_id: str,
+    ) -> None:
+        self.model = model
+        self.server = server
+        self.execution_mode = execution_mode
+        self.docker_image = docker_image
+        self.test_timeout_seconds = test_timeout_seconds
+        self.host_tests_approved = host_tests_approved
+        self.approval = approval
+        self.tracer = tracer
+        self.run_id = run_id
+
+    def run(self, task: Task, *, progress_callback=None, resume_data=None):
+        local = ToolRegistry(
+            task.repo_path,
+            task.test_command,
+            test_timeout_seconds=self.test_timeout_seconds,
+            execution_mode=self.execution_mode,
+            docker_image=self.docker_image,
+            host_tests_approved=self.host_tests_approved,
+        )
+        try:
+            with MCPToolRegistry(
+                self.server,
+                timeout_seconds=self.test_timeout_seconds + 5,
+                execution_mode=self.execution_mode,
+                host_tests_approved=self.host_tests_approved,
+            ) as remote:
+                tools = HybridMCPToolRegistry(local, remote)
+                return Agent(
+                    self.model,
+                    tools,
+                    approval=self.approval,
+                    tracer=self.tracer,
+                    run_id=self.run_id,
+                ).run(task, progress_callback=progress_callback, resume_data=resume_data)
+        except MCPClientError as exc:
+            return RunResult(
+                status="failed",
+                run_id=self.run_id,
+                workspace_path=task.repo_path,
+                failure_type="tool",
+                error=f"MCP 工具连接失败：{exc}",
+            )
+
+
+def _mcp_server_parameters(task: Task, runtime: dict[str, object]) -> StdioServerParameters:
+    execution_mode = str(runtime.get("execution_mode", "docker"))
+    args = [
+        "-m", "codepilot.mcp_server",
+        "--repo", str(task.repo_path),
+        "--test-command-json", json.dumps(task.test_command, ensure_ascii=False),
+        "--execution", execution_mode,
+        "--docker-image", str(runtime.get("docker_image", "codepilot-runner:0.1")),
+        "--test-timeout", str(runtime.get("test_timeout_seconds", 30)),
+    ]
+    host_approved = bool(runtime.get("host_tests_approved", False))
+    if host_approved:
+        args.append("--approve-host-tests")
+    return StdioServerParameters(
+        command=sys.executable,
+        args=args,
+        cwd=Path(__file__).resolve().parents[1],
+    )
+
+
 def _resume_agent_factory(reports_root: Path):
     def build(task: Task, run_id: str, runtime: dict[str, object]) -> Agent:
         model = ModelClient(ModelConfig.from_env())
         execution_mode = str(runtime.get("execution_mode", "docker"))
+        trace = TraceLogger(reports_root / "traces" / f"{run_id}.jsonl", run_id)
+        approval = AlwaysApprove() if runtime.get("host_tests_approved") else None
+        if runtime.get("tool_backend") == "mcp":
+            return MCPBackedAgent(
+                model,
+                _mcp_server_parameters(task, runtime),
+                execution_mode=execution_mode,
+                docker_image=str(runtime.get("docker_image", "codepilot-runner:0.1")),
+                test_timeout_seconds=float(runtime.get("test_timeout_seconds", 30)),
+                host_tests_approved=bool(runtime.get("host_tests_approved", False)),
+                approval=approval,
+                tracer=trace,
+                run_id=run_id,
+            )
         tools = ToolRegistry(
             task.repo_path,
             task.test_command,
@@ -45,8 +142,6 @@ def _resume_agent_factory(reports_root: Path):
             docker_image=str(runtime.get("docker_image", "codepilot-runner:0.1")),
             host_tests_approved=bool(runtime.get("host_tests_approved", False)),
         )
-        trace = TraceLogger(reports_root / "traces" / f"{run_id}.jsonl", run_id)
-        approval = AlwaysApprove() if runtime.get("host_tests_approved") else None
         return Agent(model, tools, approval=approval, tracer=trace, run_id=run_id)
 
     return build
@@ -90,6 +185,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="测试通过后，将补丁安全应用回 --repo 指定的仓库",
     )
     run_parser.add_argument("--state-db", type=Path, default=Path("reports/run-state.sqlite"), help="持久化运行状态的 SQLite 文件")
+    run_parser.add_argument("--tool-backend", choices=("builtin", "mcp"), default="builtin", help="内置 ToolRegistry 或 MCP 子进程")
     resume_parser = subparsers.add_parser("resume", help="恢复等待源仓库回写审批的运行")
     resume_parser.add_argument("--run-id", required=True, help="待恢复的运行 ID")
     decision = resume_parser.add_mutually_exclusive_group(required=True)
@@ -138,6 +234,13 @@ def main(
     if not repo.is_dir() or not (repo / ".git").exists():
         print("错误：--repo 必须指向 Git 仓库", file=sys.stderr)
         return 2
+    if (
+        args.tool_backend == "mcp"
+        and args.execution == "host"
+        and not args.approve_host_tests
+    ):
+        print("错误：MCP 主机测试必须显式使用 --approve-host-tests", file=sys.stderr)
+        return 2
 
     run_id = uuid.uuid4().hex
     try:
@@ -156,13 +259,17 @@ def main(
             max_context_chars=args.context_budget_chars,
         )
         model = model_client or ModelClient(ModelConfig.from_env())
-        tools = ToolRegistry(
-            workspace.path,
-            task.test_command,
-            test_timeout_seconds=args.test_timeout,
-            execution_mode=args.execution,
-            docker_image=args.docker_image,
-            host_tests_approved=args.approve_host_tests,
+        tools = (
+            ToolRegistry(
+                workspace.path,
+                task.test_command,
+                test_timeout_seconds=args.test_timeout,
+                execution_mode=args.execution,
+                docker_image=args.docker_image,
+                host_tests_approved=args.approve_host_tests,
+            )
+            if args.tool_backend == "builtin"
+            else None
         )
         trace = TraceLogger(args.reports_root / "traces" / f"{run_id}.jsonl", run_id)
         trace.event(
@@ -181,16 +288,31 @@ def main(
             approval = AlwaysApprove()
         elif sys.stdin.isatty():
             approval = ConsoleApproval()
-    state = start_durable_run(
-        database=args.state_db,
-        manager=workspace_manager,
-        agent_factory=lambda current_task, current_run_id, runtime: Agent(
+    def build_agent(current_task: Task, current_run_id: str, runtime: dict[str, object]):
+        if args.tool_backend == "mcp":
+            return MCPBackedAgent(
+                model,
+                _mcp_server_parameters(current_task, runtime),
+                execution_mode=args.execution,
+                docker_image=args.docker_image,
+                test_timeout_seconds=args.test_timeout,
+                host_tests_approved=args.approve_host_tests,
+                approval=approval,
+                tracer=trace,
+                run_id=current_run_id,
+            )
+        return Agent(
             model,
             tools,
             approval=approval,
             tracer=trace,
             run_id=current_run_id,
-        ),
+        )
+
+    state = start_durable_run(
+        database=args.state_db,
+        manager=workspace_manager,
+        agent_factory=build_agent,
         task=task,
         workspace=workspace,
         run_id=run_id,
@@ -201,6 +323,7 @@ def main(
             "test_timeout_seconds": args.test_timeout,
             "host_tests_approved": args.approve_host_tests,
             "reports_root": str(args.reports_root),
+            "tool_backend": args.tool_backend,
         },
     )
     result = RunResult.model_validate(state["result"])

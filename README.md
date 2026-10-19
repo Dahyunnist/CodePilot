@@ -156,6 +156,29 @@ python -m evals.live_runner `
   --work-root .tmp/live-model-run
 ```
 
+### 通过 MCP 调用 Agent 工具
+
+`--tool-backend mcp` 会启动本地 MCP stdio 子进程。Agent 通过官方 Python SDK 的 `tools/list` 获取 schema，再以 `tools/call` 搜索、读取和运行测试；精确补丁和 Git 差异仍由宿主 ToolRegistry 处理。
+
+```powershell
+python -m codepilot run `
+  --repo E:\work\company-service `
+  --task "修复订单折扣金额计算错误" `
+  --test-command "python -m pytest tests -q" `
+  --tool-backend mcp
+```
+
+外部 MCP 客户端也可单独连接仓库工具服务：
+
+```powershell
+python -m codepilot.mcp_server `
+  --repo E:\work\company-service `
+  --test-command "python -m pytest tests -q" `
+  --execution docker
+```
+
+stdio 协议占用标准输入和输出；诊断写到标准错误。服务只公开搜索、读取、差异、测试状态和隔离测试。它不公开源仓库回写。主机测试必须在启动服务时明确加 `--approve-host-tests`；Docker 测试无需主机授权。
+
 ## 工具边界
 
 - 文件路径必须留在 `--repo` 指定的目标仓库内；目标仓库本身可以位于 CodePilot 安装目录之外。

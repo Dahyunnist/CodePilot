@@ -163,6 +163,38 @@ def test_cli_repairs_demo_repository(tmp_path, capsys) -> None:
     assert len(list((tmp_path / "reports" / "runs").glob("*.md"))) == 1
 
 
+def test_cli_runs_agent_through_mcp_stdio_tools(tmp_path, capsys) -> None:
+    repo = make_demo_repo(tmp_path)
+    model = RepairScriptModel()
+
+    exit_code = main(
+        [
+            "run", "--repo", str(repo),
+            "--task", "修复 parse_config 的空输入问题。",
+            "--test-command", "python -m pytest tests -q",
+            "--execution", "host", "--approve-host-tests",
+            "--tool-backend", "mcp",
+            "--workspace-root", str(tmp_path / "workspaces"),
+            "--reports-root", str(tmp_path / "reports"),
+            "--state-db", str(tmp_path / "reports" / "run-state.sqlite"),
+        ],
+        model_client=model,
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "状态：成功" in output
+    assert "测试：通过" in output
+    assert "-        if not line and text:" in output
+    assert "+        if not line:" in output
+    assert "repo_search" not in {
+        spec.function.name for spec in model.tool_definitions[0]
+    }
+    assert "search_code" in {
+        spec.function.name for spec in model.tool_definitions[0]
+    }
+
+
 def test_cli_can_apply_successful_patch_to_external_repository(tmp_path, capsys) -> None:
     repo = make_demo_repo(tmp_path)
 
