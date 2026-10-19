@@ -1,0 +1,109 @@
+[baseline]
+ok=False
+exit_code=1
+error_type=test_failure
+stdout:
+.F.                                                                      [100%]
+=================================== FAILURES ===================================
+____________________ test_empty_input_returns_empty_config _____________________
+
+text = ''
+
+    def parse_config(text: str) -> dict[str, str]:
+        """Parse ``key=value`` lines into a dictionary.
+
+        Blank lines are ignored. Invalid lines raise an error that includes the
+        source line number.
+        """
+        config: dict[str, str] = {}
+
+        # Intentional baseline bug: an empty string still produces one empty line.
+        for line_number, raw_line in enumerate(text.split("\n"), start=1):
+            line = raw_line.strip()
+            if not line and text:
+                continue
+
+            try:
+>               key, value = line.split("=", maxsplit=1)
+                ^^^^^^^^^^
+E               ValueError: not enough values to unpack (expected 2, got 1)
+
+config_parser.py:19: ValueError
+
+The above exception was the direct cause of the following exception:
+
+    def test_empty_input_returns_empty_config() -> None:
+        """Expected to fail until the repair agent fixes the baseline bug."""
+>       assert parse_config("") == {}
+               ^^^^^^^^^^^^^^^^
+
+tests/test_config_parser.py:12:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+text = ''
+
+    def parse_config(text: str) -> dict[str, str]:
+        """Parse ``key=value`` lines into a dictionary.
+
+        Blank lines are ignored. Invalid lines raise an error that includes the
+        source line number.
+        """
+        config: dict[str, str] = {}
+
+        # Intentional baseline bug: an empty string still produces one empty line.
+        for line_number, raw_line in enumerate(text.split("\n"), start=1):
+            line = raw_line.strip()
+            if not line and text:
+                continue
+
+            try:
+                key, value = line.split("=", maxsplit=1)
+            except ValueError as exc:
+>               raise ValueError(f"invalid config at line {line_number}") from exc
+E               ValueError: invalid config at line 1
+
+config_parser.py:21: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_config_parser.py::test_empty_input_returns_empty_config - V...
+1 failed, 2 passed in 0.32s
+
+stderr:
+
+
+[agent]
+ok=True
+exit_code=0
+error_type=
+stdout:
+...                                                                      [100%]
+3 passed in 0.10s
+
+stderr:
+
+
+[independent_visible]
+ok=True
+exit_code=0
+error_type=
+stdout:
+...                                                                      [100%]
+3 passed in 0.05s
+
+stderr:
+
+
+[hidden]
+ok=True
+exit_code=0
+error_type=
+stdout:
+..                                                                       [100%]
+=============================== warnings summary ===============================
+../usr/local/lib/python3.11/site-packages/_pytest/cacheprovider.py:469
+  /usr/local/lib/python3.11/site-packages/_pytest/cacheprovider.py:469: PytestCacheWarning: could not create cache path /hidden/.pytest_cache/v/cache/nodeids: [Errno 30] Read-only file system: '/hidden/pytest-cache-files-u32hoxp6'
+    config.cache.set("cache/nodeids", sorted(self.cached_nodeids))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 1 warning in 0.08s
+
+stderr:

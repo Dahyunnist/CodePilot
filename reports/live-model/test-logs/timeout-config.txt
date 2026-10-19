@@ -1,0 +1,59 @@
+[baseline]
+ok=False
+exit_code=1
+error_type=test_failure
+stdout:
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_______________________ test_configured_timeout_is_used ________________________
+
+    def test_configured_timeout_is_used() -> None:
+>       assert timeout_seconds({"timeout_seconds": 45}) == 45
+E       AssertionError: assert 30 == 45
+E        +  where 30 = timeout_seconds({'timeout_seconds': 45})
+
+tests/test_settings.py:5: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_settings.py::test_configured_timeout_is_used - AssertionErr...
+1 failed, 1 passed in 0.25s
+
+stderr:
+
+
+[agent]
+ok=True
+exit_code=0
+error_type=
+stdout:
+..                                                                       [100%]
+2 passed in 0.05s
+
+stderr:
+
+
+[independent_visible]
+ok=True
+exit_code=0
+error_type=
+stdout:
+..                                                                       [100%]
+2 passed in 0.09s
+
+stderr:
+
+
+[hidden]
+ok=True
+exit_code=0
+error_type=
+stdout:
+..                                                                       [100%]
+=============================== warnings summary ===============================
+../usr/local/lib/python3.11/site-packages/_pytest/cacheprovider.py:469
+  /usr/local/lib/python3.11/site-packages/_pytest/cacheprovider.py:469: PytestCacheWarning: could not create cache path /hidden/.pytest_cache/v/cache/nodeids: [Errno 30] Read-only file system: '/hidden/pytest-cache-files-3rawthkh'
+    config.cache.set("cache/nodeids", sorted(self.cached_nodeids))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 1 warning in 0.08s
+
+stderr:
