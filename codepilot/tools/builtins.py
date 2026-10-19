@@ -51,6 +51,7 @@ class ListFilesTool(Tool[ListFilesArguments]):
     name = "list_files"
     description = "列出仓库内的文件。"
     arguments_model = ListFilesArguments
+    parallel_safe = True
 
     def run(self, arguments: ListFilesArguments) -> str:
         return list_files(
@@ -62,6 +63,7 @@ class SearchCodeTool(Tool[SearchCodeArguments]):
     name = "search_code"
     description = "在仓库文本中搜索指定字符串，先根据结果选择候选文件。"
     arguments_model = SearchCodeArguments
+    parallel_safe = True
 
     def run(self, arguments: SearchCodeArguments) -> str:
         return search_code(
@@ -136,6 +138,7 @@ class GitDiffTool(Tool[NoArguments]):
     name = "git_diff"
     description = "查看当前 Git 差异。"
     arguments_model = NoArguments
+    parallel_safe = True
 
     def run(self, arguments: NoArguments) -> str:
         return git_diff(self.context.repo_root)

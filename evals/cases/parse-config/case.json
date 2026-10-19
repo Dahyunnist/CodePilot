@@ -10,7 +10,11 @@
     "-q"
   ],
   "search_query": "def parse_config",
-  "path": "config_parser.py",
-  "old_text": "if not line and text:\n            continue",
-  "new_text": "if not line:\n            continue"
+  "patches": [
+    {
+      "path": "config_parser.py",
+      "old_text": "if not line and text:\n            continue",
+      "new_text": "if not line:\n            continue"
+    }
+  ]
 }

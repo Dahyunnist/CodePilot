@@ -36,6 +36,7 @@ class Tool(ABC, Generic[ArgumentsT]):
     description: ClassVar[str]
     arguments_model: ClassVar[type[ArgumentsT]]
     approval_policy: ClassVar[ApprovalPolicy] = "never"
+    parallel_safe: ClassVar[bool] = False
 
     def __init__(self, context: ToolContext) -> None:
         self.context = context

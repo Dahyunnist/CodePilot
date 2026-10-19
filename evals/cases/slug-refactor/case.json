@@ -10,7 +10,11 @@
     "-q"
   ],
   "search_query": "def project_slug",
-  "path": "slugs.py",
-  "old_text": "def user_slug(name: str) -> str:\n    return name.strip().lower().replace(\" \", \"-\")\n\n\ndef project_slug(name: str) -> str:\n    return name.strip().lower().replace(\"_\", \"-\")",
-  "new_text": "def normalize_slug(name: str) -> str:\n    return name.strip().lower().replace(\" \", \"-\").replace(\"_\", \"-\")\n\n\ndef user_slug(name: str) -> str:\n    return normalize_slug(name)\n\n\ndef project_slug(name: str) -> str:\n    return normalize_slug(name)"
+  "patches": [
+    {
+      "path": "slugs.py",
+      "old_text": "def user_slug(name: str) -> str:\n    return name.strip().lower().replace(\" \", \"-\")\n\n\ndef project_slug(name: str) -> str:\n    return name.strip().lower().replace(\"_\", \"-\")",
+      "new_text": "def normalize_slug(name: str) -> str:\n    return name.strip().lower().replace(\" \", \"-\").replace(\"_\", \"-\")\n\n\ndef user_slug(name: str) -> str:\n    return normalize_slug(name)\n\n\ndef project_slug(name: str) -> str:\n    return normalize_slug(name)"
+    }
+  ]
 }

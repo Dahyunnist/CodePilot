@@ -27,6 +27,16 @@ PROMPT_VERSION = "explicit-loop-v1"
 TEMPERATURE = 0.0
 
 
+class PatchSpec(BaseModel):
+    """One exact edit in a deterministic repair plan."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    path: str = Field(min_length=1)
+    old_text: str = Field(min_length=1)
+    new_text: str
+
+
 class CaseSpec(BaseModel):
     """Versioned task metadata and deterministic baseline repair."""
 
@@ -37,9 +47,7 @@ class CaseSpec(BaseModel):
     instruction: str = Field(min_length=1)
     test_command: list[str] = Field(min_length=1)
     search_query: str = Field(min_length=1)
-    path: str = Field(min_length=1)
-    old_text: str = Field(min_length=1)
-    new_text: str
+    patches: list[PatchSpec] = Field(min_length=1)
     case_dir: Path | None = None
 
 
@@ -60,8 +68,14 @@ class ScriptedRepairModel:
             ModelReply(
                 tool_calls=[
                     ToolCall(
-                        id="read", name="read_file", arguments={"path": case.path, "reason": "Inspect the search match for the reported bug."}
+                        id=f"read-{index}",
+                        name="read_file",
+                        arguments={
+                            "path": patch.path,
+                            "reason": "检查修复涉及的源码文件。",
+                        },
                     )
+                    for index, patch in enumerate(case.patches, start=1)
                 ]
             ),
             ModelReply(
@@ -70,14 +84,15 @@ class ScriptedRepairModel:
             ModelReply(
                 tool_calls=[
                     ToolCall(
-                        id="patch",
+                        id=f"patch-{index}",
                         name="apply_patch",
                         arguments={
-                            "path": case.path,
-                            "old_text": case.old_text,
-                            "new_text": case.new_text,
+                            "path": patch.path,
+                            "old_text": patch.old_text,
+                            "new_text": patch.new_text,
                         },
                     )
+                    for index, patch in enumerate(case.patches, start=1)
                 ]
             ),
             ModelReply(
@@ -112,6 +127,7 @@ def run_evaluation(
     work_root: Path,
     reports_root: Path,
     docker_image: str,
+    execution: str = "docker",
 ) -> list[dict[str, object]]:
     """Reset, repair, independently verify, and record every fixed case."""
     eval_run_id = uuid.uuid4().hex
@@ -125,11 +141,13 @@ def run_evaluation(
         baseline = run_tests(
             base,
             case.test_command,
-            execution_mode="docker",
+            execution_mode=execution,
             docker_image=docker_image,
         )
         if baseline.ok:
-            rows.append(_invalid_case_row(case, "initial visible tests unexpectedly passed"))
+            invalid = _invalid_case_row(case, "initial visible tests unexpectedly passed")
+            invalid["execution"] = execution
+            rows.append(invalid)
             continue
 
         run_id = f"{eval_run_id}-{case.case_id}"
@@ -150,8 +168,9 @@ def run_evaluation(
             workspace.path,
             case.test_command,
             test_timeout_seconds=30,
-            execution_mode="docker",
+            execution_mode=execution,
             docker_image=docker_image,
+            host_tests_approved=execution == "host",
         )
         result = Agent(
             ScriptedRepairModel(case),
@@ -161,11 +180,23 @@ def run_evaluation(
         ).run(task)
         hidden = run_tests(
             workspace.path,
-            ["python", "-m", "pytest", "/hidden", "-q"],
+            [
+                "python",
+                "-m",
+                "pytest",
+                "/hidden"
+                if execution == "docker"
+                else str(case.case_dir / "hidden_tests"),
+                "-q",
+            ],
             timeout_seconds=30,
-            execution_mode="docker",
+            execution_mode=execution,
             docker_image=docker_image,
-            additional_mounts=((case.case_dir / "hidden_tests", "/hidden"),),
+            additional_mounts=(
+                ((case.case_dir / "hidden_tests", "/hidden"),)
+                if execution == "docker"
+                else ()
+            ),
         )
         success = result.status == "success" and hidden.ok
         rows.append(
@@ -181,6 +212,7 @@ def run_evaluation(
                 "tokens": result.tokens,
                 "elapsed_ms": result.elapsed_ms,
                 "model": MODEL_NAME,
+                "execution": execution,
                 "temperature": TEMPERATURE,
                 "prompt_version": PROMPT_VERSION,
                 "base_commit": workspace.base_commit,
@@ -248,6 +280,7 @@ def _invalid_case_row(case: CaseSpec, error: str) -> dict[str, object]:
         "tokens": 0,
         "elapsed_ms": 0,
         "model": MODEL_NAME,
+        "execution": "",
         "temperature": TEMPERATURE,
         "prompt_version": PROMPT_VERSION,
         "base_commit": "",
@@ -274,6 +307,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--work-root", type=Path, default=Path(".tmp/evals"))
     parser.add_argument("--reports-root", type=Path, default=Path("reports"))
     parser.add_argument("--docker-image", default="codepilot-runner:0.1")
+    parser.add_argument("--execution", choices=("docker", "host"), default="docker")
     return parser
 
 
@@ -285,6 +319,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.work_root,
         args.reports_root,
         args.docker_image,
+        args.execution,
     )
     succeeded = sum(row["status"] == "success" for row in rows)
     print(f"\u8bc4\u6d4b\uff1a{succeeded}/{len(rows)} \u9879\u901a\u8fc7")

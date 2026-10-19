@@ -34,6 +34,10 @@ class ToolRegistryLike(Protocol):
 
     def execute(self, call: ToolCall) -> ToolResult: ...
 
+    def execute_many(self, calls: Sequence[ToolCall]) -> list[ToolResult]: ...
+
+    def can_execute_many_in_parallel(self, calls: Sequence[ToolCall]) -> bool: ...
+
     def requires_approval(self, call: ToolCall) -> bool: ...
 
     def approve(self, call: ToolCall) -> None: ...
@@ -184,64 +188,76 @@ class Agent:
                     failure_type=failure_type,
                 )
 
-            for call in reply.tool_calls:
-                if call.name == "run_tests" and state.attempts.get(call.name, 0) >= task.max_test_attempts:
-                    state.status = "budget_exceeded"
-                    return self._finish(
-                        state,
-                        tool_results,
-                        last_test,
-                        started,
-                        error="maximum test attempts reached",
-                        failure_type="budget",
+            can_parallel = getattr(
+                self.tools, "can_execute_many_in_parallel", lambda unused: False
+            )
+            execute_many = getattr(self.tools, "execute_many", None)
+            if execute_many is not None and can_parallel(reply.tool_calls):
+                for call in reply.tool_calls:
+                    state.attempts[call.name] = state.attempts.get(call.name, 0) + 1
+                    if self.tracer:
+                        self.tracer.tool_started(state.step_count, call)
+                results = execute_many(reply.tool_calls)
+                for call, result in zip(reply.tool_calls, results, strict=True):
+                    last_test = self._record_tool_result(
+                        state, tool_results, last_test, call, result, available_tools
                     )
-
-                requires_approval = getattr(
-                    self.tools, "requires_approval", lambda unused: False
-                )(call)
-                if requires_approval:
-                    if self.approval is None or not self.approval.approve(call):
-                        state.status = "needs_approval"
+                    if result.error_type == "timeout":
+                        state.status = "timeout"
                         return self._finish(
                             state,
                             tool_results,
                             last_test,
                             started,
-                            error=f"approval required for {call.name}",
-                            failure_type="policy",
+                            error=f"{call.name} timed out",
+                            failure_type="tool",
                         )
-                    getattr(self.tools, "approve", lambda unused: None)(call)
+            else:
+                for call in reply.tool_calls:
+                    if call.name == "run_tests" and state.attempts.get(call.name, 0) >= task.max_test_attempts:
+                        state.status = "budget_exceeded"
+                        return self._finish(
+                            state,
+                            tool_results,
+                            last_test,
+                            started,
+                            error="maximum test attempts reached",
+                            failure_type="budget",
+                        )
 
-                state.attempts[call.name] = state.attempts.get(call.name, 0) + 1
-                if self.tracer:
-                    self.tracer.tool_started(state.step_count, call)
-                result = self.tools.execute(call)
-                if self.tracer:
-                    self.tracer.tool_finished(state.step_count, result)
-                state.last_tool_result = result
-                tool_results.append(result)
-                if call.name == "run_tests":
-                    last_test = result
-                elif call.name == "apply_patch" and result.ok:
-                    # A passing test result becomes stale after source changes.
-                    last_test = None
-                state.messages.append(
-                    ChatMessage(
-                        role="tool",
-                        tool_call_id=call.id,
-                        content=_tool_observation(call.name, result, available_tools),
+                    requires_approval = getattr(
+                        self.tools, "requires_approval", lambda unused: False
+                    )(call)
+                    if requires_approval:
+                        if self.approval is None or not self.approval.approve(call):
+                            state.status = "needs_approval"
+                            return self._finish(
+                                state,
+                                tool_results,
+                                last_test,
+                                started,
+                                error=f"approval required for {call.name}",
+                                failure_type="policy",
+                            )
+                        getattr(self.tools, "approve", lambda unused: None)(call)
+
+                    state.attempts[call.name] = state.attempts.get(call.name, 0) + 1
+                    if self.tracer:
+                        self.tracer.tool_started(state.step_count, call)
+                    result = self.tools.execute(call)
+                    last_test = self._record_tool_result(
+                        state, tool_results, last_test, call, result, available_tools
                     )
-                )
-                if result.error_type == "timeout":
-                    state.status = "timeout"
-                    return self._finish(
-                        state,
-                        tool_results,
-                        last_test,
-                        started,
-                        error=f"{call.name} timed out",
-                        failure_type="tool",
-                    )
+                    if result.error_type == "timeout":
+                        state.status = "timeout"
+                        return self._finish(
+                            state,
+                            tool_results,
+                            last_test,
+                            started,
+                            error=f"{call.name} timed out",
+                            failure_type="tool",
+                        )
 
         state.status = "max_steps"
         return self._finish(
@@ -252,6 +268,33 @@ class Agent:
             error=f"maximum step count reached: {task.max_steps}",
             failure_type="budget",
         )
+
+    def _record_tool_result(
+        self,
+        state: AgentState,
+        tool_results: list[ToolResult],
+        last_test: ToolResult | None,
+        call: ToolCall,
+        result: ToolResult,
+        available_tools: Sequence[ToolSpec],
+    ) -> ToolResult | None:
+        if self.tracer:
+            self.tracer.tool_finished(state.step_count, result)
+        state.last_tool_result = result
+        tool_results.append(result)
+        if call.name == "run_tests":
+            last_test = result
+        elif call.name == "apply_patch" and result.ok:
+            # A passing test result becomes stale after source changes.
+            last_test = None
+        state.messages.append(
+            ChatMessage(
+                role="tool",
+                tool_call_id=call.id,
+                content=_tool_observation(call.name, result, available_tools),
+            )
+        )
+        return last_test
 
     def _finish(
         self,

@@ -41,6 +41,21 @@ class StubTools:
         return ToolResult(tool_name=call.name, ok=True, stdout="found")
 
 
+class BatchTools(StubTools):
+    def __init__(self) -> None:
+        self.batches: list[list[str]] = []
+
+    def can_execute_many_in_parallel(self, calls: Sequence[ToolCall]) -> bool:
+        return len(calls) > 1 and all(call.name == "search_code" for call in calls)
+
+    def execute_many(self, calls: Sequence[ToolCall]) -> list[ToolResult]:
+        self.batches.append([call.id for call in calls])
+        return [
+            ToolResult(tool_name=call.name, ok=True, stdout=call.arguments["query"])
+            for call in calls
+        ]
+
+
 class ApprovalTools(StubTools):
     def requires_approval(self, call: ToolCall) -> bool:
         return call.name == "run_tests"
@@ -88,6 +103,41 @@ def test_loop_returns_observations_to_model(tmp_path) -> None:
     assert result.diff == "diff --git"
     assert model.requests[1][-1].role == "tool"
     assert model.requests[1][-1].tool_call_id == "call-1"
+
+
+def test_agent_batches_parallel_tools_and_returns_results_in_call_order(tmp_path) -> None:
+    tools = BatchTools()
+    model = ScriptedModel(
+        [
+            ModelReply(
+                tool_calls=[
+                    ToolCall(
+                        id="search-a",
+                        name="search_code",
+                        arguments={"query": "alpha"},
+                    ),
+                    ToolCall(
+                        id="search-b",
+                        name="search_code",
+                        arguments={"query": "beta"},
+                    ),
+                ]
+            ),
+            ModelReply(
+                tool_calls=[ToolCall(id="tests", name="run_tests", arguments={})]
+            ),
+            ModelReply(text="完成"),
+        ]
+    )
+
+    result = Agent(model, tools).run(task(tmp_path))
+
+    observations = model.requests[1][-2:]
+    assert result.status == "success"
+    assert tools.batches == [["search-a", "search-b"]]
+    assert [message.tool_call_id for message in observations] == ["search-a", "search-b"]
+    assert "alpha" in observations[0].content
+    assert "beta" in observations[1].content
 
 
 def test_loop_stops_at_max_steps(tmp_path) -> None:

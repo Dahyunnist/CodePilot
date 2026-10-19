@@ -10,7 +10,11 @@
     "-q"
   ],
   "search_query": "def clamp",
-  "path": "bounds.py",
-  "old_text": "return max(lower, min(value, upper - 1))",
-  "new_text": "return max(lower, min(value, upper))"
+  "patches": [
+    {
+      "path": "bounds.py",
+      "old_text": "return max(lower, min(value, upper - 1))",
+      "new_text": "return max(lower, min(value, upper))"
+    }
+  ]
 }

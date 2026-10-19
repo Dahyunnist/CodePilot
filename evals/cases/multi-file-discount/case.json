@@ -1,0 +1,25 @@
+{
+  "case_id": "multi-file-discount",
+  "category": "cross-module-contract",
+  "instruction": "修复订单折扣契约：discount_percent 接受 0 到 100 的百分数，例如 15 表示 15%；发票返回原百分数，金额按正确比例计算。覆盖默认折扣和无效输入，并保持其他订单字段行为。修改所有必要模块。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "tests",
+    "-q"
+  ],
+  "search_query": "discount_percent",
+  "patches": [
+    {
+      "path": "commerce/request.py",
+      "old_text": "discount_percent = float(payload.get(\"discount\", 0))\n    if not 0 <= discount_percent <= 1:\n        raise ValueError(\"discount must be between 0 and 1\")",
+      "new_text": "discount_percent = float(payload.get(\"discount_percent\", 0))\n    if not 0 <= discount_percent <= 100:\n        raise ValueError(\"discount_percent must be between 0 and 100\")"
+    },
+    {
+      "path": "commerce/pricing.py",
+      "old_text": "return round(subtotal * (1 - discount_percent), 2)",
+      "new_text": "return round(subtotal * (1 - discount_percent / 100), 2)"
+    }
+  ]
+}

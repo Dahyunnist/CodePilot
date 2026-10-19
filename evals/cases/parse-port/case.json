@@ -10,7 +10,11 @@
     "-q"
   ],
   "search_query": "def parse_port",
-  "path": "ports.py",
-  "old_text": "except TypeError:",
-  "new_text": "except (TypeError, ValueError):"
+  "patches": [
+    {
+      "path": "ports.py",
+      "old_text": "except TypeError:",
+      "new_text": "except (TypeError, ValueError):"
+    }
+  ]
 }
