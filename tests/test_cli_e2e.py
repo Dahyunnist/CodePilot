@@ -12,7 +12,7 @@ class RepairScriptModel:
 
     def __init__(self) -> None:
         self.requests: list[list[ChatMessage]] = []
-        self.requests: list[list[ChatMessage]] = []
+        self.tool_definitions: list[tuple[ToolSpec, ...]] = []
         self.replies = [
             ModelReply(
                 tool_calls=[
@@ -70,6 +70,7 @@ class RepairScriptModel:
     ) -> ModelReply:
         assert tools
         self.requests.append(list(messages))
+        self.tool_definitions.append(tuple(tools))
         return self.replies.pop(0)
 
 
@@ -107,7 +108,6 @@ def test_cli_repairs_demo_repository(tmp_path, capsys) -> None:
     repo = make_demo_repo(tmp_path)
 
     model = RepairScriptModel()
-    model = RepairScriptModel()
     exit_code = main(
         [
             "run",
@@ -132,10 +132,18 @@ def test_cli_repairs_demo_repository(tmp_path, capsys) -> None:
 
     assert "始终使用简体中文" in model.requests[0][0].content
     assert "请用简体中文" in model.requests[0][1].content
-    assert model.requests[1][-1].content.startswith("工具执行结果：搜索代码")
-    assert "始终使用简体中文" in model.requests[0][0].content
-    assert "请用简体中文" in model.requests[0][1].content
-    assert model.requests[1][-1].content.startswith("工具执行结果：搜索代码")
+    assert model.requests[1][-1].content.startswith(
+        "工具执行结果：在仓库文本中搜索指定字符串"
+    )
+    available_tools = {
+        tool.function.name: tool.function for tool in model.tool_definitions[0]
+    }
+    assert "search_code" in available_tools
+    assert "query" in available_tools["search_code"].parameters["properties"]
+    assert "搜索" in available_tools["search_code"].description
+    read_file_parameters = available_tools["read_file"].parameters
+    assert "reason" in read_file_parameters["required"]
+    assert "read_file" in available_tools
     output = capsys.readouterr().out
     assert exit_code == 0
     assert "\u72b6\u6001\uff1a\u6210\u529f" in output

@@ -28,7 +28,10 @@ class ScriptedModel:
 
 
 class StubTools:
-    specs: list[ToolSpec] = []
+    specs: tuple[ToolSpec, ...] = ()
+
+    def read_tools(self) -> tuple[ToolSpec, ...]:
+        return self.specs
 
     def execute(self, call: ToolCall) -> ToolResult:
         if call.name == "run_tests":

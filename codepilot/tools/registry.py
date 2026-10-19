@@ -65,7 +65,11 @@ class ToolRegistry:
         self.host_tests_approved = host_tests_approved
         self._approved_call_ids: set[str] = set()
         self._read_cache: dict[tuple[str, int, int | None], str] = {}
-        self.specs = self._build_specs()
+        self._specs = tuple(self._build_specs())
+
+    def read_tools(self) -> tuple[ToolSpec, ...]:
+        """Return the current callable tool definitions for the model."""
+        return self._specs
 
     def requires_approval(self, call: ToolCall) -> bool:
         """Require explicit approval before tests execute on the host."""

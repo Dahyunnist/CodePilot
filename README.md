@@ -148,7 +148,7 @@ Docker 和命令白名单能降低风险，但不构成生产级沙箱。详见 
 
 - `codepilot/model.py`：OpenAI 兼容请求和响应适配。
 - `codepilot/agent.py`：显式的推理、行动、观察循环和停止规则。
-- `codepilot/tools/registry.py`：工具 schema、参数校验和分发。
+- `codepilot/tools/registry.py`：工具 schema、`read_tools()` 元数据读取、参数校验和分发。
 - `codepilot/tools/repo.py`：受限文件列表、搜索和读取。
 - `codepilot/tools/edit.py`：精确文本替换和 Git 差异。
 - `codepilot/tools/execute.py`：pytest 策略、超时、输出捕获和截断。

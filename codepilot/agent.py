@@ -30,7 +30,7 @@ class ModelLike(Protocol):
 
 
 class ToolRegistryLike(Protocol):
-    specs: list[ToolSpec]
+    def read_tools(self) -> Sequence[ToolSpec]: ...
 
     def execute(self, call: ToolCall) -> ToolResult: ...
 
@@ -117,8 +117,9 @@ class Agent:
                     failure_type="budget",
                 )
             state.step_count += 1
+            available_tools = self.tools.read_tools()
             try:
-                reply = self.model.complete(state.messages, self.tools.specs)
+                reply = self.model.complete(state.messages, available_tools)
             except ModelClientError as exc:
                 state.status = "failed"
                 return self._finish(
@@ -228,7 +229,7 @@ class Agent:
                     ChatMessage(
                         role="tool",
                         tool_call_id=call.id,
-                        content=_tool_observation(call.name, result),
+                        content=_tool_observation(call.name, result, available_tools),
                     )
                 )
                 if result.error_type == "timeout":
@@ -307,18 +308,20 @@ def _context_chars(messages: list[ChatMessage]) -> int:
     return sum(len(json.dumps(message.to_api_dict(), ensure_ascii=False)) for message in messages)
 
 
-def _tool_observation(tool_name: str, result: ToolResult) -> str:
-    labels = {
-        "list_files": "列出文件",
-        "search_code": "搜索代码",
-        "read_file": "读取文件",
-        "apply_patch": "修改文件",
-        "run_tests": "运行测试",
-        "git_diff": "查看 Git 差异",
-    }
+def _tool_observation(
+    tool_name: str, result: ToolResult, tools: Sequence[ToolSpec]
+) -> str:
+    description = next(
+        (
+            spec.function.description
+            for spec in tools
+            if spec.function.name == tool_name
+        ),
+        tool_name,
+    )
     status = "成功" if result.ok else "失败"
     lines = [
-        f"工具执行结果：{labels.get(tool_name, '工具')}（{tool_name}）",
+        f"工具执行结果：{description}（{tool_name}）",
         f"执行状态：{status}",
     ]
     if result.exit_code is not None:

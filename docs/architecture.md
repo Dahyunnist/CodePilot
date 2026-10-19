@@ -22,6 +22,9 @@ RunResult -> terminal report + Markdown + JSONL trace + Git diff
 - `Task` owns instructions, workspace path, test command, and budgets.
 - `AgentState` owns messages, counters, latest result, status, and token usage.
 - `ToolRegistry` validates untrusted model arguments before dispatch.
+- `Agent` gets tool names, descriptions, and JSON parameter schemas from
+  `ToolRegistry.read_tools()` for each model request. Tool observations reuse
+  those descriptions, so display labels do not duplicate the tool catalogue.
 - Repository tools resolve every path against the workspace root.
 - `run_tests` converts one allowed pytest template into a Docker argv list.
 - `RunResult` is the stable boundary used by CLI, reports, and evaluation.
