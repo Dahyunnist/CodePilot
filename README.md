@@ -127,7 +127,7 @@ python -m evals.live_runner `
 - `.git`、`.env`、`*.key` 和 `*.pem` 文件不可读取或修改。
 - `apply_patch` 只替换唯一匹配的 UTF-8 文本块。
 - 命令工具只允许运行 pytest，不调用 shell。
-- Docker 测试容器无网络、根文件系统只读、删除额外 Linux capabilities、使用非 root 用户，并限制 CPU、内存、进程数和运行时间。
+- Docker 测试容器无网络、根文件系统与仓库挂载只读、删除额外 Linux capabilities、使用非 root 用户，并限制 CPU、内存、进程数和运行时间。pytest 临时文件写入受限的 `/tmp`。
 - 每次运行都从已提交代码创建独立工作副本。
 - 主机测试使用最小环境，不会收到模型 API key。
 - 测试、搜索、读取和差异输出都有长度上限。

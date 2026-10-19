@@ -10,7 +10,8 @@
 - Tool arguments use strict Pydantic validation.
 - Test execution uses an argv list with `shell=False`.
 - Docker runs as a non-root user with no network, dropped capabilities, a
-  read-only container root, and CPU, memory, process, output, and time limits.
+  read-only container root and workspace, and CPU, memory, process, output, and
+  time limits. Pytest temporary files go to the writable `/tmp` tmpfs.
 - Trace events exclude source text, patch contents, stdout, stderr, and API keys.
 - Host execution requires approval and receives a minimal environment.
 - Workspace run IDs are restricted to safe directory names; failed clones remove
@@ -19,8 +20,10 @@
 
 ## Risks not solved
 
-- A bind-mounted workspace remains writable by tests. Malicious tests can damage
-  that disposable clone or consume its allowed resources.
+- Malicious tests can consume their allowed CPU, memory, process, output, and
+  time budgets.
+- Hostile project code still runs inside the container and can attack Docker
+  Desktop or the host kernel through vulnerabilities in those components.
 - Docker Desktop and the host kernel remain part of the trusted computing base.
 - Resource limits reduce denial-of-service risk but cannot eliminate it.
 - Git itself processes repository metadata during clone and diff operations.

@@ -190,7 +190,7 @@ def build_docker_command(
         "--env",
         "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
         "--mount",
-        f"type=bind,source={root},target=/workspace",
+        f"type=bind,source={root},target=/workspace,readonly",
     ]
     for source, target in additional_mounts:
         command.extend(
@@ -208,6 +208,9 @@ def build_docker_command(
             "-m",
             "pytest",
             *pytest_arguments,
+            "-p",
+            "no:cacheprovider",
+            "--basetemp=/tmp/pytest-tmp",
         ]
     )
     return command

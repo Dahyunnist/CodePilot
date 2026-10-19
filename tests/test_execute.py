@@ -77,15 +77,20 @@ def test_docker_command_has_isolation_and_resource_limits(tmp_path) -> None:
     assert command[:2] == ["docker", "run"]
     assert command[command.index("--network") + 1] == "none"
     assert "--read-only" in command
+    workspace_mount = command[command.index("--mount") + 1]
+    assert workspace_mount.endswith(",target=/workspace,readonly")
     assert command[command.index("--cap-drop") + 1] == "ALL"
     assert command[command.index("--memory") + 1] == "512m"
-    assert command[-6:] == [
+    assert command[-9:] == [
         "codepilot-runner:0.1",
         "python",
         "-m",
         "pytest",
         "tests",
         "-q",
+        "-p",
+        "no:cacheprovider",
+        "--basetemp=/tmp/pytest-tmp",
     ]
 
 
