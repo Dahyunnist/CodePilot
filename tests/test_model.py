@@ -82,6 +82,20 @@ def test_returns_text_and_forwards_request_settings() -> None:
     }
 
 
+def test_serializes_developer_message_as_system_for_chat_completions() -> None:
+    response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="done", tool_calls=[]))]
+    )
+    completions = FakeCompletions(response=response)
+    client = ModelClient(model_config(), sdk_client=fake_sdk(completions))
+
+    client.complete([ChatMessage(role="developer", content="instructions")])
+
+    assert completions.request["messages"] == [
+        {"role": "system", "content": "instructions"}
+    ]
+
+
 def test_returns_structured_tool_call() -> None:
     raw_call = SimpleNamespace(
         id="call-1",
@@ -135,4 +149,22 @@ def test_wraps_sdk_errors() -> None:
 
     with pytest.raises(ModelClientError, match="model request failed"):
         client.complete([ChatMessage(role="user", content="hello")])
+
+
+def test_model_errors_include_provider_status_without_api_key() -> None:
+    class ProviderError(Exception):
+        status_code = 422
+
+    client = ModelClient(
+        model_config(),
+        sdk_client=fake_sdk(
+            FakeCompletions(error=ProviderError("invalid role test-key"))
+        ),
+    )
+
+    with pytest.raises(ModelClientError) as error:
+        client.complete([ChatMessage(role="user", content="hello")])
+
+    assert "HTTP 422" in str(error.value)
+    assert "test-key" not in str(error.value)
 

@@ -1,7 +1,9 @@
 """Validated model configuration."""
 
 import os
+from pathlib import Path
 
+from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 
@@ -24,8 +26,10 @@ class ModelConfig(BaseModel):
         return value
 
     @classmethod
-    def from_env(cls) -> "ModelConfig":
-        """Build settings from the documented LLM environment variables."""
+    def from_env(cls, dotenv_path: Path | None = None) -> "ModelConfig":
+        """Load project settings from .env and process environment variables."""
+        env_file = dotenv_path or Path(__file__).resolve().parents[1] / ".env"
+        load_dotenv(dotenv_path=env_file, override=False)
         return cls(
             model=os.getenv("LLM_MODEL", ""),
             api_key=os.getenv("LLM_API_KEY", ""),

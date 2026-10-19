@@ -1,0 +1,56 @@
+[baseline]
+command=['python', '-m', 'pytest', 'tests', '-q']
+exit_code=1
+ok=False
+error_type=test_failure
+stdout:
+F.                                                                       [100%]
+================================== FAILURES ===================================
+_______________________ test_invalid_text_uses_default ________________________
+
+    def test_invalid_text_uses_default() -> None:
+>       assert parse_port("invalid", 9000) == 9000
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_ports.py:5:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+value = 'invalid', default = 9000
+
+    def parse_port(value: object, default: int = 8000) -> int:
+        """Convert a value to an integer or return the configured default."""
+        try:
+>           return int(value)
+                   ^^^^^^^^^^
+E           ValueError: invalid literal for int() with base 10: 'invalid'
+
+ports.py:7: ValueError
+=========================== short test summary info ===========================
+FAILED tests\test_ports.py::test_invalid_text_uses_default - ValueError: inva...
+1 failed, 1 passed in 0.03s
+
+stderr:
+
+
+[visible]
+command=['python', '-m', 'pytest', 'tests', '-q']
+exit_code=0
+ok=True
+error_type=
+stdout:
+..                                                                       [100%]
+2 passed in 0.01s
+
+stderr:
+
+
+[hidden]
+command=['python', '-m', 'pytest', 'E:\\job\\codepilot-lite\\evals\\cases\\parse-port\\hidden_tests', '-q']
+exit_code=0
+ok=True
+error_type=
+stdout:
+..                                                                       [100%]
+2 passed in 0.01s
+
+stderr:

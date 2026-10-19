@@ -1,4 +1,5 @@
 import sys
+import subprocess
 
 from codepilot.tools.execute import build_docker_command, run_tests
 
@@ -86,6 +87,23 @@ def test_docker_command_has_isolation_and_resource_limits(tmp_path) -> None:
         "tests",
         "-q",
     ]
+
+
+def test_docker_daemon_permission_error_is_not_a_test_failure(tmp_path, monkeypatch) -> None:
+    error = "permission denied while trying to connect to the docker API"
+    monkeypatch.setattr(
+        "codepilot.tools.execute.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 1, "", error),
+    )
+
+    result = run_tests(
+        tmp_path,
+        ["python", "-m", "pytest", "-q"],
+        execution_mode="docker",
+    )
+
+    assert result.ok is False
+    assert result.error_type == "execution"
 
 
 def test_host_tests_do_not_receive_model_api_key(tmp_path, monkeypatch) -> None:

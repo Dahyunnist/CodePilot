@@ -1,6 +1,7 @@
 """OpenAI-compatible chat model adapter."""
 
 import json
+import re
 from typing import Any, Sequence
 
 from openai import OpenAI
@@ -52,7 +53,17 @@ class ModelClient:
         try:
             completion = self._client.chat.completions.create(**request)
         except Exception as exc:
-            raise ModelClientError("model request failed") from exc
+            message = str(exc)
+            secret = self.config.api_key.get_secret_value()
+            if secret:
+                message = message.replace(secret, "[redacted]")
+            message = re.sub(r"sk-[A-Za-z0-9_-]{8,}", "[redacted]", message)
+            status = getattr(exc, "status_code", None)
+            status_text = f", HTTP {status}" if status is not None else ""
+            raise ModelClientError(
+                f"model request failed ({type(exc).__name__}{status_text}): "
+                f"{message[:500]}"
+            ) from exc
 
         if not completion.choices:
             raise ModelResponseError("model returned no choices")

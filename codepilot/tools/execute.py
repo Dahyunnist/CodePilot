@@ -117,7 +117,21 @@ def run_tests(
             error_type="execution",
         )
 
-    docker_execution_error = execution_mode == "docker" and completed.returncode == 125
+    docker_error_output = (
+        completed.stderr
+        + completed.stdout
+    ).lower()
+    docker_connection_error = any(
+        marker in docker_error_output
+        for marker in (
+            "permission denied while trying to connect to the docker api",
+            "cannot connect to the docker daemon",
+            "error during connect",
+        )
+    )
+    docker_execution_error = execution_mode == "docker" and (
+        completed.returncode == 125 or docker_connection_error
+    )
     return ToolResult(
         tool_name="run_tests",
         ok=completed.returncode == 0,

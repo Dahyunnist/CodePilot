@@ -55,7 +55,8 @@ class ChatMessage(BaseModel):
 
     def to_api_dict(self) -> dict[str, Any]:
         """Serialize only fields accepted by Chat Completions."""
-        result: dict[str, Any] = {"role": self.role, "content": self.content}
+        role = "system" if self.role == "developer" else self.role
+        result: dict[str, Any] = {"role": role, "content": self.content}
         if self.tool_calls:
             result["tool_calls"] = [call.to_api_dict() for call in self.tool_calls]
         if self.tool_call_id:

@@ -17,12 +17,28 @@ def test_config_reads_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.max_completion_tokens == 256
 
 
+def test_config_loads_dotenv_and_keeps_process_environment_precedence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    (tmp_path / ".env").write_text(
+        "LLM_API_KEY=dotenv-key\nLLM_MODEL=dotenv-model\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("LLM_MODEL", "process-model")
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+
+    config = ModelConfig.from_env(tmp_path / ".env")
+
+    assert config.model == "process-model"
+    assert config.api_key.get_secret_value() == "dotenv-key"
+
+
 def test_config_rejects_missing_credentials(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     monkeypatch.delenv("LLM_MODEL", raising=False)
     monkeypatch.delenv("LLM_API_KEY", raising=False)
 
     with pytest.raises(ValidationError):
-        ModelConfig.from_env()
+        ModelConfig.from_env(tmp_path / ".env")
 
