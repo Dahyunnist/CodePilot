@@ -58,6 +58,7 @@ def test_read_file_requires_reason_and_deduplicates_reads(tmp_path) -> None:
 
     assert not missing_reason.ok
     assert first.ok and "value = 1" in first.stdout
+    assert "来源：app.py" in first.stdout and "文件 SHA-256" in first.stdout
     assert duplicate.ok and "\u5df2\u7701\u7565\u91cd\u590d\u8bfb\u53d6" in duplicate.stdout
     assert not outside.ok and outside.error_type == "PathPolicyError"
 

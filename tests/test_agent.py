@@ -105,6 +105,52 @@ def test_loop_returns_observations_to_model(tmp_path) -> None:
     assert model.requests[1][-1].tool_call_id == "call-1"
 
 
+def test_targeted_tests_do_not_satisfy_full_suite_acceptance(tmp_path) -> None:
+    model = ScriptedModel(
+        [
+            ModelReply(
+                tool_calls=[
+                    ToolCall(
+                        id="targeted",
+                        name="run_selected_tests",
+                        arguments={"paths": ["tests/test_example.py"]},
+                    )
+                ]
+            ),
+            ModelReply(text="定向测试通过。"),
+        ]
+    )
+
+    result = Agent(model, StubTools()).run(task(tmp_path))
+
+    assert result.status == "failed"
+    assert result.failure_type == "test"
+    assert result.error == "model finished before running the full test suite"
+
+
+def test_targeted_tests_require_a_later_full_suite_run(tmp_path) -> None:
+    model = ScriptedModel(
+        [
+            ModelReply(
+                tool_calls=[
+                    ToolCall(
+                        id="targeted",
+                        name="run_selected_tests",
+                        arguments={"paths": ["tests/test_example.py"]},
+                    )
+                ]
+            ),
+            ModelReply(tool_calls=[ToolCall(id="full", name="run_tests", arguments={})]),
+            ModelReply(text="完整测试通过。"),
+        ]
+    )
+
+    result = Agent(model, StubTools()).run(task(tmp_path))
+
+    assert result.status == "success"
+    assert result.test_result is not None and result.test_result.ok
+
+
 def test_agent_batches_parallel_tools_and_returns_results_in_call_order(tmp_path) -> None:
     tools = BatchTools()
     model = ScriptedModel(
@@ -158,7 +204,7 @@ def test_finishing_without_tests_is_failure(tmp_path) -> None:
     )
 
     assert result.status == "failed"
-    assert result.error == "model finished before running tests"
+    assert result.error == "model finished before running the full test suite"
 
 
 def test_agent_cannot_claim_success_while_tests_fail(tmp_path) -> None:
@@ -249,7 +295,7 @@ def test_agent_requires_retest_after_successful_patch(tmp_path) -> None:
     result = Agent(model, StubTools()).run(task(tmp_path))
 
     assert result.status == "failed"
-    assert result.error == "model finished before running tests"
+    assert result.error == "model finished before running the full test suite"
 
 
 def test_model_error_ends_cleanly(tmp_path) -> None:

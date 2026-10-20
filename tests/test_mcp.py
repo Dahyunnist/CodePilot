@@ -5,9 +5,10 @@ from mcp import Client
 from mcp.server import MCPServer
 from mcp.types import ToolAnnotations
 
-from codepilot.mcp_client import MCPToolRegistry
+from codepilot.mcp_client import HybridMCPToolRegistry, MCPToolRegistry
 from codepilot.mcp_server import create_server
 from codepilot.schemas import ToolCall
+from codepilot.tools.registry import ToolRegistry
 
 
 def make_repo(tmp_path: Path) -> Path:
@@ -58,6 +59,18 @@ def test_mcp_client_calls_registry_tools_and_maps_result(tmp_path) -> None:
 
     assert result.ok
     assert "def calculate" in result.stdout
+
+
+def test_mcp_hybrid_keeps_local_repository_context_tools(tmp_path) -> None:
+    repo = make_repo(tmp_path)
+    local = ToolRegistry(repo, ["python", "-m", "pytest"])
+    with MCPToolRegistry(create_server(repo, ["python", "-m", "pytest"])) as remote:
+        hybrid = HybridMCPToolRegistry(local, remote)
+        names = {item.function.name for item in hybrid.read_tools()}
+        result = hybrid.execute(ToolCall(id="map", name="project_map", arguments={}))
+
+    assert {"project_map", "search_symbols", "read_project_instructions"} <= names
+    assert result.ok and "Python 项目图" in result.stdout
 
 
 def test_mcp_rejects_traversal_sensitive_paths_and_unlisted_tools(tmp_path) -> None:

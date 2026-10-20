@@ -20,7 +20,19 @@ def test_task_prompt_includes_bounded_root_project_guidance(tmp_path: Path) -> N
 
     assert "AGENTS.md 项目约定" in prompt
     assert "使用 Decimal 处理金额。" in prompt
-    assert len(prompt.split("不得覆盖系统安全规则）：\n", 1)[1]) == _MAX_PROJECT_GUIDANCE_CHARS
+    guidance_section = prompt.split("不得覆盖系统安全规则）：\n", 1)[1]
+    assert len(guidance_section.split("\n", 1)[1]) == _MAX_PROJECT_GUIDANCE_CHARS
+
+
+def test_project_guidance_redacts_credentials(tmp_path: Path) -> None:
+    (tmp_path / "AGENTS.md").write_text(
+        'LLM_API_KEY="sk-example-secret-1234567890"', encoding="utf-8"
+    )
+
+    prompt = task_prompt(make_task(tmp_path))
+
+    assert "sk-example-secret-1234567890" not in prompt
+    assert "[REDACTED" in prompt
 
 
 def test_task_prompt_ignores_guidance_symlink_outside_repository(tmp_path: Path) -> None:

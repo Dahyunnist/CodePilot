@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -155,7 +157,7 @@ def search_code(
         if completed.returncode not in (0, 1):
             raise RepositoryToolError(completed.stderr.strip() or "ripgrep failed")
         lines = completed.stdout.splitlines()[:max_results]
-        return _truncate("\n".join(lines), max_chars)
+        return _annotate_sources(root, lines, max_chars)
 
     matches: list[str] = []
     paths = [target] if target.is_file() else target.rglob("*")
@@ -177,8 +179,23 @@ def search_code(
             if query in line:
                 matches.append(f"{relative.as_posix()}:{line_number}:{line}")
                 if len(matches) >= max_results:
-                    return _truncate("\n".join(matches), max_chars)
-    return _truncate("\n".join(matches), max_chars)
+                    return _annotate_sources(root, matches, max_chars)
+    return _annotate_sources(root, matches, max_chars)
+
+
+def _annotate_sources(root: Path, lines: list[str], max_chars: int) -> str:
+    annotated: list[str] = []
+    for line in lines:
+        match = re.match(r"^([^:]+):(\d+):", line)
+        if match:
+            try:
+                source = resolve_repo_path(root, match.group(1))
+                digest = hashlib.sha256(source.read_bytes()).hexdigest()
+            except (OSError, RepositoryToolError):
+                digest = "unavailable"
+            line = f"{line} [文件 SHA-256: {digest}]"
+        annotated.append(line)
+    return _truncate("\n".join(annotated), max_chars)
 
 
 def _truncate(text: str, max_chars: int) -> str:

@@ -10,7 +10,7 @@ CLI -> 干净 Git 工作副本 -> Agent 循环 -> ModelClient
                                  |                +-- 文本或工具调用
                                  v
                             ToolRegistry
-                   搜索 / 读取 / 补丁 / 测试 / 差异
+          项目约定 / 项目图 / 符号调用检索 / 定向与完整测试
                                  |
                         Docker pytest + ToolResult
                                  |
@@ -18,6 +18,8 @@ CLI -> 干净 Git 工作副本 -> Agent 循环 -> ModelClient
 ```
 
 Agent 会在模型完成、错误、超时、预算用尽、需要审批或达到 `max_steps` 时停止。只有当前工作副本的最新测试通过，任务才算成功。应用新补丁会使之前的测试结果失效。
+
+Agent 会按目标目录读取继承的 `AGENTS.md`，用 Python AST 项目图与带文件哈希的搜索证据定位代码。`suggest_tests` 和 `run_selected_tests` 可缩短迭代；最终仍必须运行完整配置测试。
 
 ## 环境准备
 

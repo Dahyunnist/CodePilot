@@ -251,7 +251,19 @@ class HybridMCPToolRegistry:
         remote_specs = {
             spec.function.name: spec for spec in self.remote.read_tools()
         }
-        selected = [local_specs["apply_patch"], local_specs["git_diff"]]
+        local_repository_tools = {
+            "apply_patch",
+            "git_diff",
+            "read_project_instructions",
+            "project_map",
+            "search_symbols",
+            "find_references",
+            "suggest_tests",
+            "run_selected_tests",
+        }
+        selected = [
+            spec for name, spec in local_specs.items() if name in local_repository_tools
+        ]
         for local_name, remote_name in self._remote_aliases.items():
             if remote_name not in remote_specs:
                 continue

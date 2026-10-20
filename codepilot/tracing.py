@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from codepilot.schemas import ToolCall, ToolResult
+from codepilot.security import redact_sensitive_text
 
 
 class TraceLogger:
@@ -60,5 +61,5 @@ def _argument_summary(call: ToolCall) -> dict[str, Any]:
     if call.name == "search_code" and "query" in call.arguments:
         summary["query_chars"] = len(str(call.arguments["query"]))
     if call.name == "read_file" and "reason" in call.arguments:
-        summary["reason"] = str(call.arguments["reason"])[:240]
+        summary["reason"] = redact_sensitive_text(str(call.arguments["reason"]))[:240]
     return summary

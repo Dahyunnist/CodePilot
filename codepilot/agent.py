@@ -9,6 +9,7 @@ from typing import Any, Callable, Protocol, Sequence
 
 from codepilot.model import ModelClientError
 from codepilot.prompts import SYSTEM_PROMPT, task_prompt
+from codepilot.security import redact_sensitive_text
 from codepilot.schemas import (
     AgentState,
     ChatMessage,
@@ -195,7 +196,7 @@ class Agent:
             if not reply.tool_calls:
                 if last_test is None:
                     state.status = "failed"
-                    error = "model finished before running tests"
+                    error = "model finished before running the full test suite"
                     failure_type = "test"
                 elif not last_test.ok:
                     state.status = "failed"
@@ -242,7 +243,11 @@ class Agent:
                         )
             else:
                 for call in reply.tool_calls:
-                    if call.name == "run_tests" and state.attempts.get(call.name, 0) >= task.max_test_attempts:
+                    test_attempts = sum(
+                        state.attempts.get(name, 0)
+                        for name in ("run_tests", "run_selected_tests")
+                    )
+                    if call.name in {"run_tests", "run_selected_tests"} and test_attempts >= task.max_test_attempts:
                         state.status = "budget_exceeded"
                         return self._finish(
                             state,
@@ -307,12 +312,21 @@ class Agent:
         result: ToolResult,
         available_tools: Sequence[ToolSpec],
     ) -> ToolResult | None:
+        result = result.model_copy(
+            update={
+                "stdout": redact_sensitive_text(result.stdout),
+                "stderr": redact_sensitive_text(result.stderr),
+            }
+        )
         if self.tracer:
             self.tracer.tool_finished(state.step_count, result)
         state.last_tool_result = result
         tool_results.append(result)
         if call.name == "run_tests":
             last_test = result
+        elif call.name == "run_selected_tests":
+            # Targeted tests guide iteration but cannot satisfy final acceptance.
+            last_test = None
         elif call.name == "apply_patch" and result.ok:
             # A passing test result becomes stale after source changes.
             last_test = None

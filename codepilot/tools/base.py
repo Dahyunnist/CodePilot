@@ -11,6 +11,7 @@ from typing import Any, ClassVar, Generic, Literal, TypeVar, cast
 from pydantic import BaseModel, ValidationError
 
 from codepilot.schemas import FunctionSpec, ToolResult, ToolSpec
+from codepilot.security import redact_sensitive_text
 
 
 ArgumentsT = TypeVar("ArgumentsT", bound=BaseModel)
@@ -28,6 +29,8 @@ class ToolContext:
     docker_image: str = "codepilot-runner:0.1"
     read_cache: dict[tuple[str, int, int | None], str] = field(default_factory=dict)
     last_test_result: ToolResult | None = None
+    repository_index: Any | None = None
+    repository_index_revision: str | None = None
 
 
 class Tool(ABC, Generic[ArgumentsT]):
@@ -62,18 +65,24 @@ class Tool(ABC, Generic[ArgumentsT]):
             )
             result = self.run(arguments)
             if isinstance(result, ToolResult):
-                return result.model_copy(update={"tool_name": self.name})
+                return result.model_copy(
+                    update={
+                        "tool_name": self.name,
+                        "stdout": redact_sensitive_text(result.stdout),
+                        "stderr": redact_sensitive_text(result.stderr),
+                    }
+                )
             return ToolResult(
                 tool_name=self.name,
                 ok=True,
-                stdout=result or "(no output)",
+                stdout=redact_sensitive_text(result or "(no output)"),
                 duration_ms=_elapsed_ms(started),
             )
         except ValidationError as exc:
             return ToolResult(
                 tool_name=self.name,
                 ok=False,
-                stderr=str(exc),
+                stderr=redact_sensitive_text(str(exc)),
                 duration_ms=_elapsed_ms(started),
                 error_type="validation",
             )
