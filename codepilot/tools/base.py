@@ -27,7 +27,9 @@ class ToolContext:
     test_timeout_seconds: float = 30
     execution_mode: str = "host"
     docker_image: str = "codepilot-runner:0.1"
-    read_cache: dict[tuple[str, int, int | None], str] = field(default_factory=dict)
+    read_cache: dict[tuple[str, int, int | None], tuple[str, str]] = field(
+        default_factory=dict
+    )
     last_test_result: ToolResult | None = None
     repository_index: Any | None = None
     repository_index_revision: str | None = None

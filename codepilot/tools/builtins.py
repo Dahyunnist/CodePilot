@@ -204,21 +204,23 @@ class ReadFileTool(Tool[ReadFileArguments]):
             arguments.start_line,
             arguments.end_line,
         )
-        if key in self.context.read_cache:
-            return "已省略重复读取；请使用新的行范围或根据搜索结果读取其他位置。"
+        source = resolve_repo_path(self.context.repo_root, arguments.path)
+        digest = hashlib.sha256(source.read_bytes()).hexdigest()
+        cached = self.context.read_cache.get(key)
+        if cached is not None and cached[0] == digest:
+            return f"缓存命中：文件内容未变化。\n{cached[1]}"
         output = read_file(
             self.context.repo_root,
             arguments.path,
             arguments.start_line,
             arguments.end_line,
         )
-        source = resolve_repo_path(self.context.repo_root, arguments.path)
-        digest = hashlib.sha256(source.read_bytes()).hexdigest()
-        self.context.read_cache[key] = output
-        return (
+        result = (
             f"来源：{source.relative_to(self.context.repo_root).as_posix()} "
             f"[文件 SHA-256: {digest}]\n{output}"
         )
+        self.context.read_cache[key] = (digest, result)
+        return result
 
 
 class ApplyPatchTool(Tool[ApplyPatchArguments]):

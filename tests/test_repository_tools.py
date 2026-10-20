@@ -52,6 +52,10 @@ def test_read_file_requires_reason_and_deduplicates_reads(tmp_path) -> None:
     duplicate = tools.execute(
         ToolCall(id="duplicate", name="read_file", arguments={"path": "app.py", "reason": "Read it again."})
     )
+    (tmp_path / "app.py").write_text("value = 2\n", encoding="utf-8")
+    refreshed = tools.execute(
+        ToolCall(id="refreshed", name="read_file", arguments={"path": "app.py", "reason": "Check the updated file."})
+    )
     outside = tools.execute(
         ToolCall(id="outside", name="read_file", arguments={"path": "../outside.py", "reason": "Try an unrelated path."})
     )
@@ -59,7 +63,8 @@ def test_read_file_requires_reason_and_deduplicates_reads(tmp_path) -> None:
     assert not missing_reason.ok
     assert first.ok and "value = 1" in first.stdout
     assert "来源：app.py" in first.stdout and "文件 SHA-256" in first.stdout
-    assert duplicate.ok and "\u5df2\u7701\u7565\u91cd\u590d\u8bfb\u53d6" in duplicate.stdout
+    assert duplicate.ok and "缓存命中" in duplicate.stdout and "value = 1" in duplicate.stdout
+    assert refreshed.ok and "value = 2" in refreshed.stdout and "缓存命中" not in refreshed.stdout
     assert not outside.ok and outside.error_type == "PathPolicyError"
 
 
