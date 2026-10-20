@@ -49,6 +49,7 @@ class CaseSpec(BaseModel):
     search_query: str = ""
     patches: list[PatchSpec] = Field(default_factory=list)
     source_url: str | None = None
+    source_release: str | None = None
     source_commit: str | None = None
     source_tree_sha: str | None = None
     issue_url: str | None = None

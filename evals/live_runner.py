@@ -82,6 +82,7 @@ def run_live_evaluation(
                 "run_id": "",
                 "model": config.model,
                 "source_url": case.source_url or "",
+                "source_release": case.source_release or "",
                 "source_commit": case.source_commit or "",
                 "source_tree_sha": case.source_tree_sha or "",
                 "issue_url": case.issue_url or "",
@@ -103,6 +104,11 @@ def run_live_evaluation(
                 "input_tokens": 0,
                 "cached_input_tokens": 0,
                 "output_tokens": 0,
+                "tool_calls": 0,
+                "read_file_calls": 0,
+                "read_file_output_chars": 0,
+                "search_code_calls": 0,
+                "run_tests_calls": 0,
                 "cost_usd_estimate": "",
                 "pricing_period": "unknown",
                 "elapsed_ms": baseline.duration_ms,
@@ -183,6 +189,7 @@ def run_live_evaluation(
             "run_id": run_id,
             "model": config.model,
             "source_url": case.source_url or "",
+            "source_release": case.source_release or "",
             "source_commit": case.source_commit or "",
             "source_tree_sha": case.source_tree_sha or "",
             "issue_url": case.issue_url or "",
@@ -253,6 +260,8 @@ def run_live_evaluation(
 
 def _trace_usage(trace_path: Path, model: str) -> dict[str, object]:
     input_tokens = cached_tokens = output_tokens = 0
+    tool_counts: dict[str, int] = {}
+    read_file_output_chars = 0
     if trace_path.exists():
         for line in trace_path.read_text(encoding="utf-8").splitlines():
             try:
@@ -260,10 +269,25 @@ def _trace_usage(trace_path: Path, model: str) -> dict[str, object]:
             except json.JSONDecodeError:
                 continue
             if event.get("event") == "model_finished":
-                input_tokens += int(event.get("input_tokens", 0))
-                cached_tokens += int(event.get("cached_input_tokens", 0))
+                request_input = int(event.get("input_tokens", 0))
+                input_tokens += request_input
+                cached_tokens += min(
+                    int(event.get("cached_input_tokens", 0)), request_input
+                )
                 output_tokens += int(event.get("output_tokens", 0))
+            elif event.get("event") == "tool_finished":
+                tool = str(event.get("tool", "unknown"))
+                tool_counts[tool] = tool_counts.get(tool, 0) + 1
+                if tool == "read_file":
+                    read_file_output_chars += int(event.get("stdout_chars", 0))
     cached_tokens = min(cached_tokens, input_tokens)
+    tool_usage = {
+        "tool_calls": sum(tool_counts.values()),
+        "read_file_calls": tool_counts.get("read_file", 0),
+        "read_file_output_chars": read_file_output_chars,
+        "search_code_calls": tool_counts.get("search_code", 0),
+        "run_tests_calls": tool_counts.get("run_tests", 0),
+    }
     if "deepseek" not in model.casefold():
         return {
             "input_tokens": input_tokens,
@@ -271,6 +295,7 @@ def _trace_usage(trace_path: Path, model: str) -> dict[str, object]:
             "output_tokens": output_tokens,
             "cost_usd_estimate": "",
             "pricing_period": "unknown",
+            **tool_usage,
         }
     period = _deepseek_pricing_period()
     rates = {
@@ -289,6 +314,7 @@ def _trace_usage(trace_path: Path, model: str) -> dict[str, object]:
         "output_tokens": output_tokens,
         "cost_usd_estimate": f"{cost:.6f}",
         "pricing_period": period,
+        **tool_usage,
     }
 
 
@@ -313,8 +339,8 @@ def _write_summary(path: Path, rows: list[dict[str, object]], model: str) -> Non
         f"- 案例累计耗时：{total_ms / 1000:.1f} 秒",
         "- 费用为按 API usage Token 与 DeepSeek 官方费率估算；实际账单以平台为准。",
         "- 费率时段依据运行时 UTC 时段判断；中国法定节假日可能按非高峰计价。",
-        "", "| 案例 | 验收 | 输入 | 缓存输入 | 输出 | 费用 USD | Agent 秒 | 全流程秒 |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
+        "", "| 案例 | 验收 | 输入 | 缓存输入 | 输出 | 费用 USD | Agent 秒 | 全流程秒 | 步数 | 工具调用 | 读文件 | 读取字符 | 搜索 | 测试 |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         lines.append(
@@ -322,7 +348,10 @@ def _write_summary(path: Path, rows: list[dict[str, object]], model: str) -> Non
             f"{row.get('input_tokens', 0)} | {row.get('cached_input_tokens', 0)} | "
             f"{row.get('output_tokens', 0)} | {row.get('cost_usd_estimate', '')} | "
             f"{int(row.get('elapsed_ms', 0)) / 1000:.1f} | "
-            f"{int(row.get('evaluation_elapsed_ms', 0)) / 1000:.1f} |"
+            f"{int(row.get('evaluation_elapsed_ms', 0)) / 1000:.1f} | "
+            f"{row.get('steps', 0)} | {row.get('tool_calls', 0)} | "
+            f"{row.get('read_file_calls', 0)} | {row.get('read_file_output_chars', 0)} | "
+            f"{row.get('search_code_calls', 0)} | {row.get('run_tests_calls', 0)} |"
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

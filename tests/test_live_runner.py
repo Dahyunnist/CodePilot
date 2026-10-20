@@ -1,27 +1,30 @@
-﻿import json
-from pathlib import Path
+import json
 
 from evals.live_runner import _trace_usage
 
 
-def test_trace_usage_sums_prompt_cache_output_and_estimated_offpeak_cost(tmp_path: Path, monkeypatch) -> None:
+def test_trace_usage_sums_model_and_context_read_metrics(tmp_path):
     trace = tmp_path / "trace.jsonl"
-    trace.write_text(
-        "\n".join(
-            json.dumps(event)
-            for event in [
-                {"event": "model_finished", "input_tokens": 100, "cached_input_tokens": 70, "output_tokens": 10},
-                {"event": "model_finished", "input_tokens": 50, "cached_input_tokens": 40, "output_tokens": 5},
-            ]
-        ),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr("evals.live_runner._deepseek_pricing_period", lambda: "off-peak")
+    events = [
+        {"event": "model_finished", "input_tokens": 100, "cached_input_tokens": 30, "output_tokens": 20},
+        {"event": "tool_finished", "tool": "read_file", "stdout_chars": 1200},
+        {"event": "tool_finished", "tool": "search_code", "stdout_chars": 80},
+        {"event": "tool_finished", "tool": "read_file", "stdout_chars": 500},
+        {"event": "model_finished", "input_tokens": 50, "cached_input_tokens": 80, "output_tokens": 10},
+    ]
+    trace.write_text("\n".join(json.dumps(event) for event in events), encoding="utf-8")
 
-    usage = _trace_usage(trace, "deepseek-v4-flash")
+    usage = _trace_usage(trace, "other-provider-model")
 
-    assert usage["input_tokens"] == 150
-    assert usage["cached_input_tokens"] == 110
-    assert usage["output_tokens"] == 15
-    assert usage["cost_usd_estimate"] == "0.000015"
-    assert usage["pricing_period"] == "off-peak"
+    assert usage == {
+        "input_tokens": 150,
+        "cached_input_tokens": 80,
+        "output_tokens": 30,
+        "cost_usd_estimate": "",
+        "pricing_period": "unknown",
+        "tool_calls": 3,
+        "read_file_calls": 2,
+        "read_file_output_chars": 1700,
+        "search_code_calls": 1,
+        "run_tests_calls": 0,
+    }

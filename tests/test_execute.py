@@ -1,7 +1,7 @@
 import sys
 import subprocess
 
-from codepilot.tools.execute import build_docker_command, run_tests
+from codepilot.tools.execute import _safe_environment, build_docker_command, run_tests
 
 
 def test_run_tests_reports_success(tmp_path) -> None:
@@ -161,6 +161,18 @@ def test_host_tests_do_not_receive_model_api_key(tmp_path, monkeypatch) -> None:
     result = run_tests(tmp_path, ["python", "-m", "pytest", "-q"])
 
     assert result.ok is True
+
+
+def test_safe_environment_preserves_docker_config_but_drops_api_keys(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path))
+    monkeypatch.setenv("LLM_API_KEY", "must-not-reach-tests")
+
+    environment = _safe_environment()
+
+    assert environment["DOCKER_CONFIG"] == str(tmp_path)
+    assert "LLM_API_KEY" not in environment
 
 
 def test_src_layout_is_importable_without_inheriting_host_pythonpath(tmp_path, monkeypatch) -> None:

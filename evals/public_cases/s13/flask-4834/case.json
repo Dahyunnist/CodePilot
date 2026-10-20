@@ -1,0 +1,20 @@
+{
+  "case_id": "flask-4834",
+  "category": "upstream-routing-regression",
+  "instruction": "修复 Flask 上游 issue #4834：父 Blueprint 以 subdomain=\"api\" 注册到应用后，嵌套子 Blueprint 的路由也应继承该子域，当前请求 http://api.localhost:5000/child/ 却返回 404。检查 Blueprint.register 的嵌套注册选项传递及现有测试。修复时保留已有 url_prefix 行为，并支持子 Blueprint 自己设置 subdomain 时按层级组合。只改必要源码。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "benchmark_tests/test_issue_4834.py",
+    "tests/test_blueprints.py",
+    "-q"
+  ],
+  "source_url": "https://github.com/pallets/flask",
+  "source_release": "Flask 2.2.2 source distribution",
+  "source_commit": null,
+  "source_tree_sha": null,
+  "issue_url": "https://github.com/pallets/flask/issues/4834",
+  "pull_request_url": "https://github.com/pallets/flask/pull/4935",
+  "archive_sha256": "642c450d19c4ad482f96729bd2a8f6d32554aa1e231f4f6b4e7e5264b16cca2b"
+}

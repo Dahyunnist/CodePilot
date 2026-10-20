@@ -1,0 +1,19 @@
+{
+  "case_id": "urllib3-3710",
+  "category": "upstream-streaming-performance",
+  "instruction": "修复 urllib3 上游 issue #3710：HTTPResponse 解压大响应时，BytesQueueBuffer.get(n) 对一个很大的剩余 bytes 块反复切片复制，导致读取 1 GiB 解压数据显著变慢。优化部分读取，避免复制未消费的尾部数据；保持返回 bytes、读取内容、缓冲长度和边界行为正确。检查 src/urllib3/response.py 与缓冲区测试，只做必要修改。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "benchmark_tests/test_issue_3710.py",
+    "-q"
+  ],
+  "source_url": "https://github.com/urllib3/urllib3",
+  "source_release": "urllib3 2.5.0 source distribution",
+  "source_commit": null,
+  "source_tree_sha": null,
+  "issue_url": "https://github.com/urllib3/urllib3/issues/3710",
+  "pull_request_url": "https://github.com/urllib3/urllib3/pull/3711",
+  "archive_sha256": "3fc47733c7e419d4bc3f6b3dc2b4f890bb743906a30d56ba4a5bfa4bbff92760"
+}

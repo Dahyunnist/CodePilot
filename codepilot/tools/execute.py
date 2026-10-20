@@ -237,6 +237,7 @@ def _safe_environment() -> dict[str, str]:
     """Keep process essentials while excluding API keys and arbitrary secrets."""
     allowed = {
         "COMSPEC",
+        "DOCKER_CONFIG",
         "HOME",
         "LANG",
         "PATH",
