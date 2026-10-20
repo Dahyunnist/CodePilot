@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 import uuid
 import json
+import math
 from typing import Any, Callable, Protocol, Sequence
 
 from codepilot.model import ModelClientError
@@ -478,8 +479,9 @@ def _estimate_request_tokens(
 ) -> int:
     """Reserve a byte-based upper bound before sending a request.
 
-    UTF-8 bytes bound byte-fallback tokenizer tokens; fixed framing allowance
-    covers message and tool boundaries. Provider usage remains the final guard.
+    UTF-8 byte volume is converted to a conservative token estimate; fixed
+    framing allowance covers message and tool boundaries. Provider usage remains
+    the final guard because tokenization varies by provider and model.
     """
     message_bytes = sum(
         len(json.dumps(message.to_api_dict(), ensure_ascii=False).encode("utf-8"))
@@ -488,7 +490,8 @@ def _estimate_request_tokens(
     tool_bytes = len(
         json.dumps([tool.model_dump() for tool in tools], ensure_ascii=False).encode("utf-8")
     )
-    return message_bytes + tool_bytes + 16 * len(messages) + 64
+    payload_bytes = message_bytes + tool_bytes
+    return math.ceil(payload_bytes / 3) + 16 * len(messages) + 64
 
 
 def _tool_observation(
