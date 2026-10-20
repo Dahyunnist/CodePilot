@@ -91,6 +91,10 @@ python -m evals.live_runner `
 
 模型 API 请求由本机发出；基线、修复后可见测试和隐藏测试由 Docker 容器执行。容器不联网。每项会生成 JSON 结果、JSONL 轨迹和测试日志，`results.csv` 和 `summary.md` 汇总通过/失败、输入/缓存/输出 Token、Agent 与全流程耗时、按模型费率估算的 API 费用，以及补丁 SHA-256。费用是估算值，实际账单以提供商平台为准。报告不会写入 API key。真实模型调用会产生 API 用量费用。
 
+### 报告归档与本机运行日志
+
+可复现的评测定义和 fixture 保存在 `evals/`；可分享的阶段结论保存在 `docs/learning/`。确定性评测的 `reports/eval_results.csv`、`reports/eval_results.md` 和 `reports/failure-analysis.md` 继续跟踪。新的 `reports/live-model-*`、`reports/public-*`、`reports/runs/` 和 `reports/traces/` 目录由 `.gitignore` 排除；这些原始运行记录可能包含本机绝对路径、测试输出、JSONL 对话轨迹或 SQLite 状态库，应留在本机。已有 Git 跟踪的历史文件不会因新增忽略规则自动取消跟踪。分享实验结果时，把经过审查的摘要写入 `docs/learning/`，并将可复现任务定义放入 `evals/`；不要提交原始本机日志。
+
 成功时终端会显示 `Live model evaluation: 3/3 accepted`。若 Docker 无法连接，先运行 `docker version` 检查 Client 和 Server，再重试；若仍失败，可把命令输出和 `reports/live-model-run/results.csv` 发回排查。
 
 ### 单任务真实模型运行

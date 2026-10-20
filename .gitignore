@@ -8,3 +8,10 @@ reports/*.sqlite
 reports/*.sqlite-*
 evals/public_cases/*/*/repo/
 
+# Local run evidence: traces and logs can contain host paths or project context.
+reports/live-model-*/
+reports/public-*/
+reports/runs/
+reports/traces/
+reports/*/run-state.sqlite*
+
