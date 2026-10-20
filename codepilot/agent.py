@@ -115,6 +115,8 @@ class Agent:
             state = AgentState.model_validate(resume_data["agent_state"])
             if state.task.task_id != task.task_id:
                 raise ValueError("持久化任务与恢复任务 ID 不匹配")
+            if state.status in {"needs_approval", "needs_user_input"}:
+                state.transition("running")
             tool_results = [
                 ToolResult.model_validate(item)
                 for item in resume_data.get("tool_results", [])
@@ -146,7 +148,7 @@ class Agent:
             max_total_tokens=task.max_total_tokens,
         )
         if state.model_request_in_flight and state.pending_model_reply is None:
-            state.status = "failed"
+            state.transition("failed")
             return self._finish(
                 state,
                 tool_results,
@@ -166,7 +168,7 @@ class Agent:
                 state.pending_model_reply is None
                 and exploration_streak >= self._EXPLORATION_STOP_AFTER
             ):
-                state.status = "needs_user_input"
+                state.transition("needs_user_input")
                 message = (
                     f"连续 {exploration_streak} 轮只读探索，没有代码修改。"
                     "Agent 已暂停；请补充修复方向或指出需要确认的行为。"
@@ -186,7 +188,7 @@ class Agent:
                     failure_type="policy",
                 )
             if self._elapsed_seconds(started) + elapsed_before_ms / 1000 >= task.max_elapsed_seconds:
-                state.status = "budget_exceeded"
+                state.transition("budget_exceeded")
                 return self._finish(
                     state,
                     tool_results,
@@ -206,7 +208,7 @@ class Agent:
                     budget_chars=context_budget,
                 )
             if not resuming_reply and _context_chars(state.messages) > context_budget:
-                state.status = "budget_exceeded"
+                state.transition("budget_exceeded")
                 return self._finish(
                     state,
                     tool_results,
@@ -243,7 +245,7 @@ class Agent:
                     )
                     minimum_output = min(int(configured_output), 128)
                     if output_limit < minimum_output:
-                        state.status = "budget_exceeded"
+                        state.transition("budget_exceeded")
                         return self._finish(
                             state, tool_results, last_test, started,
                             error=(
@@ -276,7 +278,7 @@ class Agent:
                 except ModelClientError as exc:
                     state.model_request_in_flight = False
                     self._save_progress(state, tool_results, last_test)
-                    state.status = "failed"
+                    state.transition("failed")
                     return self._finish(
                         state,
                         tool_results,
@@ -319,7 +321,7 @@ class Agent:
                 tool_calls=len(reply.tool_calls),
             )
             if task.max_total_tokens is not None and state.tokens > task.max_total_tokens:
-                state.status = "budget_exceeded"
+                state.transition("budget_exceeded")
                 return self._finish(
                     state,
                     tool_results,
@@ -329,7 +331,7 @@ class Agent:
                     failure_type="budget",
                 )
             if self._elapsed_seconds(started) + elapsed_before_ms / 1000 >= task.max_elapsed_seconds:
-                state.status = "budget_exceeded"
+                state.transition("budget_exceeded")
                 return self._finish(
                     state,
                     tool_results,
@@ -342,15 +344,15 @@ class Agent:
             if not reply.tool_calls:
                 state.pending_model_reply = None
                 if last_test is None:
-                    state.status = "failed"
+                    state.transition("failed")
                     error = "model finished before running the full test suite"
                     failure_type = "test"
                 elif not last_test.ok:
-                    state.status = "failed"
+                    state.transition("failed")
                     error = "model finished while tests were failing"
                     failure_type = "test"
                 else:
-                    state.status = "success"
+                    state.transition("success")
                     error = None
                     failure_type = None
                 return self._finish(
@@ -382,7 +384,7 @@ class Agent:
                         state, tool_results, last_test, call, result, available_tools
                     )
                     if result.error_type == "timeout":
-                        state.status = "timeout"
+                        state.transition("timeout")
                         return self._finish(
                             state,
                             tool_results,
@@ -401,7 +403,7 @@ class Agent:
                         for name in ("run_tests", "run_selected_tests")
                     )
                     if call.name in {"run_tests", "run_selected_tests"} and test_attempts >= task.max_test_attempts:
-                        state.status = "budget_exceeded"
+                        state.transition("budget_exceeded")
                         return self._finish(
                             state,
                             tool_results,
@@ -416,7 +418,7 @@ class Agent:
                     )(call)
                     if requires_approval:
                         if self.approval is None or not self.approval.approve(call):
-                            state.status = "needs_approval"
+                            state.transition("needs_approval")
                             return self._finish(
                                 state,
                                 tool_results,
@@ -437,7 +439,7 @@ class Agent:
                     state.pending_tool_index = call_index + 1
                     self._save_progress(state, tool_results, last_test)
                     if result.error_type == "timeout":
-                        state.status = "timeout"
+                        state.transition("timeout")
                         return self._finish(
                             state,
                             tool_results,
@@ -472,7 +474,7 @@ class Agent:
             state.pending_tool_index = 0
             self._save_progress(state, tool_results, last_test)
 
-        state.status = "max_steps"
+        state.transition("max_steps")
         return self._finish(
             state,
             tool_results,

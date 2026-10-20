@@ -116,7 +116,7 @@ class Task(BaseModel):
     max_steps: int = Field(default=12, ge=1, le=50)
     max_test_attempts: int = Field(default=3, ge=1, le=20)
     max_elapsed_seconds: float = Field(default=300, gt=0)
-    max_total_tokens: int | None = Field(default=None, gt=0)
+    max_total_tokens: int | None = Field(default=40_000, gt=0)
     max_context_chars: int = Field(default=30_000, ge=2_000, le=200_000)
 
 
@@ -162,6 +162,18 @@ class AgentState(BaseModel):
     pending_model_reply: ModelReply | None = None
     pending_tool_index: int = Field(default=0, ge=0)
     status: AgentStatus = "running"
+
+    def transition(self, target: AgentStatus) -> None:
+        allowed = {
+            "running": {"success", "failed", "timeout", "budget_exceeded", "needs_approval", "needs_user_input", "max_steps"},
+            "needs_approval": {"running", "failed"},
+            "needs_user_input": {"running", "failed"},
+            "success": set(), "failed": set(), "timeout": set(),
+            "budget_exceeded": set(), "max_steps": set(),
+        }
+        if target not in allowed[self.status]:
+            raise ValueError(f"非法 Agent 状态转移：{self.status} -> {target}")
+        self.status = target
 
 
 class RunResult(BaseModel):

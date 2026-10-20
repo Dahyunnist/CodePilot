@@ -169,7 +169,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--max-steps", type=int, default=12, help="模型最多交互步数")
     run_parser.add_argument("--max-test-attempts", type=int, default=3, help="最多运行测试次数")
     run_parser.add_argument("--max-elapsed", type=float, default=300, help="最长运行秒数")
-    run_parser.add_argument("--max-tokens", type=int, help="模型 token 总预算")
+    run_parser.add_argument("--max-tokens", type=int, default=40_000, help="模型 token 总预算（默认 40000）")
     run_parser.add_argument("--context-budget-chars", type=int, default=30_000, help="模型上下文字符预算")
     run_parser.add_argument("--test-timeout", type=float, default=30, help="单次测试超时秒数")
     run_parser.add_argument(
