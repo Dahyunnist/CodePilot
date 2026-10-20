@@ -639,6 +639,23 @@ def test_fit_context_repeats_compaction_until_history_fits() -> None:
     assert sum(len(json.dumps(item.to_api_dict(), ensure_ascii=False)) for item in messages) <= 1_200
 
 
+def test_fit_context_stops_when_irreducible_messages_exceed_budget() -> None:
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content="historical explanation",
+            tool_calls=[ToolCall(id="call-1", name="search_code", arguments={})],
+        ),
+        ChatMessage(role="user", content="x" * 2_500),
+    ]
+
+    compacted = _fit_context(messages, 2_000)
+
+    assert compacted == 1
+    assert messages[0].content == "Historical tool-call details compacted."
+    assert sum(len(json.dumps(item.to_api_dict(), ensure_ascii=False)) for item in messages) > 2_000
+
+
 def test_agent_fails_when_prompt_alone_exceeds_context_budget(tmp_path) -> None:
     model = ScriptedModel([])
     oversized_task = task(tmp_path)

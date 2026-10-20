@@ -671,8 +671,9 @@ def _fit_context(messages: list[ChatMessage], budget: int) -> int:
                     if call.arguments:
                         call.arguments = {}
                         pass_compacted += 1
-                if message.content:
-                    message.content = "Historical tool-call details compacted."
+                compacted_content = "Historical tool-call details compacted."
+                if message.content and message.content != compacted_content:
+                    message.content = compacted_content
                     pass_compacted += 1
                 continue
             if message.role != "tool" or message.content is None:
