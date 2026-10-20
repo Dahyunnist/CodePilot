@@ -67,6 +67,7 @@ def run_live_evaluation(
         _git(base, ["config", "user.email", "evals@example.invalid"])
         _git(base, ["config", "user.name", "CodePilot Live Eval"])
         _git(base, ["add", "."])
+        _stage_generated_version_files(base)
         _git(base, ["commit", "-q", "-m", f"baseline {case.case_id}"])
 
         baseline = run_tests(
@@ -368,6 +369,12 @@ def _git(repo: Path, arguments: list[str]) -> None:
         check=True,
         shell=False,
     )
+
+
+def _stage_generated_version_files(repo: Path) -> None:
+    """Keep generated src package versions in clean evaluation workspaces."""
+    for path in sorted(repo.glob("src/**/_version.py")):
+        _git(repo, ["add", "-f", str(path.relative_to(repo))])
 
 
 def build_parser() -> argparse.ArgumentParser:

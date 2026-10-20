@@ -1,6 +1,8 @@
 import json
 
-from evals.live_runner import _trace_usage
+import subprocess
+
+from evals.live_runner import _stage_generated_version_files, _trace_usage
 
 
 def test_trace_usage_sums_model_and_context_read_metrics(tmp_path):
@@ -28,3 +30,24 @@ def test_trace_usage_sums_model_and_context_read_metrics(tmp_path):
         "search_code_calls": 1,
         "run_tests_calls": 0,
     }
+
+
+def test_live_runner_stages_generated_version_file_ignored_by_source_repo(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "src" / "urllib3").mkdir(parents=True)
+    (repo / ".gitignore").write_text("src/urllib3/_version.py\n", encoding="utf-8")
+    version_file = repo / "src" / "urllib3" / "_version.py"
+    version_file.write_text("__version__ = '2.5.0'\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+
+    _stage_generated_version_files(repo)
+
+    tracked = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "src/urllib3/_version.py"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert tracked.returncode == 0
