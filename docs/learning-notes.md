@@ -98,4 +98,4 @@
 2. 基线复现失败；上游补丁通过 pickle 可见测试和进程池隐藏测试。
 3. 为 Requests 建立独立固定依赖 Docker 镜像，避免借用不含 Requests 依赖的通用镜像。
 4. 60k Token 在 S18 仍不足；本阶段冻结为单项 100k Token、16 步，先校准预算再扩充样本。
-5. [S19 案例冻结记录](learning/stage-S19-requests-process-pool-frozen.md)记载 issue、PR、源码和镜像摘要。模型结果待冻结提交后运行。
+5. [S19 案例冻结记录](learning/stage-S19-requests-process-pool-frozen.md)和[真实模型结果](learning/stage-S19-requests-process-pool-results.md)记录问题、镜像、成功补丁和验收证据。
