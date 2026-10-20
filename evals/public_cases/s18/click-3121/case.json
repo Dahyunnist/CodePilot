@@ -1,0 +1,14 @@
+{
+  "case_id": "click-3121",
+  "category": "callable-flag-default-regression",
+  "instruction": "修复 Click 上游 issue #3121：Option 的 flag_value 是类且 default=True 时，省略选项应返回该类本身，不能实例化它。显式传入选项时也应返回类；保留 callable 默认值和 default_map 的既有语义。检查默认值解析路径及测试，只改必要源码。",
+  "test_command": ["python", "-m", "pytest", "benchmark_tests/test_issue_3121.py", "tests/test_defaults.py", "-q"],
+  "source_url": "https://github.com/pallets/click",
+  "source_release": "Click 8.3.1 source archive snapshot",
+  "source_exclusions": [],
+  "source_commit": null,
+  "source_tree_sha": null,
+  "issue_url": "https://github.com/pallets/click/issues/3121",
+  "pull_request_url": "https://github.com/pallets/click/pull/3225",
+  "archive_sha256": "f3999c7e787a93e159eb78a97db7a768a441509795a23f3a060bde24362ff38d"
+}

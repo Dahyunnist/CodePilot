@@ -1,0 +1,14 @@
+{
+  "case_id": "click-3084",
+  "category": "optional-flag-value-regression",
+  "instruction": "修复 Click 上游 issue #3084：当 Option 使用 is_flag=False、flag_value 和 default 时，--name 可不带值并采用 flag_value；--name value 仍采用显式值；未传 --name 时仍采用 default。保持普通必填参数和布尔 flag 行为。先检查 Option 参数解析及现有测试，只改必要源码。",
+  "test_command": ["python", "-m", "pytest", "benchmark_tests/test_issue_3084.py", "tests/test_options.py", "-q"],
+  "source_url": "https://github.com/pallets/click",
+  "source_release": "Click 8.3.1 source archive snapshot",
+  "source_exclusions": [],
+  "source_commit": null,
+  "source_tree_sha": null,
+  "issue_url": "https://github.com/pallets/click/issues/3084",
+  "pull_request_url": "https://github.com/pallets/click/pull/3152",
+  "archive_sha256": "f3999c7e787a93e159eb78a97db7a768a441509795a23f3a060bde24362ff38d"
+}

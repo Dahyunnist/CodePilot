@@ -83,3 +83,10 @@
 2. 冻结任务与基线：[S17 案例冻结记录](learning/stage-S17-public-issues-frozen.md)；结果与失败分析：[S17 真实模型报告](learning/stage-S17-public-issues-results.md)。
 3. 本轮 3 项任务都因 25k Token 上限及测试/收尾预算保留而在编辑前停止；0/3 accepted。轨迹说明预算保护生效，但此结果不能证明修复能力。
 4. SWE-agent/OpenHands 的公开基准使用 issue 任务和可复现评测管线；本项目尚未使用官方 SWE-Bench harness，也没有同条件对照或足够样本。
+
+# Step 18：CLI 参数与功能缺口
+
+1. 新增 Click #3084、#3121 和 Flask #4777 三项公开案例；任务、源码摘要和验收先行冻结。
+2. Docker 基线三项均失败；上游金标准的可见、隐藏验收三项全通过。
+3. Flask 旧测试集有 3 项受当前容器依赖影响，冻结命令只选目标 CLI 测试和相关回归测试。
+4. [S18 冻结记录](learning/stage-S18-public-issues-frozen.md)记载来源、哈希、容器和复现命令。真实模型结果待冻结提交后运行。
