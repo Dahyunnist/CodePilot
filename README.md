@@ -2,6 +2,8 @@
 
 面向 Python 仓库的轻量修复 Agent。它通过 OpenAI 兼容接口调用模型，使用受限工具检查和修改干净的 Git 工作副本，在受限 Docker 容器中运行 pytest，并记录补丁、测试结果、轨迹和报告。
 
+5 分钟演示、架构、安全边界和准确项目成果见[中文演示指南](docs/DEMO_5MIN_CN.md)。S14–S16 预算管理与公开 holdout 记录见[阶段结果](docs/learning/stage-S16-results.md)。
+
 ## 架构
 
 ```text
