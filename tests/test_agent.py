@@ -8,6 +8,7 @@ from codepilot.agent import (
     _compact_tool_observation,
     _effective_context_budget,
     _estimate_request_tokens,
+    _fit_context,
     _max_tool_observation_chars,
     _protected_future_tokens,
 )
@@ -623,6 +624,19 @@ def test_repeated_compaction_keeps_original_result_edges() -> None:
     assert payload["original_chars"] == len(original)
     assert "BEGIN_EVIDENCE" in payload["summary"]
     assert "END_EVIDENCE" in payload["summary"]
+
+
+def test_fit_context_repeats_compaction_until_history_fits() -> None:
+    messages = [
+        ChatMessage(role="user", content="task context " + "x" * 700),
+        ChatMessage(role="tool", tool_call_id="call-1", content="a" * 1_800),
+        ChatMessage(role="tool", tool_call_id="call-2", content="b" * 1_800),
+    ]
+
+    compacted = _fit_context(messages, 1_200)
+
+    assert compacted > len(messages) - 1
+    assert sum(len(json.dumps(item.to_api_dict(), ensure_ascii=False)) for item in messages) <= 1_200
 
 
 def test_agent_fails_when_prompt_alone_exceeds_context_budget(tmp_path) -> None:

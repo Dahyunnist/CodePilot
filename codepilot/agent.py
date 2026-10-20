@@ -661,24 +661,28 @@ def _tool_observation(
 
 def _fit_context(messages: list[ChatMessage], budget: int) -> int:
     compacted = 0
-    for message in messages:
-        if _context_chars(messages) <= budget:
+    while _context_chars(messages) > budget:
+        pass_compacted = 0
+        for message in messages:
+            if _context_chars(messages) <= budget:
+                break
+            if message.role == "assistant" and message.tool_calls:
+                for call in message.tool_calls:
+                    if call.arguments:
+                        call.arguments = {}
+                        pass_compacted += 1
+                if message.content:
+                    message.content = "Historical tool-call details compacted."
+                    pass_compacted += 1
+                continue
+            if message.role != "tool" or message.content is None:
+                continue
+            message.content, did_compact = _compact_tool_observation(message.content)
+            if did_compact:
+                pass_compacted += 1
+        if not pass_compacted:
             break
-        if message.role == "assistant" and message.tool_calls:
-            for call in message.tool_calls:
-                if call.arguments:
-                    call.arguments = {}
-                    compacted += 1
-            if message.content:
-                message.content = "Historical tool-call details compacted."
-                compacted += 1
-            continue
-        if message.role != "tool" or message.content is None:
-            continue
-        message.content, did_compact = _compact_tool_observation(message.content)
-        if not did_compact:
-            continue
-        compacted += 1
+        compacted += pass_compacted
     return compacted
 
 
