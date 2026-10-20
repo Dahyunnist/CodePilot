@@ -132,7 +132,7 @@ def write_report(rows: list[dict[str, Any]], output_root: Path) -> None:
     total_tokens = sum(int(row["tokens"]) for row in rows)
     total_denials = sum(int(row["path_policy_denials"]) for row in rows)
     lines = [
-        "# S10 轨迹评分与离线策略审计",
+        "# Agent 轨迹评分与离线策略审计",
         "",
         f"- 轨迹数：{len(rows)}；唯一案例数：{len({str(row['case_id']) for row in rows})}",
         f"- 完整验收：{total_accepts}/{len(rows)}；总 Token：{total_tokens:,}；估算费用：${total_cost:.6f}",
