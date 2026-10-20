@@ -105,5 +105,6 @@
 1. 新增 Flask #4834 嵌套 Blueprint 子域继承、urllib3 #3653 `HTTPHeaderDict` bytes 键两项案例，来自两个真实仓库。
 2. Docker 基线两项失败；独立上游金标准的可见、隐藏测试全部通过。
 3. 首轮真实模型均因 10 步上限未修改代码、未运行测试，0/2 accepted；20 步最终诊断因模型请求长时间无响应而中断，没有验收结果。
-4. S18 复核发现上下文压缩只遍历一轮；提交 `0849c28` 修复并新增回归测试。Agent 测试 28 项、全项目测试 118 项通过。
-5. 结果、token、费用、耗时与中断状态：[S20 评测报告](learning/stage-S20-public-issues-results.md)；案例来源与复现：[S20 冻结记录](learning/stage-S20-public-issues-frozen.md)。
+4. 失败轨迹发现缓存命中不重发旧证据；`_fit_context` 也会在不可压缩消息超限时无限循环。提交 `0f03185`、`24644ce` 分别修复，并关闭 SDK 隐式重试。
+5. urllib3 修复后单项重跑仍因 Token 预算保护停止；0/1，未编辑、未测试。全项目测试 120 项通过。
+6. 结果、成本（含峰时费率估算）、耗时与失败轨迹：[S20 评测报告](learning/stage-S20-public-issues-results.md)；案例来源与复现：[S20 冻结记录](learning/stage-S20-public-issues-frozen.md)。
