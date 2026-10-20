@@ -157,6 +157,7 @@ class AgentState(BaseModel):
     attempts: dict[str, int] = Field(default_factory=dict)
     workspace_path: Path | None = None
     tokens: int = Field(default=0, ge=0)
+    model_request_in_flight: bool = False
     pending_model_reply: ModelReply | None = None
     pending_tool_index: int = Field(default=0, ge=0)
     status: AgentStatus = "running"

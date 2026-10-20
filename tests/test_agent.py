@@ -381,6 +381,63 @@ def test_agent_reserves_input_and_caps_output_before_request(tmp_path) -> None:
     assert model.output_limits == [5]
 
 
+def test_budget_reservation_is_traced_before_model_request(tmp_path) -> None:
+    events: list[str] = []
+
+    class OrderingModel(ScriptedModel):
+        def complete(self, messages, tools=(), *, max_completion_tokens=None):
+            assert events[-1] == "model_budget_reserved"
+            return super().complete(
+                messages, tools, max_completion_tokens=max_completion_tokens
+            )
+
+    class Trace:
+        path = None
+
+        def event(self, event, step, **fields):
+            events.append(event)
+
+        def tool_started(self, step, call):
+            pass
+
+        def tool_finished(self, step, result):
+            pass
+
+    model = OrderingModel([ModelReply(text="done")])
+    result = Agent(model, StubTools(), tracer=Trace()).run(task(tmp_path))
+
+    assert result.status == "failed"
+    assert model.requests
+
+
+def test_resume_does_not_repeat_request_with_unknown_outcome(tmp_path) -> None:
+    stored: dict[str, object] = {}
+    current_task = task(tmp_path)
+
+    class SimulatedProcessExit(Exception):
+        pass
+
+    class CrashingModel:
+        def complete(self, messages, tools=(), *, max_completion_tokens=None):
+            raise SimulatedProcessExit
+
+    try:
+        Agent(CrashingModel(), StubTools()).run(
+            current_task, progress_callback=stored.update
+        )
+    except SimulatedProcessExit:
+        pass
+    else:
+        raise AssertionError("expected simulated interruption")
+
+    retry_model = ScriptedModel([ModelReply(text="done")])
+    result = Agent(retry_model, StubTools()).run(current_task, resume_data=stored)
+
+    assert result.status == "failed"
+    assert "响应结果未知" in result.error
+    assert retry_model.requests == []
+
+
 def test_agent_reconciles_provider_usage_that_exceeds_reserved_budget(tmp_path) -> None:
     from codepilot.prompts import SYSTEM_PROMPT, task_prompt
 

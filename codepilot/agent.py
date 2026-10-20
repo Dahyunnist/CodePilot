@@ -115,6 +115,18 @@ class Agent:
             )
             tool_results = []
             last_test = None
+        if state.model_request_in_flight and state.pending_model_reply is None:
+            state.status = "failed"
+            return self._finish(
+                state,
+                tool_results,
+                last_test,
+                started,
+                error=(
+                    "上次模型请求中断，响应结果未知；为避免重复计费，未自动重发"
+                ),
+                failure_type="model",
+            )
         self._save_progress(state, tool_results, last_test)
         self._trace("run_started", 0, task_id=task.task_id)
 
@@ -176,7 +188,15 @@ class Agent:
                             failure_type="budget",
                         )
                 state.step_count += 1
+                state.model_request_in_flight = True
                 self._save_progress(state, tool_results, last_test)
+                self._trace(
+                    "model_budget_reserved",
+                    state.step_count,
+                    estimated_input_tokens=input_reserve,
+                    max_completion_tokens=output_limit,
+                    remaining_tokens=remaining,
+                )
                 try:
                     reply = self.model.complete(
                         state.messages,
@@ -184,6 +204,8 @@ class Agent:
                         max_completion_tokens=output_limit,
                     )
                 except ModelClientError as exc:
+                    state.model_request_in_flight = False
+                    self._save_progress(state, tool_results, last_test)
                     state.status = "failed"
                     return self._finish(
                         state,
@@ -194,16 +216,10 @@ class Agent:
                         failure_type="model",
                     )
 
+                state.model_request_in_flight = False
                 state.tokens += reply.input_tokens + reply.output_tokens
                 state.pending_model_reply = reply
                 state.pending_tool_index = 0
-                self._trace(
-                    "model_budget_reserved",
-                    state.step_count,
-                    estimated_input_tokens=input_reserve,
-                    max_completion_tokens=output_limit,
-                    remaining_tokens=remaining,
-                )
                 state.messages.append(reply.to_assistant_message())
                 self._save_progress(state, tool_results, last_test)
 
