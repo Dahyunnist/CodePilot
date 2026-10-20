@@ -1,0 +1,25 @@
+{
+  "case_id": "urllib3-3636",
+  "category": "streaming-decoded-buffer-correctness",
+  "instruction": "修复 urllib3 上游 issue #3636：HTTPResponse.read(amt=None) 在此前发生部分解压读取、且解码器仍有已解压缓冲数据时，会漏掉缓冲内容。保证部分读取后完整读取返回全部剩余解压内容，避免重复或丢失字节；保留无缓冲时现有行为。检查 src/urllib3/response.py 与测试，只做必要源码修改。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "benchmark_tests/test_issue_3636.py",
+    "-q"
+  ],
+  "source_url": "https://github.com/urllib3/urllib3",
+  "source_release": "urllib3 2.5.0 source distribution",
+  "source_exclusions": [
+    "dummyserver/certs/cacert.key",
+    "dummyserver/certs/cacert.pem",
+    "dummyserver/certs/server.key",
+    "test/contrib/duplicate_san.pem"
+  ],
+  "source_commit": null,
+  "source_tree_sha": null,
+  "issue_url": "https://github.com/urllib3/urllib3/issues/3636",
+  "pull_request_url": "https://github.com/urllib3/urllib3/pull/4960",
+  "archive_sha256": "3fc47733c7e419d4bc3f6b3dc2b4f890bb743906a30d56ba4a5bfa4bbff92760"
+}
