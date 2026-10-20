@@ -1,0 +1,20 @@
+{
+  "case_id": "requests-6628",
+  "category": "multiprocessing-exception-serialization",
+  "instruction": "修复 Requests 上游 issue #6628：RequestsJSONDecodeError 经 pickle 序列化后无法反序列化，导致 ProcessPoolExecutor 收到子进程异常时崩溃。请检查 requests/exceptions.py 的多重继承与异常重建逻辑；让异常往返 pickle 后保留类型、消息和 JSON 解码信息，并确保进程池能把异常返回调用方且继续处理后续任务。保持现有异常 API 兼容，只改必要源码。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "benchmark_tests/test_issue_6628.py",
+    "-q"
+  ],
+  "source_url": "https://pypi.org/project/requests/2.31.0/",
+  "source_release": "Requests 2.31.0 source distribution",
+  "source_exclusions": [],
+  "source_commit": null,
+  "source_tree_sha": null,
+  "issue_url": "https://github.com/psf/requests/issues/6628",
+  "pull_request_url": "https://github.com/psf/requests/pull/6629",
+  "archive_sha256": "942c5a758f98d790eaed1a29cb6eefc7ffb0d1cf7af05c3d2791656dbd6ad1e1"
+}

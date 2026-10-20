@@ -6,4 +6,5 @@ __pycache__/
 *.py[cod]
 reports/*.sqlite
 reports/*.sqlite-*
+evals/public_cases/*/*/repo/
 
