@@ -1,0 +1,25 @@
+{
+  "case_id": "urllib3-3649",
+  "category": "pool-manager-redirect-retry-regression",
+  "instruction": "修复 urllib3 上游 issue #3649：PoolManager 在构造时收到整数 retries 参数后，必须仍能跟随 HTTP 重定向并返回最终响应。请用本地 HTTP 服务验证，不依赖公网；保留显式 Retry 对象和单次请求级重试参数的现有行为。检查连接池配置和相关测试，只改必要源码。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "benchmark_tests/test_issue_3649.py",
+    "-q"
+  ],
+  "source_url": "https://github.com/urllib3/urllib3",
+  "source_release": "urllib3 2.5.0 source distribution",
+  "source_exclusions": [
+    "dummyserver/certs/cacert.key",
+    "dummyserver/certs/cacert.pem",
+    "dummyserver/certs/server.key",
+    "test/contrib/duplicate_san.pem"
+  ],
+  "source_commit": null,
+  "source_tree_sha": null,
+  "issue_url": "https://github.com/urllib3/urllib3/issues/3649",
+  "pull_request_url": "https://github.com/urllib3/urllib3/pull/3655",
+  "archive_sha256": "3fc47733c7e419d4bc3f6b3dc2b4f890bb743906a30d56ba4a5bfa4bbff92760"
+}
