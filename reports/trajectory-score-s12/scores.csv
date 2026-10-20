@@ -1,0 +1,2 @@
+﻿case_id,run_id,split,status,accepted,reward,tokens,cost_usd_estimate,elapsed_ms,path_policy_denials,tool_calls,penalties
+click-3145,7a4ed5779c82-click-3145-5a90c539,test,success,True,95.612,77864,0.010654,29682,0,"{""apply_patch"": 3, ""git_diff"": 1, ""read_file"": 4, ""read_project_instructions"": 1, ""run_selected_tests"": 1, ""run_tests"": 1, ""search_code"": 3}","{""elapsed_time"": 0.4947, ""token_cost"": 3.8932}"
