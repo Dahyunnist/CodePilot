@@ -69,7 +69,9 @@ def test_returns_text_and_forwards_request_settings() -> None:
     completions = FakeCompletions(response=response)
     client = ModelClient(model_config(), sdk_client=fake_sdk(completions))
 
-    reply = client.complete([ChatMessage(role="user", content="hello")])
+    reply = client.complete(
+        [ChatMessage(role="user", content="hello")], max_completion_tokens=7
+    )
 
     assert reply.text == "done"
     assert reply.tool_calls == []
@@ -78,7 +80,7 @@ def test_returns_text_and_forwards_request_settings() -> None:
     assert completions.request == {
         "model": "test-model",
         "messages": [{"role": "user", "content": "hello"}],
-        "max_completion_tokens": 128,
+        "max_completion_tokens": 7,
     }
 
 

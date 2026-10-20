@@ -115,6 +115,8 @@ class ScriptedRepairModel:
         self,
         messages: Sequence[ChatMessage],
         tools: Sequence[ToolSpec] = (),
+        *,
+        max_completion_tokens: int | None = None,
     ) -> ModelReply:
         if not self.replies:
             raise RuntimeError("scripted model exhausted")

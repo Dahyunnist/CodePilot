@@ -2,7 +2,7 @@ from collections.abc import Sequence
 import json
 import time
 
-from codepilot.agent import Agent, _compact_tool_observation
+from codepilot.agent import Agent, _compact_tool_observation, _estimate_request_tokens
 from codepilot.model import ModelClientError
 from codepilot.schemas import (
     ChatMessage,
@@ -23,8 +23,13 @@ class ScriptedModel:
         self,
         messages: Sequence[ChatMessage],
         tools: Sequence[ToolSpec] = (),
+        *,
+        max_completion_tokens: int | None = None,
     ) -> ModelReply:
         self.requests.append(list(messages))
+        if not hasattr(self, "output_limits"):
+            self.output_limits = []
+        self.output_limits.append(max_completion_tokens)
         return self.replies.pop(0)
 
 
@@ -301,7 +306,7 @@ def test_agent_requires_retest_after_successful_patch(tmp_path) -> None:
 
 def test_model_error_ends_cleanly(tmp_path) -> None:
     class BrokenModel:
-        def complete(self, messages, tools=()):
+        def complete(self, messages, tools=(), *, max_completion_tokens=None):
             raise ModelClientError("offline")
 
     result = Agent(BrokenModel(), StubTools()).run(task(tmp_path))
@@ -354,7 +359,83 @@ def test_agent_enforces_token_budget(tmp_path) -> None:
     result = Agent(model, StubTools()).run(limited_task)
 
     assert result.status == "budget_exceeded"
-    assert result.tokens == 13
+    assert result.tokens == 0
+    assert model.requests == []
+
+
+def test_agent_reserves_input_and_caps_output_before_request(tmp_path) -> None:
+    model = ScriptedModel([ModelReply(text="done")])
+    limited_task = task(tmp_path)
+    # Budget exactly fits the conservative request estimate plus five output tokens.
+    from codepilot.prompts import SYSTEM_PROMPT, task_prompt
+
+    messages = [
+        ChatMessage(role="developer", content=SYSTEM_PROMPT),
+        ChatMessage(role="user", content=task_prompt(limited_task)),
+    ]
+    reserve = _estimate_request_tokens(messages, ())
+    limited_task.max_total_tokens = reserve + 5
+
+    Agent(model, StubTools()).run(limited_task)
+
+    assert model.output_limits == [5]
+
+
+def test_agent_reconciles_provider_usage_that_exceeds_reserved_budget(tmp_path) -> None:
+    from codepilot.prompts import SYSTEM_PROMPT, task_prompt
+
+    limited_task = task(tmp_path)
+    messages = [
+        ChatMessage(role="developer", content=SYSTEM_PROMPT),
+        ChatMessage(role="user", content=task_prompt(limited_task)),
+    ]
+    reserve = _estimate_request_tokens(messages, ())
+    limited_task.max_total_tokens = reserve + 2
+    model = ScriptedModel(
+        [ModelReply(text="too large", input_tokens=reserve, output_tokens=3)]
+    )
+
+    result = Agent(model, StubTools()).run(limited_task)
+
+    assert model.output_limits == [2]
+    assert result.status == "budget_exceeded"
+    assert result.tokens == reserve + 3
+
+
+def test_agent_persists_model_reply_before_tool_execution_and_resumes(tmp_path) -> None:
+    stored: dict[str, object] = {}
+    current_task = task(tmp_path)
+
+    def stop_after_reply(snapshot: dict[str, object]) -> None:
+        stored.update(snapshot)
+        state = snapshot.get("agent_state", {})
+        if state.get("pending_model_reply"):
+            raise RuntimeError("simulated process exit")
+
+    original_model = ScriptedModel(
+        [ModelReply(tool_calls=[ToolCall(id="search-1", name="search_code", arguments={})])]
+    )
+    try:
+        Agent(original_model, StubTools()).run(
+            current_task, progress_callback=stop_after_reply
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "simulated process exit"
+    else:
+        raise AssertionError("expected simulated process exit")
+
+    resumed_model = ScriptedModel(
+        [
+            ModelReply(tool_calls=[ToolCall(id="tests-1", name="run_tests", arguments={})]),
+            ModelReply(text="已完成"),
+        ]
+    )
+    result = Agent(resumed_model, StubTools()).run(current_task, resume_data=stored)
+
+    assert result.status == "success"
+    assert len(original_model.requests) == 1
+    assert len(resumed_model.requests) == 2
+    assert resumed_model.requests[0][-1].tool_call_id == "search-1"
 
 
 def test_agent_compacts_old_tool_output_and_keeps_tool_call_id(tmp_path) -> None:
@@ -430,7 +511,7 @@ def test_agent_maps_tool_timeout_to_timeout_status(tmp_path) -> None:
 
 def test_agent_enforces_elapsed_budget_after_model_call(tmp_path) -> None:
     class SlowModel:
-        def complete(self, messages, tools=()):
+        def complete(self, messages, tools=(), *, max_completion_tokens=None):
             time.sleep(0.02)
             return ModelReply(text="too late")
 

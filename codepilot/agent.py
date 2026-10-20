@@ -27,6 +27,8 @@ class ModelLike(Protocol):
         self,
         messages: Sequence[ChatMessage],
         tools: Sequence[ToolSpec] = (),
+        *,
+        max_completion_tokens: int | None = None,
     ) -> ModelReply: ...
 
 
@@ -115,7 +117,7 @@ class Agent:
         self._save_progress(state, tool_results, last_test)
         self._trace("run_started", 0, task_id=task.task_id)
 
-        while state.step_count < task.max_steps:
+        while state.step_count < task.max_steps or state.pending_model_reply is not None:
             if self._elapsed_seconds(started) + elapsed_before_ms / 1000 >= task.max_elapsed_seconds:
                 state.status = "budget_exceeded"
                 return self._finish(
@@ -126,7 +128,8 @@ class Agent:
                     error="elapsed time budget exceeded",
                     failure_type="budget",
                 )
-            compacted = _fit_context(state.messages, task.max_context_chars)
+            resuming_reply = state.pending_model_reply is not None
+            compacted = 0 if resuming_reply else _fit_context(state.messages, task.max_context_chars)
             if compacted:
                 self._trace(
                     "context_compacted",
@@ -135,7 +138,7 @@ class Agent:
                     context_chars=_context_chars(state.messages),
                     budget_chars=task.max_context_chars,
                 )
-            if _context_chars(state.messages) > task.max_context_chars:
+            if not resuming_reply and _context_chars(state.messages) > task.max_context_chars:
                 state.status = "budget_exceeded"
                 return self._finish(
                     state,
@@ -145,23 +148,64 @@ class Agent:
                     error="conversation context budget exceeded",
                     failure_type="budget",
                 )
-            state.step_count += 1
-            self._save_progress(state, tool_results, last_test)
             available_tools = self.tools.read_tools()
-            try:
-                reply = self.model.complete(state.messages, available_tools)
-            except ModelClientError as exc:
-                state.status = "failed"
-                return self._finish(
-                    state,
-                    tool_results,
-                    last_test,
-                    started,
-                    error=str(exc),
-                    failure_type="model",
+            if resuming_reply:
+                reply = state.pending_model_reply
+            else:
+                remaining = (
+                    task.max_total_tokens - state.tokens
+                    if task.max_total_tokens is not None
+                    else None
                 )
+                input_reserve = _estimate_request_tokens(state.messages, available_tools)
+                configured_output = getattr(
+                    getattr(self.model, "config", None), "max_completion_tokens", 1024
+                )
+                output_limit = int(configured_output)
+                if remaining is not None:
+                    output_limit = min(output_limit, remaining - input_reserve)
+                    if output_limit < 1:
+                        state.status = "budget_exceeded"
+                        return self._finish(
+                            state, tool_results, last_test, started,
+                            error=(
+                                "token budget cannot reserve estimated input and "
+                                "one output token"
+                            ),
+                            failure_type="budget",
+                        )
+                state.step_count += 1
+                self._save_progress(state, tool_results, last_test)
+                try:
+                    reply = self.model.complete(
+                        state.messages,
+                        available_tools,
+                        max_completion_tokens=output_limit,
+                    )
+                except ModelClientError as exc:
+                    state.status = "failed"
+                    return self._finish(
+                        state,
+                        tool_results,
+                        last_test,
+                        started,
+                        error=str(exc),
+                        failure_type="model",
+                    )
 
-            state.tokens += reply.input_tokens + reply.output_tokens
+                state.tokens += reply.input_tokens + reply.output_tokens
+                state.pending_model_reply = reply
+                state.pending_tool_index = 0
+                self._trace(
+                    "model_budget_reserved",
+                    state.step_count,
+                    estimated_input_tokens=input_reserve,
+                    max_completion_tokens=output_limit,
+                    remaining_tokens=remaining,
+                )
+                state.messages.append(reply.to_assistant_message())
+                self._save_progress(state, tool_results, last_test)
+
             self._trace(
                 "model_finished",
                 state.step_count,
@@ -191,9 +235,8 @@ class Agent:
                     failure_type="budget",
                 )
 
-            state.messages.append(reply.to_assistant_message())
-            self._save_progress(state, tool_results, last_test)
             if not reply.tool_calls:
+                state.pending_model_reply = None
                 if last_test is None:
                     state.status = "failed"
                     error = "model finished before running the full test suite"
@@ -220,7 +263,11 @@ class Agent:
                 self.tools, "can_execute_many_in_parallel", lambda unused: False
             )
             execute_many = getattr(self.tools, "execute_many", None)
-            if execute_many is not None and can_parallel(reply.tool_calls):
+            if (
+                not resuming_reply
+                and execute_many is not None
+                and can_parallel(reply.tool_calls)
+            ):
                 for call in reply.tool_calls:
                     state.attempts[call.name] = state.attempts.get(call.name, 0) + 1
                     if self.tracer:
@@ -230,7 +277,6 @@ class Agent:
                     last_test = self._record_tool_result(
                         state, tool_results, last_test, call, result, available_tools
                     )
-                    self._save_progress(state, tool_results, last_test)
                     if result.error_type == "timeout":
                         state.status = "timeout"
                         return self._finish(
@@ -241,8 +287,11 @@ class Agent:
                             error=f"{call.name} timed out",
                             failure_type="tool",
                         )
+                state.pending_tool_index = len(reply.tool_calls)
+                self._save_progress(state, tool_results, last_test)
             else:
-                for call in reply.tool_calls:
+                for call_index in range(state.pending_tool_index, len(reply.tool_calls)):
+                    call = reply.tool_calls[call_index]
                     test_attempts = sum(
                         state.attempts.get(name, 0)
                         for name in ("run_tests", "run_selected_tests")
@@ -281,6 +330,7 @@ class Agent:
                     last_test = self._record_tool_result(
                         state, tool_results, last_test, call, result, available_tools
                     )
+                    state.pending_tool_index = call_index + 1
                     self._save_progress(state, tool_results, last_test)
                     if result.error_type == "timeout":
                         state.status = "timeout"
@@ -292,6 +342,9 @@ class Agent:
                             error=f"{call.name} timed out",
                             failure_type="tool",
                         )
+            state.pending_model_reply = None
+            state.pending_tool_index = 0
+            self._save_progress(state, tool_results, last_test)
 
         state.status = "max_steps"
         return self._finish(
@@ -418,6 +471,24 @@ class Agent:
 
 def _context_chars(messages: list[ChatMessage]) -> int:
     return sum(len(json.dumps(message.to_api_dict(), ensure_ascii=False)) for message in messages)
+
+
+def _estimate_request_tokens(
+    messages: Sequence[ChatMessage], tools: Sequence[ToolSpec]
+) -> int:
+    """Reserve a byte-based upper bound before sending a request.
+
+    UTF-8 bytes bound byte-fallback tokenizer tokens; fixed framing allowance
+    covers message and tool boundaries. Provider usage remains the final guard.
+    """
+    message_bytes = sum(
+        len(json.dumps(message.to_api_dict(), ensure_ascii=False).encode("utf-8"))
+        for message in messages
+    )
+    tool_bytes = len(
+        json.dumps([tool.model_dump() for tool in tools], ensure_ascii=False).encode("utf-8")
+    )
+    return message_bytes + tool_bytes + 16 * len(messages) + 64
 
 
 def _tool_observation(

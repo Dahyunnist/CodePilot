@@ -69,6 +69,8 @@ class RepairScriptModel:
         self,
         messages: Sequence[ChatMessage],
         tools: Sequence[ToolSpec] = (),
+        *,
+        max_completion_tokens: int | None = None,
     ) -> ModelReply:
         assert tools
         self.requests.append(list(messages))

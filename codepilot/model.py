@@ -39,12 +39,18 @@ class ModelClient:
         self,
         messages: Sequence[ChatMessage],
         tools: Sequence[ToolSpec] = (),
+        *,
+        max_completion_tokens: int | None = None,
     ) -> ModelReply:
         """Return normalized text or structured tool calls."""
         request: dict[str, Any] = {
             "model": self.config.model,
             "messages": [message.to_api_dict() for message in messages],
-            "max_completion_tokens": self.config.max_completion_tokens,
+            "max_completion_tokens": (
+                max_completion_tokens
+                if max_completion_tokens is not None
+                else self.config.max_completion_tokens
+            ),
         }
         if tools:
             request["tools"] = [tool.model_dump() for tool in tools]
