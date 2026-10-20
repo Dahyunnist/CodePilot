@@ -1,0 +1,14 @@
+{
+  "case_id": "requests-6628",
+  "category": "exception-pickling-process-pool-regression",
+  "instruction": "修复 Requests 上游 issue #6628：requests.exceptions.JSONDecodeError 经 pickle 序列化再反序列化后必须保持可用；尤其要避免 ProcessPoolExecutor 因 worker 返回该异常而崩溃。保留 RequestsError 和 JSONDecodeError 的异常继承、文档内容及标准 json/simplejson 兼容性。检查异常类和对应测试，只改必要源码。",
+  "test_command": ["python", "-m", "pytest", "benchmark_tests/test_issue_6628.py", "-q"],
+  "source_url": "https://github.com/psf/requests",
+  "source_release": "Requests 2.31.0 source distribution",
+  "source_exclusions": [],
+  "source_commit": null,
+  "source_tree_sha": null,
+  "issue_url": "https://github.com/psf/requests/issues/6628",
+  "pull_request_url": "https://github.com/psf/requests/pull/6629",
+  "archive_sha256": "942c5a758f98d790eaed1a29cb6eefc7ffb0d1cf7af05c3d2791656dbd6ad1e1"
+}
