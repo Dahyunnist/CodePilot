@@ -192,8 +192,9 @@ class SearchCodeTool(Tool[SearchCodeArguments]):
         )
         if key in self.context.search_cache:
             return (
-                "重复搜索：相同查询和路径已有结果，本次未重发结果。"
-                "请参考前次搜索结果；需要更多证据时请缩小路径或改用精确查询。"
+                "缓存命中：相同查询和路径已有结果，以下重发原结果，"
+                "供上下文压缩后继续使用：\n"
+                f"{self.context.search_cache[key]}"
             )
         result = search_code(
             self.context.repo_root,
@@ -222,7 +223,8 @@ class ReadFileTool(Tool[ReadFileArguments]):
         if cached is not None and cached[0] == digest:
             return (
                 f"缓存命中：文件内容未变化，SHA-256 为 {digest}。"
-                "未重复发送文件内容；请参考前次读取结果，或改读更窄行段。"
+                "以下重发原读取结果，供上下文压缩后继续使用：\n"
+                f"{cached[1]}"
             )
         output = read_file(
             self.context.repo_root,

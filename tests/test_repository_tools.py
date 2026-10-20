@@ -64,13 +64,12 @@ def test_read_file_requires_reason_and_deduplicates_reads(tmp_path) -> None:
     assert first.ok and "value = 1" in first.stdout
     assert "来源：app.py" in first.stdout and "文件 SHA-256" in first.stdout
     assert duplicate.ok and "缓存命中" in duplicate.stdout
-    assert "value = 1" not in duplicate.stdout
-    assert "前次读取结果" in duplicate.stdout
+    assert "value = 1" in duplicate.stdout
     assert refreshed.ok and "value = 2" in refreshed.stdout and "缓存命中" not in refreshed.stdout
     assert not outside.ok and outside.error_type == "PathPolicyError"
 
 
-def test_duplicate_search_returns_short_cache_observation(tmp_path) -> None:
+def test_duplicate_search_reemits_cached_evidence(tmp_path) -> None:
     from codepilot.tools.registry import ToolRegistry
     from codepilot.schemas import ToolCall
 
@@ -85,8 +84,42 @@ def test_duplicate_search_returns_short_cache_observation(tmp_path) -> None:
     )
 
     assert first.ok and "app.py:1" in first.stdout
-    assert duplicate.ok and "重复搜索" in duplicate.stdout
-    assert "app.py:1" not in duplicate.stdout
+    assert duplicate.ok and "缓存命中" in duplicate.stdout
+    assert "app.py:1" in duplicate.stdout
+
+
+def test_duplicate_read_rehydrates_evidence_after_history_compaction(tmp_path) -> None:
+    import json
+
+    from codepilot.agent import _compact_tool_observation
+    from codepilot.schemas import ToolCall
+    from codepilot.tools.registry import ToolRegistry
+
+    lines = [f"value_{number} = {number}" for number in range(100)]
+    lines[50] = "important_target = 'evidence-retained'"
+    (tmp_path / "app.py").write_text("\n".join(lines), encoding="utf-8")
+    tools = ToolRegistry(tmp_path, ["python", "-m", "pytest"])
+    arguments = {
+        "path": "app.py",
+        "reason": "读取目标函数实现。",
+        "start_line": 1,
+        "end_line": 100,
+    }
+
+    first = tools.execute(
+        ToolCall(id="first-read", name="read_file", arguments=arguments)
+    )
+    prior_observation = json.dumps(
+        {"stdout": first.stdout, "stderr": first.stderr}, ensure_ascii=False
+    )
+    compacted, changed = _compact_tool_observation(prior_observation)
+    refreshed = tools.execute(
+        ToolCall(id="repeat-read", name="read_file", arguments=arguments)
+    )
+
+    assert changed
+    assert "evidence-retained" not in compacted
+    assert refreshed.ok and "evidence-retained" in refreshed.stdout
 
 
 def test_rejects_path_traversal_and_secrets(tmp_path) -> None:

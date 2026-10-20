@@ -30,6 +30,7 @@ class ModelClient:
         client_options: dict[str, Any] = {
             "api_key": config.api_key.get_secret_value(),
             "timeout": config.timeout_seconds,
+            "max_retries": 0,
         }
         if config.base_url:
             client_options["base_url"] = config.base_url

@@ -58,6 +58,7 @@ def test_builds_sdk_client_with_connection_settings(
         "api_key": "secret-key",
         "base_url": "https://example.test/v1",
         "timeout": 15.0,
+        "max_retries": 0,
     }
 
 
