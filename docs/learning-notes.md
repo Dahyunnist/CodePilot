@@ -99,3 +99,11 @@
 3. 为 Requests 建立独立固定依赖 Docker 镜像，避免借用不含 Requests 依赖的通用镜像。
 4. 60k Token 在 S18 仍不足；本阶段冻结为单项 100k Token、16 步，先校准预算再扩充样本。
 5. [S19 案例冻结记录](learning/stage-S19-requests-process-pool-frozen.md)和[真实模型结果](learning/stage-S19-requests-process-pool-results.md)记录问题、镜像、成功补丁和验收证据。
+
+# Step 20：公开仓库跨模块行为问题
+
+1. 新增 Flask #4834 嵌套 Blueprint 子域继承、urllib3 #3653 `HTTPHeaderDict` bytes 键两项案例，来自两个真实仓库。
+2. Docker 基线两项失败；独立上游金标准的可见、隐藏测试全部通过。
+3. 首轮真实模型均因 10 步上限未修改代码、未运行测试，0/2 accepted；20 步最终诊断因模型请求长时间无响应而中断，没有验收结果。
+4. S18 复核发现上下文压缩只遍历一轮；提交 `0849c28` 修复并新增回归测试。Agent 测试 28 项、全项目测试 118 项通过。
+5. 结果、token、费用、耗时与中断状态：[S20 评测报告](learning/stage-S20-public-issues-results.md)；案例来源与复现：[S20 冻结记录](learning/stage-S20-public-issues-frozen.md)。
