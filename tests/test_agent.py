@@ -2,7 +2,15 @@ from collections.abc import Sequence
 import json
 import time
 
-from codepilot.agent import Agent, _compact_tool_observation, _estimate_request_tokens
+from codepilot.agent import (
+    Agent,
+    _bounded_tool_result,
+    _compact_tool_observation,
+    _effective_context_budget,
+    _estimate_request_tokens,
+    _max_tool_observation_chars,
+    _protected_future_tokens,
+)
 from codepilot.model import ModelClientError
 from codepilot.schemas import (
     ChatMessage,
@@ -373,12 +381,78 @@ def test_agent_reserves_input_and_caps_output_before_request(tmp_path) -> None:
         ChatMessage(role="developer", content=SYSTEM_PROMPT),
         ChatMessage(role="user", content=task_prompt(limited_task)),
     ]
+    limited_task.max_total_tokens = 10_000
+    context_budget = _effective_context_budget(limited_task)
     reserve = _estimate_request_tokens(messages, ())
-    limited_task.max_total_tokens = reserve + 5
+    future_reserve = _protected_future_tokens(
+        context_budget, (), needs_test=True
+    )
+    limited_task.max_total_tokens = reserve + future_reserve + 128
 
     Agent(model, StubTools()).run(limited_task)
 
-    assert model.output_limits == [5]
+    assert model.output_limits == [128]
+
+
+def test_future_budget_reserves_test_call_and_final_reply():
+    before_test = _protected_future_tokens(9_000, (), needs_test=True)
+
+    assert before_test > 0
+    # After tests pass, the current model request is the final reply itself.
+    assert _protected_future_tokens(9_000, (), needs_test=False) == 0
+
+
+def test_model_keeps_final_reply_budget_after_full_tests_pass(tmp_path):
+    model = ScriptedModel(
+        [
+            ModelReply(tool_calls=[ToolCall(id="full-tests", name="run_tests", arguments={})]),
+            ModelReply(text="已完成"),
+        ]
+    )
+    limited_task = task(tmp_path)
+    limited_task.max_total_tokens = 40_000
+
+    result = Agent(model, StubTools()).run(limited_task)
+
+    assert result.status == "success"
+    assert model.output_limits == [512, 256]
+
+
+def test_repository_scale_and_task_budget_shrink_context(tmp_path):
+    small_repo = tmp_path / "small"
+    large_repo = tmp_path / "large"
+    small_repo.mkdir()
+    large_repo.mkdir()
+    for index in range(400):
+        (large_repo / f"module_{index}.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    small_task = Task(
+        repo_path=small_repo,
+        instruction="fix the bug",
+        test_command=["python", "-m", "pytest"],
+        max_total_tokens=40_000,
+    )
+    large_task = small_task.model_copy(update={"repo_path": large_repo})
+
+    assert _effective_context_budget(small_task) > _effective_context_budget(large_task)
+    assert _effective_context_budget(large_task) < large_task.max_context_chars
+
+
+def test_tool_observations_are_bounded_for_model_context():
+    limit = _max_tool_observation_chars(9_000)
+    original = ToolResult(
+        tool_name="read_file",
+        ok=False,
+        stdout="BEGIN_SOURCE" + "x" * 20_000 + "END_SOURCE",
+        stderr="BEGIN_ERROR" + "y" * 8_000 + "END_ERROR",
+    )
+
+    bounded = _bounded_tool_result(original, limit)
+
+    assert len(bounded.stdout) + len(bounded.stderr) <= limit
+    assert "已截断" in bounded.stdout or "已截断" in bounded.stderr
+    assert "BEGIN_SOURCE" in bounded.stdout
+    assert "END_SOURCE" in bounded.stdout
 
 
 def test_budget_reservation_is_traced_before_model_request(tmp_path) -> None:
@@ -447,16 +521,26 @@ def test_agent_reconciles_provider_usage_that_exceeds_reserved_budget(tmp_path) 
         ChatMessage(role="user", content=task_prompt(limited_task)),
     ]
     reserve = _estimate_request_tokens(messages, ())
-    limited_task.max_total_tokens = reserve + 2
+    limited_task.max_total_tokens = 10_000
+    future_reserve = _protected_future_tokens(
+        _effective_context_budget(limited_task), (), needs_test=True
+    )
+    limited_task.max_total_tokens = reserve + future_reserve + 128
     model = ScriptedModel(
-        [ModelReply(text="too large", input_tokens=reserve, output_tokens=3)]
+        [
+            ModelReply(
+                text="too large",
+                input_tokens=reserve + future_reserve,
+                output_tokens=129,
+            )
+        ]
     )
 
     result = Agent(model, StubTools()).run(limited_task)
 
-    assert model.output_limits == [2]
+    assert model.output_limits == [128]
     assert result.status == "budget_exceeded"
-    assert result.tokens == reserve + 3
+    assert result.tokens == reserve + future_reserve + 129
 
 
 def test_agent_persists_model_reply_before_tool_execution_and_resumes(tmp_path) -> None:
@@ -518,7 +602,10 @@ def test_agent_compacts_old_tool_output_and_keeps_tool_call_id(tmp_path) -> None
     observed = model.requests[1][-1]
     assert observed.role == "tool"
     assert observed.tool_call_id == "call-1"
-    assert '"compacted":true' in observed.content
+    assert "已截断" in observed.content
+    assert len(observed.content) <= _max_tool_observation_chars(
+        _effective_context_budget(limited_task)
+    ) + 200
     assert "BEGIN_EVIDENCE" in observed.content
     assert "END_EVIDENCE" in observed.content
     assert model.requests[1][2].tool_calls[0].arguments == {}

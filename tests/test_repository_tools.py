@@ -63,9 +63,30 @@ def test_read_file_requires_reason_and_deduplicates_reads(tmp_path) -> None:
     assert not missing_reason.ok
     assert first.ok and "value = 1" in first.stdout
     assert "来源：app.py" in first.stdout and "文件 SHA-256" in first.stdout
-    assert duplicate.ok and "缓存命中" in duplicate.stdout and "value = 1" in duplicate.stdout
+    assert duplicate.ok and "缓存命中" in duplicate.stdout
+    assert "value = 1" not in duplicate.stdout
+    assert "前次读取结果" in duplicate.stdout
     assert refreshed.ok and "value = 2" in refreshed.stdout and "缓存命中" not in refreshed.stdout
     assert not outside.ok and outside.error_type == "PathPolicyError"
+
+
+def test_duplicate_search_returns_short_cache_observation(tmp_path) -> None:
+    from codepilot.tools.registry import ToolRegistry
+    from codepilot.schemas import ToolCall
+
+    (tmp_path / "app.py").write_text("value = 1\n", encoding="utf-8")
+    tools = ToolRegistry(tmp_path, ["python", "-m", "pytest"])
+
+    first = tools.execute(
+        ToolCall(id="first", name="search_code", arguments={"query": "value"})
+    )
+    duplicate = tools.execute(
+        ToolCall(id="duplicate", name="search_code", arguments={"query": "value"})
+    )
+
+    assert first.ok and "app.py:1" in first.stdout
+    assert duplicate.ok and "重复搜索" in duplicate.stdout
+    assert "app.py:1" not in duplicate.stdout
 
 
 def test_rejects_path_traversal_and_secrets(tmp_path) -> None:

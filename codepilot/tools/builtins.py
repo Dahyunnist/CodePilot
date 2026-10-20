@@ -185,12 +185,24 @@ class SearchCodeTool(Tool[SearchCodeArguments]):
     parallel_safe = True
 
     def run(self, arguments: SearchCodeArguments) -> str:
-        return search_code(
+        key = (
+            arguments.query,
+            arguments.path.replace("\\", "/"),
+            arguments.max_results,
+        )
+        if key in self.context.search_cache:
+            return (
+                "重复搜索：相同查询和路径已有结果，本次未重发结果。"
+                "请参考前次搜索结果；需要更多证据时请缩小路径或改用精确查询。"
+            )
+        result = search_code(
             self.context.repo_root,
             arguments.query,
             arguments.path,
             arguments.max_results,
         )
+        self.context.search_cache[key] = result
+        return result
 
 
 class ReadFileTool(Tool[ReadFileArguments]):
@@ -208,7 +220,10 @@ class ReadFileTool(Tool[ReadFileArguments]):
         digest = hashlib.sha256(source.read_bytes()).hexdigest()
         cached = self.context.read_cache.get(key)
         if cached is not None and cached[0] == digest:
-            return f"缓存命中：文件内容未变化。\n{cached[1]}"
+            return (
+                f"缓存命中：文件内容未变化，SHA-256 为 {digest}。"
+                "未重复发送文件内容；请参考前次读取结果，或改读更窄行段。"
+            )
         output = read_file(
             self.context.repo_root,
             arguments.path,
@@ -241,6 +256,7 @@ class ApplyPatchTool(Tool[ApplyPatchArguments]):
             for key, value in self.context.read_cache.items()
             if key[0] != normalized_path
         }
+        self.context.search_cache.clear()
         return output
 
 

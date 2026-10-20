@@ -30,6 +30,7 @@ class ToolContext:
     read_cache: dict[tuple[str, int, int | None], tuple[str, str]] = field(
         default_factory=dict
     )
+    search_cache: dict[tuple[str, str, int], str] = field(default_factory=dict)
     last_test_result: ToolResult | None = None
     repository_index: Any | None = None
     repository_index_revision: str | None = None

@@ -6,6 +6,8 @@ import time
 import uuid
 import json
 import math
+import os
+from pathlib import Path
 from typing import Any, Callable, Protocol, Sequence
 
 from codepilot.model import ModelClientError
@@ -115,6 +117,19 @@ class Agent:
             )
             tool_results = []
             last_test = None
+        repository_files = _count_repository_files(task.repo_path)
+        context_budget = _effective_context_budget(task, repository_files)
+        max_observation_chars = _max_tool_observation_chars(context_budget)
+        self._max_observation_chars = max_observation_chars
+        self._trace(
+            "task_context_profile",
+            state.step_count,
+            repository_files=repository_files,
+            configured_context_chars=task.max_context_chars,
+            effective_context_chars=context_budget,
+            max_tool_observation_chars=max_observation_chars,
+            max_total_tokens=task.max_total_tokens,
+        )
         if state.model_request_in_flight and state.pending_model_reply is None:
             state.status = "failed"
             return self._finish(
@@ -142,16 +157,16 @@ class Agent:
                     failure_type="budget",
                 )
             resuming_reply = state.pending_model_reply is not None
-            compacted = 0 if resuming_reply else _fit_context(state.messages, task.max_context_chars)
+            compacted = 0 if resuming_reply else _fit_context(state.messages, context_budget)
             if compacted:
                 self._trace(
                     "context_compacted",
                     state.step_count,
                     tool_messages=compacted,
                     context_chars=_context_chars(state.messages),
-                    budget_chars=task.max_context_chars,
+                    budget_chars=context_budget,
                 )
-            if not resuming_reply and _context_chars(state.messages) > task.max_context_chars:
+            if not resuming_reply and _context_chars(state.messages) > context_budget:
                 state.status = "budget_exceeded"
                 return self._finish(
                     state,
@@ -174,19 +189,32 @@ class Agent:
                 configured_output = getattr(
                     getattr(self.model, "config", None), "max_completion_tokens", 1024
                 )
-                output_limit = int(configured_output)
+                completion_ceiling = 256 if last_test is not None and last_test.ok else 512
+                output_limit = min(int(configured_output), completion_ceiling)
                 if remaining is not None:
-                    output_limit = min(output_limit, remaining - input_reserve)
-                    if output_limit < 1:
+                    needs_test = last_test is None or not last_test.ok
+                    future_reserve = _protected_future_tokens(
+                        context_budget,
+                        available_tools,
+                        needs_test=needs_test,
+                    )
+                    output_limit = min(
+                        output_limit,
+                        remaining - input_reserve - future_reserve,
+                    )
+                    minimum_output = min(int(configured_output), 128)
+                    if output_limit < minimum_output:
                         state.status = "budget_exceeded"
                         return self._finish(
                             state, tool_results, last_test, started,
                             error=(
-                                "token budget cannot reserve estimated input and "
-                                "one output token"
+                                "token budget cannot reserve current request and "
+                                "required test/finalization calls"
                             ),
                             failure_type="budget",
                         )
+                else:
+                    future_reserve = 0
                 state.step_count += 1
                 state.model_request_in_flight = True
                 self._save_progress(state, tool_results, last_test)
@@ -196,6 +224,9 @@ class Agent:
                     estimated_input_tokens=input_reserve,
                     max_completion_tokens=output_limit,
                     remaining_tokens=remaining,
+                    protected_future_tokens=future_reserve,
+                    needs_test=last_test is None or not last_test.ok,
+                    effective_context_chars=context_budget,
                 )
                 try:
                     reply = self.model.complete(
@@ -388,6 +419,8 @@ class Agent:
                 "stderr": redact_sensitive_text(result.stderr),
             }
         )
+        observation_limit = getattr(self, "_max_observation_chars", 4_000)
+        result = _bounded_tool_result(result, observation_limit)
         if self.tracer:
             self.tracer.tool_finished(state.step_count, result)
         state.last_tool_result = result
@@ -508,6 +541,94 @@ def _estimate_request_tokens(
     )
     payload_bytes = message_bytes + tool_bytes
     return math.ceil(payload_bytes / 3) + 16 * len(messages) + 64
+
+
+def _count_repository_files(repo_root: Any, limit: int = 2_000) -> int:
+    """Count repository files cheaply, stopping once scale is clear."""
+    ignored = {
+        ".git",
+        ".hg",
+        ".svn",
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        "build",
+        "dist",
+    }
+    count = 0
+    for current, directories, files in os.walk(repo_root, followlinks=False):
+        directories[:] = [name for name in directories if name.casefold() not in ignored]
+        count += sum(1 for name in files if not (Path(current) / name).is_symlink())
+        if count >= limit:
+            return limit
+    return count
+
+
+def _effective_context_budget(task: Task, repository_files: int | None = None) -> int:
+    """Scale per-request history by repository size and total token budget."""
+    if repository_files is None:
+        repository_files = _count_repository_files(task.repo_path)
+    if repository_files < 100:
+        scale_limit = 16_000
+    elif repository_files < 500:
+        scale_limit = 10_000
+    else:
+        scale_limit = 8_000
+    budget = min(task.max_context_chars, scale_limit)
+    if task.max_total_tokens is not None:
+        token_budget_limit = max(6_000, min(16_000, int(task.max_total_tokens * 0.30)))
+        budget = min(budget, token_budget_limit)
+    return budget
+
+
+def _max_tool_observation_chars(context_budget: int) -> int:
+    """Limit one tool result to a fraction of the task's context window."""
+    return max(512, min(4_000, context_budget // 3))
+
+
+def _protected_future_tokens(
+    context_budget: int,
+    tools: Sequence[ToolSpec],
+    *,
+    needs_test: bool,
+) -> int:
+    """Hold budget for one test decision and its final response."""
+    if not needs_test:
+        return 0
+    tool_bytes = len(
+        json.dumps([tool.model_dump() for tool in tools], ensure_ascii=False).encode("utf-8")
+    )
+    projected_input = math.ceil(context_budget / 3) + math.ceil(tool_bytes / 3) + 128
+    completion_floor = 256
+    return 2 * (projected_input + completion_floor)
+
+
+def _bounded_tool_result(result: ToolResult, limit: int) -> ToolResult:
+    """Keep useful edges of large tool output before adding it to history."""
+    if len(result.stdout) + len(result.stderr) <= limit:
+        return result
+    stderr_limit = min(len(result.stderr), max(128, limit // 3)) if result.stderr else 0
+    stdout_limit = max(0, limit - stderr_limit)
+    if not result.stdout and result.stderr:
+        stderr_limit = limit
+    return result.model_copy(
+        update={
+            "stdout": _bounded_tool_text(result.stdout, stdout_limit),
+            "stderr": _bounded_tool_text(result.stderr, stderr_limit),
+        }
+    )
+
+
+def _bounded_tool_text(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    marker = f"…已截断，原文共 {len(text)} 字符…"
+    remaining = max(0, limit - len(marker))
+    head = remaining // 2
+    tail = remaining - head
+    return f"{text[:head]}{marker}{text[-tail:] if tail else ''}"
 
 
 def _tool_observation(
