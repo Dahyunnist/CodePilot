@@ -36,4 +36,4 @@ Click #3084 原失败记录保持不变。先前提高 Token 上限重跑仍因�
 
 OpenHands 与 SWE-agent 的公开仓库任务基准同样采用固定 issue、隔离仓库环境和测试验收。本项目已有这个闭环，但单样本不代表生产能力；S17/S18 六项原始首轮均未产生补丁，S19 一项通过，S20 首轮又有两项因探索耗尽步数。下一步重点应先改进搜索结果的上下文保留、重复读取抑制和请求超时/重试可观测性，再继续扩展真实缺陷评测。
 
-来源：[OpenHands SWE-bench 基准](https://github.com/OpenHands/benchmarks/blob/main/benchmarks/swebench/README.md)、[OpenHands Benchmarks](https://github.com/OpenHands/benchmarks)。
+来源：[OpenHands SWE-bench 基准](https://github.com/OpenHands/benchmarks/blob/main/benchmarks/swebench/README.md)、[OpenHands Benchmarks](https://github.com/OpenHands/benchmarks)、[SWE-agent 单 issue 运行教程](https://github.com/SWE-agent/SWE-agent/blob/main/docs/usage/cl_tutorial.md)。
