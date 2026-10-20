@@ -79,10 +79,14 @@ def run_tests(
         )
 
     try:
+        test_environment = _safe_environment()
+        src_path = repo_root.resolve(strict=True) / "src"
+        if src_path.is_dir():
+            test_environment["PYTHONPATH"] = str(src_path)
         completed = subprocess.run(
             normalized,
             cwd=repo_root.resolve(strict=True),
-            env=_safe_environment(),
+            env=test_environment,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -199,6 +203,8 @@ def build_docker_command(
                 f"type=bind,source={source.resolve(strict=True)},target={target},readonly",
             ]
         )
+    if (root / "src").is_dir():
+        command.extend(["--env", "PYTHONPATH=/workspace/src"])
     command.extend(
         [
             "--workdir",

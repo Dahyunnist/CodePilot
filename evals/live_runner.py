@@ -37,6 +37,7 @@ def run_live_evaluation(
     max_total_tokens: int,
     max_elapsed: float,
     context_budget_chars: int,
+    max_steps: int,
 ) -> list[dict[str, object]]:
     """Run clean, isolated copies and independently verify every repair."""
     if execution == "host" and not approve_host_tests:
@@ -80,6 +81,12 @@ def run_live_evaluation(
                 "case_id": case.case_id,
                 "run_id": "",
                 "model": config.model,
+                "source_url": case.source_url or "",
+                "source_commit": case.source_commit or "",
+                "source_tree_sha": case.source_tree_sha or "",
+                "issue_url": case.issue_url or "",
+                "pull_request_url": case.pull_request_url or "",
+                "archive_sha256": case.archive_sha256 or "",
                 "base_url": config.base_url or "https://api.openai.com/v1",
                 "temperature": "provider_default_unspecified",
                 "execution": execution,
@@ -126,7 +133,7 @@ def run_live_evaluation(
                 repo_path=workspace.path,
                 instruction=case.instruction,
                 test_command=case.test_command,
-                max_steps=10,
+                max_steps=max_steps,
                 max_test_attempts=3,
                 max_elapsed_seconds=max_elapsed,
                 max_total_tokens=max_total_tokens,
@@ -175,6 +182,12 @@ def run_live_evaluation(
             "case_id": case.case_id,
             "run_id": run_id,
             "model": config.model,
+            "source_url": case.source_url or "",
+            "source_commit": case.source_commit or "",
+            "source_tree_sha": case.source_tree_sha or "",
+            "issue_url": case.issue_url or "",
+            "pull_request_url": case.pull_request_url or "",
+            "archive_sha256": case.archive_sha256 or "",
             "base_url": config.base_url or "https://api.openai.com/v1",
             "temperature": "provider_default_unspecified",
             "execution": execution,
@@ -338,6 +351,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-total-tokens", type=int, default=15000)
     parser.add_argument("--context-budget-chars", type=int, default=30_000)
     parser.add_argument("--max-elapsed", type=float, default=180)
+    parser.add_argument("--max-steps", type=int, default=10)
     return parser
 
 
@@ -354,6 +368,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_total_tokens=args.max_total_tokens,
         max_elapsed=args.max_elapsed,
         context_budget_chars=args.context_budget_chars,
+        max_steps=args.max_steps,
     )
     accepted = sum(row["accepted"] is True for row in rows)
     print(f"真实模型评测：{accepted}/{len(rows)} 项通过验收")

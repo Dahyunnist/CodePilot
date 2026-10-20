@@ -1,0 +1,22 @@
+{
+  "case_id": "click-3145",
+  "category": "upstream-api-regression",
+  "instruction": "修复 Click 上游 issue #3145：src/click/core.py 的 Context.lookup_default(name, call=False) 查询未设置的默认值时泄漏内部 Sentinel.UNSET。用户覆盖 lookup_default 并把 None 当作“没有默认值”继续做前缀回退时，拿不到正确结果。公开方法应对未设置值返回 None；Parameter 参数解析仍须区分缺省值与显式 None，并保留 call=True 的调用行为。先检查 Context.lookup_default、Parameter 对它的调用及对应测试，只做必要修改。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "tests/test_issue_3145.py",
+    "tests/test_context.py",
+    "tests/test_defaults.py",
+    "-q"
+  ],
+  "search_query": "lookup_default",
+  "patches": [],
+  "source_url": "https://github.com/pallets/click",
+  "source_commit": "1d038f270701498433cb432f54db89f95f07a845",
+  "source_tree_sha": "3c2036983ac4e0120b5946244f36351b4a276f34",
+  "issue_url": "https://github.com/pallets/click/issues/3145",
+  "pull_request_url": "https://github.com/pallets/click/pull/3224",
+  "archive_sha256": "f3999c7e787a93e159eb78a97db7a768a441509795a23f3a060bde24362ff38d"
+}

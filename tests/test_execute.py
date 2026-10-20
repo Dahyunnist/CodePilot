@@ -67,6 +67,7 @@ def test_run_tests_truncates_large_output(tmp_path) -> None:
 
 
 def test_docker_command_has_isolation_and_resource_limits(tmp_path) -> None:
+    (tmp_path / "src").mkdir()
     command = build_docker_command(
         tmp_path,
         [sys.executable, "-m", "pytest", "tests", "-q"],
@@ -81,6 +82,7 @@ def test_docker_command_has_isolation_and_resource_limits(tmp_path) -> None:
     assert workspace_mount.endswith(",target=/workspace,readonly")
     assert command[command.index("--cap-drop") + 1] == "ALL"
     assert command[command.index("--memory") + 1] == "512m"
+    assert "PYTHONPATH=/workspace/src" in command
     assert command[-9:] == [
         "codepilot-runner:0.1",
         "python",
@@ -153,6 +155,21 @@ def test_host_tests_do_not_receive_model_api_key(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("LLM_API_KEY", "must-not-reach-tests")
     (tmp_path / "test_env.py").write_text(
         "import os\n\ndef test_no_key():\n    assert 'LLM_API_KEY' not in os.environ\n",
+        encoding="utf-8",
+    )
+
+    result = run_tests(tmp_path, ["python", "-m", "pytest", "-q"])
+
+    assert result.ok is True
+
+
+def test_src_layout_is_importable_without_inheriting_host_pythonpath(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PYTHONPATH", "must-not-reach-tests")
+    package = tmp_path / "src"
+    package.mkdir()
+    (package / "sample_package.py").write_text("VALUE = 42\n", encoding="utf-8")
+    (tmp_path / "test_src_layout.py").write_text(
+        "from sample_package import VALUE\n\ndef test_value():\n    assert VALUE == 42\n",
         encoding="utf-8",
     )
 

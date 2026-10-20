@@ -1,0 +1,69 @@
+[baseline]
+ok=False
+exit_code=1
+error_type=test_failure
+stdout:
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+____ test_batch_lookup_reduces_query_count_and_preserves_delivery_contract _____
+
+    def test_batch_lookup_reduces_query_count_and_preserves_delivery_contract() -> None:
+        store = SubscriptionStore(
+            {
+                1: {"active": True, "channel": "email"},
+                2: {"active": False, "channel": "sms"},
+                3: {"active": True, "channel": "push"},
+            }
+        )
+    
+        deliveries = prepare_deliveries(store, [3, 1, 3, 2, 999], "invoice.ready")
+    
+>       assert deliveries == [
+            {"recipient_id": 3, "channel": "push", "event": "invoice.ready"},
+            {"recipient_id": 1, "channel": "email", "event": "invoice.ready"},
+        ]
+E       AssertionError: assert [{'recipient_...voice.ready'}] == [{'recipient_...voice.ready'}]
+E         
+E         Left contains one more item: {'recipient_id': 3, 'channel': 'push', 'event': 'invoice.ready'}
+E         Use -v to get more diff
+
+tests/test_dispatch.py:16: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_dispatch.py::test_batch_lookup_reduces_query_count_and_preserves_delivery_contract
+1 failed, 1 passed in 0.07s
+
+stderr:
+
+
+[agent]
+ok=True
+exit_code=0
+error_type=
+stdout:
+..                                                                       [100%]
+2 passed in 0.25s
+
+stderr:
+
+
+[independent_visible]
+ok=True
+exit_code=0
+error_type=
+stdout:
+..                                                                       [100%]
+2 passed in 0.12s
+
+stderr:
+
+
+[hidden]
+ok=True
+exit_code=0
+error_type=
+stdout:
+..                                                                       [100%]
+2 passed in 0.07s
+
+stderr:
+

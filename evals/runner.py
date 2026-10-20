@@ -46,8 +46,14 @@ class CaseSpec(BaseModel):
     category: str = Field(min_length=1)
     instruction: str = Field(min_length=1)
     test_command: list[str] = Field(min_length=1)
-    search_query: str = Field(min_length=1)
-    patches: list[PatchSpec] = Field(min_length=1)
+    search_query: str = ""
+    patches: list[PatchSpec] = Field(default_factory=list)
+    source_url: str | None = None
+    source_commit: str | None = None
+    source_tree_sha: str | None = None
+    issue_url: str | None = None
+    pull_request_url: str | None = None
+    archive_sha256: str | None = None
     case_dir: Path | None = None
 
 
@@ -55,6 +61,8 @@ class ScriptedRepairModel:
     """Deterministic tool policy used to validate the evaluation machinery."""
 
     def __init__(self, case: CaseSpec) -> None:
+        if not case.search_query or not case.patches:
+            raise ValueError("scripted cases require search_query and patches")
         self.replies = [
             ModelReply(
                 tool_calls=[

@@ -1,0 +1,74 @@
+[baseline]
+ok=False
+exit_code=1
+error_type=test_failure
+stdout:
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_____________ test_batch_is_deduplicated_in_order_and_written_once _____________
+
+    def test_batch_is_deduplicated_in_order_and_written_once() -> None:
+        store = AuditStore(existing_ids={"persisted"})
+        events = [
+            {"event_id": "a", "actor_id": "u1"},
+            {"event_id": "persisted", "actor_id": "u2"},
+            {"event_id": "b", "actor_id": "u3"},
+            {"event_id": "a", "actor_id": "u4"},
+        ]
+    
+        assert record_events(store, events) == 2
+        assert [event["event_id"] for event in store.events] == ["a", "b"]
+>       assert store.write_count == 1
+E       assert 2 == 1
+E        +  where 2 = <audit.store.AuditStore object at 0x79054519a250>.write_count
+
+tests/test_writer.py:18: AssertionError
+_________ test_invalid_event_rejects_the_whole_batch_before_any_write __________
+
+    def test_invalid_event_rejects_the_whole_batch_before_any_write() -> None:
+        store = AuditStore()
+    
+>       with pytest.raises(ValueError, match="requires event_id and actor_id"):
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_writer.py:24: Failed
+=========================== short test summary info ============================
+FAILED tests/test_writer.py::test_batch_is_deduplicated_in_order_and_written_once
+FAILED tests/test_writer.py::test_invalid_event_rejects_the_whole_batch_before_any_write
+2 failed in 0.21s
+
+stderr:
+
+
+[agent]
+ok=True
+exit_code=0
+error_type=
+stdout:
+..                                                                       [100%]
+2 passed in 0.23s
+
+stderr:
+
+
+[independent_visible]
+ok=True
+exit_code=0
+error_type=
+stdout:
+..                                                                       [100%]
+2 passed in 0.12s
+
+stderr:
+
+
+[hidden]
+ok=True
+exit_code=0
+error_type=
+stdout:
+....                                                                     [100%]
+4 passed in 0.12s
+
+stderr:
+
