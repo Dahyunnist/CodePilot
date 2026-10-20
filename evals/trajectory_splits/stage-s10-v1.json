@@ -1,0 +1,23 @@
+{
+  "version": "stage-s10-v1",
+  "unit": "case_id; every run of one case stays in the same split",
+  "train": [
+    "atomic-csv-import",
+    "parse-config",
+    "parse-port",
+    "slug-refactor",
+    "timeout-config"
+  ],
+  "validation": [
+    "bulk-audit-write-performance",
+    "clamp-boundary",
+    "cursor-pagination",
+    "notification-batch-performance"
+  ],
+  "test": [
+    "click-3145",
+    "multi-bug-invoice",
+    "multi-file-discount",
+    "retry-transient-only"
+  ]
+}

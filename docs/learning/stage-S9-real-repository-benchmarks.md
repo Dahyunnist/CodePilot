@@ -53,4 +53,4 @@ S3 已在 `E:\job\.tmp\codepilot-s3-external-repo` 验证完整流程：外部�
 ## 验证
 
 - NN 环境完整测试：`D:\Anaconda3\envs\NN\python.exe -m pytest -q`，**96 passed**。
-- Git whitespace 检查：`git diff --check` 通过。
+- 源代码差异的 `git diff --check` 通过；归档的原始 pytest 日志保留测试工具输出的空白字符。
