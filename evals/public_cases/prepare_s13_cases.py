@@ -23,10 +23,14 @@ def verify_archive(path: Path, expected_sha256: str) -> None:
         raise ValueError(f"source archive checksum mismatch: {path.name}")
 
 
-def _safe_extract(archive: Path, destination: Path) -> Path:
+def _safe_extract(
+    archive: Path, destination: Path, excluded_paths: set[str] | None = None
+) -> Path:
+    excluded_paths = excluded_paths or set()
     with tarfile.open(archive, "r:gz") as bundle:
         members = bundle.getmembers()
         roots: set[str] = set()
+        extracted: list[tarfile.TarInfo] = []
         for member in members:
             relative = PurePosixPath(member.name)
             if (
@@ -40,9 +44,12 @@ def _safe_extract(archive: Path, destination: Path) -> Path:
                 raise ValueError(f"unsupported entry in source archive: {member.name}")
             if relative.parts:
                 roots.add(relative.parts[0])
+                suffix = PurePosixPath(*relative.parts[1:]).as_posix()
+                if suffix not in excluded_paths:
+                    extracted.append(member)
         if len(roots) != 1:
             raise ValueError("source archive must contain exactly one root directory")
-        bundle.extractall(destination, members=members)
+        bundle.extractall(destination, members=extracted)
         return destination / roots.pop()
 
 
@@ -66,7 +73,11 @@ def prepare(archives_root: Path, output_root: Path) -> Path:
     for case_id, archive, fixture, metadata in verified:
         case_output = output_root / case_id
         case_output.mkdir()
-        source_root = _safe_extract(archive, case_output / "source")
+        source_root = _safe_extract(
+            archive,
+            case_output / "source",
+            set(metadata.get("source_exclusions", [])),
+        )
         repo = case_output / "repo"
         shutil.move(str(source_root), str(repo))
         (case_output / "source").rmdir()

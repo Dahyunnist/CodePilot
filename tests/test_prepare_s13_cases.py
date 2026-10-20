@@ -24,3 +24,25 @@ def test_source_archive_rejects_parent_path(tmp_path):
 
     with pytest.raises(ValueError, match="unsafe path"):
         _safe_extract(archive, tmp_path / "unpacked")
+
+
+def test_source_archive_excludes_listed_fixture(tmp_path):
+    archive = tmp_path / "source.tar.gz"
+    with tarfile.open(archive, "w:gz") as bundle:
+        root = tarfile.TarInfo("Flask-2.2.2/")
+        root.type = tarfile.DIRTYPE
+        bundle.addfile(root)
+        for name, data in (
+            ("Flask-2.2.2/src/flask.py", b"source"),
+            ("Flask-2.2.2/tests/test_apps/.env", b"fixture"),
+        ):
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            bundle.addfile(info, io.BytesIO(data))
+
+    root = _safe_extract(
+        archive, tmp_path / "unpacked", {"tests/test_apps/.env"}
+    )
+
+    assert (root / "src/flask.py").is_file()
+    assert not (root / "tests/test_apps/.env").exists()

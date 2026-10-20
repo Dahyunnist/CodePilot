@@ -12,6 +12,7 @@
   ],
   "source_url": "https://github.com/pallets/flask",
   "source_release": "Flask 2.2.2 source distribution",
+  "source_exclusions": ["tests/test_apps/.env"],
   "source_commit": null,
   "source_tree_sha": null,
   "issue_url": "https://github.com/pallets/flask/issues/4834",

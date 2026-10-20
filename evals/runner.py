@@ -50,6 +50,7 @@ class CaseSpec(BaseModel):
     patches: list[PatchSpec] = Field(default_factory=list)
     source_url: str | None = None
     source_release: str | None = None
+    source_exclusions: list[str] = Field(default_factory=list)
     source_commit: str | None = None
     source_tree_sha: str | None = None
     issue_url: str | None = None

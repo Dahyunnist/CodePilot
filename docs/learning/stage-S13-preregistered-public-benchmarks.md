@@ -11,7 +11,7 @@
 | `flask-4834` | [Flask #4834](https://github.com/pallets/flask/issues/4834) | [Flask #4935](https://github.com/pallets/flask/pull/4935) | Flask 2.2.2 sdist，SHA-256 `642c450d19c4ad482f96729bd2a8f6d32554aa1e231f4f6b4e7e5264b16cca2b` | 多层 Blueprint 子域继承、路由回归 | 公开 reproducer + 上游 `test_blueprints.py`；隐藏三层嵌套子域组合 |
 | `urllib3-3710` | [urllib3 #3710](https://github.com/urllib3/urllib3/issues/3710) | [urllib3 #3711](https://github.com/urllib3/urllib3/pull/3711) | urllib3 2.5.0 sdist，SHA-256 `3fc47733c7e419d4bc3f6b3dc2b4f890bb743906a30d56ba4a5bfa4bbff92760` | 大响应部分读取性能、内存复制 | 峰值分配上限与完整读取正确性；隐藏多尺寸分块及独立内存上限 |
 
-PyPI sdist 不包含可验证的 Git commit/tree。这里以项目官方仓库链接、精确 release、完整源包 SHA-256 固定输入；不把包版本冒充 Git commit。源码准备器先验 SHA，再安全解包。
+PyPI sdist 不包含可验证的 Git commit/tree。这里以项目官方仓库链接、精确 release、完整源包 SHA-256 固定输入；不把包版本冒充 Git commit。Flask sdist 中 `tests/test_apps/.env` 是与目标无关的本机配置夹具；准备器按清单排除，并将排除路径写入每条结果。源码准备器先验 SHA，再安全解包。
 
 ## 数据边界
 
