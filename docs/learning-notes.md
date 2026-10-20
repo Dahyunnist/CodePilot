@@ -76,3 +76,10 @@
 3. 主要失败：文档命令依赖本机绝对路径；生成结果与实现不一致。
 4. 复现测试：搜索盘符路径和密钥模式；从 README 顺序执行构建、测试和评测命令。
 5. 方案原因：v0.1 固定一个可回退的 Day 2 基线，后续 LangGraph 迁移不影响显式 Loop 版本。
+
+# Step 17：公开仓库问题评测
+
+1. 先固定上游 issue、源码归档 SHA-256、可见/隐藏测试和容器镜像，再调用真实模型。
+2. 冻结任务与基线：[S17 案例冻结记录](learning/stage-S17-public-issues-frozen.md)；结果与失败分析：[S17 真实模型报告](learning/stage-S17-public-issues-results.md)。
+3. 本轮 3 项任务都因 25k Token 上限及测试/收尾预算保留而在编辑前停止；0/3 accepted。轨迹说明预算保护生效，但此结果不能证明修复能力。
+4. SWE-agent/OpenHands 的公开基准使用 issue 任务和可复现评测管线；本项目尚未使用官方 SWE-Bench harness，也没有同条件对照或足够样本。
