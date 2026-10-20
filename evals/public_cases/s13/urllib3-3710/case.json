@@ -11,6 +11,12 @@
   ],
   "source_url": "https://github.com/urllib3/urllib3",
   "source_release": "urllib3 2.5.0 source distribution",
+  "source_exclusions": [
+    "dummyserver/certs/cacert.key",
+    "dummyserver/certs/cacert.pem",
+    "dummyserver/certs/server.key",
+    "test/contrib/duplicate_san.pem"
+  ],
   "source_commit": null,
   "source_tree_sha": null,
   "issue_url": "https://github.com/urllib3/urllib3/issues/3710",
