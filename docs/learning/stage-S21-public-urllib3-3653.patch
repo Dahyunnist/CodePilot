@@ -1,0 +1,51 @@
+diff --git a/src/urllib3/_collections.py b/src/urllib3/_collections.py
+index 1b6c136..f447092 100644
+--- a/src/urllib3/_collections.py
++++ b/src/urllib3/_collections.py
+@@ -254,16 +254,22 @@ class HTTPHeaderDict(typing.MutableMapping[str, str]):
+             key = key.decode("latin-1")
+         self._container[key.lower()] = [key, val]
+ 
+-    def __getitem__(self, key: str) -> str:
++    def __getitem__(self, key: str | bytes) -> str:
++        if isinstance(key, bytes):
++            key = key.decode("latin-1")
+         val = self._container[key.lower()]
+         return ", ".join(val[1:])
+ 
+-    def __delitem__(self, key: str) -> None:
++    def __delitem__(self, key: str | bytes) -> None:
++        if isinstance(key, bytes):
++            key = key.decode("latin-1")
+         del self._container[key.lower()]
+ 
+     def __contains__(self, key: object) -> bool:
+         if isinstance(key, str):
+             return key.lower() in self._container
++        elif isinstance(key, bytes):
++            return key.decode("latin-1").lower() in self._container
+         return False
+ 
+     def setdefault(self, key: str, default: str = "") -> str:
+@@ -366,16 +372,18 @@ class HTTPHeaderDict(typing.MutableMapping[str, str]):
+             self.add(key, value)
+ 
+     @typing.overload
+-    def getlist(self, key: str) -> list[str]: ...
++    def getlist(self, key: str | bytes) -> list[str]: ...
+ 
+     @typing.overload
+-    def getlist(self, key: str, default: _DT) -> list[str] | _DT: ...
++    def getlist(self, key: str | bytes, default: _DT) -> list[str] | _DT: ...
+ 
+     def getlist(
+-        self, key: str, default: _Sentinel | _DT = _Sentinel.not_passed
++        self, key: str | bytes, default: _Sentinel | _DT = _Sentinel.not_passed
+     ) -> list[str] | _DT:
+         """Returns a list of all the values for the named field. Returns an
+         empty list if the key doesn't exist."""
++        if isinstance(key, bytes):
++            key = key.decode("latin-1")
+         try:
+             vals = self._container[key.lower()]
+         except KeyError:

@@ -94,7 +94,7 @@ class Agent:
         }
     )
     _EXPLORATION_REMINDER_AFTER = 2
-    _EXPLORATION_STOP_AFTER = 4
+    _EXPLORATION_STOP_AFTER = 6
 
     def run(
         self,

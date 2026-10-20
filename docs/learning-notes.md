@@ -108,3 +108,10 @@
 4. 失败轨迹发现缓存命中不重发旧证据；`_fit_context` 也会在不可压缩消息超限时无限循环。提交 `0f03185`、`24644ce` 分别修复，并关闭 SDK 隐式重试。
 5. urllib3 修复后单项重跑仍因 Token 预算保护停止；新增连续两轮只读提醒、四轮熔断后，请求补充用户方向。最新单项仍为 0/1，未编辑、未测试；全套测试 122 项通过。
 6. 结果、成本（含峰时费率估算）、耗时与失败轨迹：[S20 评测报告](learning/stage-S20-public-issues-results.md)；案例来源与复现：[S20 冻结记录](learning/stage-S20-public-issues-frozen.md)。
+
+# Step 21：真实模型完成公开缺陷修复
+
+1. 将 urllib3 #3653 任务缩窄到 bytes 键读取、删除、成员判断与 `getlist`，指明源码方法和基准测试；10k 字符上下文、45k Token 总预算。
+2. DeepSeek V4 Flash 真实模型完成补丁；Agent 定向测试、独立可见/隐藏测试通过，1/1 accepted。隔离评测工作区提交 `12a4ae6 修复 HTTPHeaderDict bytes 键访问`；峰价估算 `$0.005174`，低于 `$0.03` 上限。
+3. urllib3 全量回归：1,840 passed、329 skipped、4 xfailed、2 failed。一个 TLS 警告失败已在未修改基线复现；一个并发敏感失败在基线和补丁版单独重跑均通过。
+4. CodePilot 自身全回归：122 passed。补丁、逐次成本、预算根因、测试环境限制和失败轨迹：[S21 真实修复报告](learning/stage-S21-public-urllib3-repair.md)。

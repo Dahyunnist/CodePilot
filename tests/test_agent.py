@@ -220,6 +220,8 @@ def test_repeated_read_only_rounds_remind_model_to_converge(tmp_path) -> None:
             ModelReply(tool_calls=[ToolCall(id="read-2", name="search_code", arguments={})]),
             ModelReply(tool_calls=[ToolCall(id="read-3", name="read_file", arguments={})]),
             ModelReply(tool_calls=[ToolCall(id="read-4", name="search_code", arguments={})]),
+            ModelReply(tool_calls=[ToolCall(id="read-5", name="read_file", arguments={})]),
+            ModelReply(tool_calls=[ToolCall(id="read-6", name="search_code", arguments={})]),
         ]
     )
 
@@ -227,7 +229,7 @@ def test_repeated_read_only_rounds_remind_model_to_converge(tmp_path) -> None:
 
     assert result.status == "needs_user_input"
     assert result.failure_type == "policy"
-    assert len(model.requests) == 4
+    assert len(model.requests) == 6
     assert any(
         message.role == "developer"
         and message.content
@@ -247,13 +249,13 @@ def test_read_only_circuit_breaker_does_not_force_a_patch(tmp_path) -> None:
             tool_calls=[ToolCall(id=f"read-{number}", name="read_file", arguments={})]
         )
 
-    model = ScriptedModel([repeated_read(number) for number in range(1, 6)])
+    model = ScriptedModel([repeated_read(number) for number in range(1, 8)])
 
     result = Agent(model, StubTools()).run(task(tmp_path, max_steps=8))
 
     assert result.status == "needs_user_input"
-    assert result.steps == 4
-    assert len(model.requests) == 4
+    assert result.steps == 6
+    assert len(model.requests) == 6
     assert not any(item.tool_name == "apply_patch" for item in result.tool_results)
 
 
