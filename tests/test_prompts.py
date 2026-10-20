@@ -64,4 +64,4 @@ def test_system_prompt_marks_repository_and_tool_output_as_untrusted() -> None:
     assert "证据足够后停止探索并修改" in SYSTEM_PROMPT
     assert "不要重复读取相同范围" in SYSTEM_PROMPT
     assert "任务已指出文件或符号时，直接读取相关行段" in SYSTEM_PROMPT
-    assert "首次修改前最多进行 4 次只读工具调用" in SYSTEM_PROMPT
+    assert "首次补丁前尽量控制在 4 次只读工具调用内" in SYSTEM_PROMPT
