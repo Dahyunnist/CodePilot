@@ -81,6 +81,21 @@ class Agent:
         self.tracer = tracer
         self.run_id = run_id or uuid.uuid4().hex
 
+    _EXPLORATION_TOOLS = frozenset(
+        {
+            "read_project_instructions",
+            "project_map",
+            "search_symbols",
+            "find_references",
+            "list_files",
+            "search_code",
+            "read_file",
+            "suggest_tests",
+        }
+    )
+    _EXPLORATION_REMINDER_AFTER = 2
+    _EXPLORATION_STOP_AFTER = 4
+
     def run(
         self,
         task: Task,
@@ -146,6 +161,30 @@ class Agent:
         self._trace("run_started", 0, task_id=task.task_id)
 
         while state.step_count < task.max_steps or state.pending_model_reply is not None:
+            exploration_streak = state.attempts.get("__exploration_streak", 0)
+            if (
+                state.pending_model_reply is None
+                and exploration_streak >= self._EXPLORATION_STOP_AFTER
+            ):
+                state.status = "needs_user_input"
+                message = (
+                    f"连续 {exploration_streak} 轮只读探索，没有代码修改。"
+                    "Agent 已暂停；请补充修复方向或指出需要确认的行为。"
+                )
+                self._trace(
+                    "exploration_circuit_breaker",
+                    state.step_count,
+                    consecutive_read_only_rounds=exploration_streak,
+                )
+                return self._finish(
+                    state,
+                    tool_results,
+                    last_test,
+                    started,
+                    final_text=message,
+                    error=message,
+                    failure_type="policy",
+                )
             if self._elapsed_seconds(started) + elapsed_before_ms / 1000 >= task.max_elapsed_seconds:
                 state.status = "budget_exceeded"
                 return self._finish(
@@ -249,6 +288,23 @@ class Agent:
 
                 state.model_request_in_flight = False
                 state.tokens += reply.input_tokens + reply.output_tokens
+                if reply.tool_calls and all(
+                    call.name in self._EXPLORATION_TOOLS for call in reply.tool_calls
+                ):
+                    state.attempts["__exploration_streak"] = exploration_streak + 1
+                    if (
+                        state.attempts["__exploration_streak"]
+                        == self._EXPLORATION_REMINDER_AFTER
+                    ):
+                        self._trace(
+                            "exploration_reminder",
+                            state.step_count,
+                            consecutive_read_only_rounds=state.attempts[
+                                "__exploration_streak"
+                            ],
+                        )
+                else:
+                    state.attempts["__exploration_streak"] = 0
                 state.pending_model_reply = reply
                 state.pending_tool_index = 0
                 state.messages.append(reply.to_assistant_message())
@@ -390,6 +446,28 @@ class Agent:
                             error=f"{call.name} timed out",
                             failure_type="tool",
                         )
+            if (
+                state.attempts.get("__exploration_streak")
+                == self._EXPLORATION_REMINDER_AFTER
+                and not state.attempts.get("__exploration_reminder_sent")
+            ):
+                state.messages.append(
+                    ChatMessage(
+                        role="developer",
+                        content=(
+                            "探索提醒：你已连续两轮只读探索。请基于现有证据选择最小补丁并运行测试；"
+                            "若行为要求仍有歧义，请向用户提出具体问题。不要继续重复读取，也不要猜测或强行修改。"
+                        ),
+                    )
+                )
+                state.attempts["__exploration_reminder_sent"] = 1
+                self._trace(
+                    "exploration_reminder_delivered",
+                    state.step_count,
+                    consecutive_read_only_rounds=state.attempts[
+                        "__exploration_streak"
+                    ],
+                )
             state.pending_model_reply = None
             state.pending_tool_index = 0
             self._save_progress(state, tool_results, last_test)

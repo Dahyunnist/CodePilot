@@ -213,6 +213,50 @@ def test_loop_stops_at_max_steps(tmp_path) -> None:
     assert result.steps == 2
 
 
+def test_repeated_read_only_rounds_remind_model_to_converge(tmp_path) -> None:
+    model = ScriptedModel(
+        [
+            ModelReply(tool_calls=[ToolCall(id="read-1", name="read_file", arguments={})]),
+            ModelReply(tool_calls=[ToolCall(id="read-2", name="search_code", arguments={})]),
+            ModelReply(tool_calls=[ToolCall(id="read-3", name="read_file", arguments={})]),
+            ModelReply(tool_calls=[ToolCall(id="read-4", name="search_code", arguments={})]),
+        ]
+    )
+
+    result = Agent(model, StubTools()).run(task(tmp_path, max_steps=8))
+
+    assert result.status == "needs_user_input"
+    assert result.failure_type == "policy"
+    assert len(model.requests) == 4
+    assert any(
+        message.role == "developer"
+        and message.content
+        and "探索提醒：你已连续两轮只读探索" in message.content
+        for message in model.requests[2]
+    )
+    assert "请补充修复方向" in result.error
+    assert all(
+        item.tool_name not in {"apply_patch", "run_tests"}
+        for item in result.tool_results
+    )
+
+
+def test_read_only_circuit_breaker_does_not_force_a_patch(tmp_path) -> None:
+    def repeated_read(number: int) -> ModelReply:
+        return ModelReply(
+            tool_calls=[ToolCall(id=f"read-{number}", name="read_file", arguments={})]
+        )
+
+    model = ScriptedModel([repeated_read(number) for number in range(1, 6)])
+
+    result = Agent(model, StubTools()).run(task(tmp_path, max_steps=8))
+
+    assert result.status == "needs_user_input"
+    assert result.steps == 4
+    assert len(model.requests) == 4
+    assert not any(item.tool_name == "apply_patch" for item in result.tool_results)
+
+
 def test_finishing_without_tests_is_failure(tmp_path) -> None:
     result = Agent(ScriptedModel([ModelReply(text="done")]), StubTools()).run(
         task(tmp_path)

@@ -7,6 +7,7 @@ _STATUS = {
     "timeout": "超时",
     "budget_exceeded": "超过预算",
     "needs_approval": "需要批准",
+    "needs_user_input": "需要用户补充信息",
     "max_steps": "达到步数上限",
 }
 

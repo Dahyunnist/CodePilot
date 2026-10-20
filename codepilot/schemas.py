@@ -141,6 +141,7 @@ AgentStatus = Literal[
     "timeout",
     "budget_exceeded",
     "needs_approval",
+    "needs_user_input",
     "max_steps",
 ]
 
