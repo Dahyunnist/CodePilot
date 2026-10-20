@@ -1,0 +1,14 @@
+{
+  "case_id": "urllib3-3653",
+  "category": "http-header-dict-bytes-key-compatibility",
+  "instruction": "修复 urllib3 PR #3653：HTTPHeaderDict 必须支持 bytes 类型键的读取、删除、成员判断和 getlist。键名按 Latin-1 解码后仍大小写不敏感；字符串键行为不变。检查该映射类及局部测试，只改必要源码。",
+  "test_command": ["python", "-m", "pytest", "benchmark_tests/test_issue_3653.py", "-q"],
+  "source_url": "https://github.com/urllib3/urllib3",
+  "source_release": "urllib3 2.5.0 source distribution",
+  "source_exclusions": ["dummyserver/certs/cacert.key", "dummyserver/certs/cacert.pem", "dummyserver/certs/server.key", "test/contrib/duplicate_san.pem"],
+  "source_commit": null,
+  "source_tree_sha": null,
+  "issue_url": "https://github.com/urllib3/urllib3/pull/3653",
+  "pull_request_url": "https://github.com/urllib3/urllib3/pull/3653",
+  "archive_sha256": "3fc47733c7e419d4bc3f6b3dc2b4f890bb743906a30d56ba4a5bfa4bbff92760"
+}

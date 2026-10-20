@@ -1,0 +1,14 @@
+{
+  "case_id": "flask-4834",
+  "category": "nested-blueprint-subdomain-inheritance",
+  "instruction": "修复 Flask issue #4834：父 Blueprint 通过 subdomain 挂载时，嵌套子 Blueprint 的路由也必须继承该子域。若子 Blueprint 自己指定 subdomain，应按子.父的顺序组合。保留 url_prefix 行为。先看注册逻辑和相关测试，再做最小修改。",
+  "test_command": ["python", "-m", "pytest", "benchmark_tests/test_issue_4834.py", "tests/test_blueprints.py", "-q"],
+  "source_url": "https://github.com/pallets/flask",
+  "source_release": "Flask 2.2.2 source distribution",
+  "source_exclusions": ["tests/test_apps/.env"],
+  "source_commit": null,
+  "source_tree_sha": null,
+  "issue_url": "https://github.com/pallets/flask/issues/4834",
+  "pull_request_url": "https://github.com/pallets/flask/pull/4935",
+  "archive_sha256": "642c450d19c4ad482f96729bd2a8f6d32554aa1e231f4f6b4e7e5264b16cca2b"
+}
