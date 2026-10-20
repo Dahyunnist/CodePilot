@@ -1,7 +1,8 @@
 from collections.abc import Sequence
+import json
 import time
 
-from codepilot.agent import Agent
+from codepilot.agent import Agent, _compact_tool_observation
 from codepilot.model import ModelClientError
 from codepilot.schemas import (
     ChatMessage,
@@ -359,7 +360,11 @@ def test_agent_enforces_token_budget(tmp_path) -> None:
 def test_agent_compacts_old_tool_output_and_keeps_tool_call_id(tmp_path) -> None:
     class LargeOutputTools(StubTools):
         def execute(self, call: ToolCall) -> ToolResult:
-            return ToolResult(tool_name=call.name, ok=True, stdout="x" * 3_000)
+            return ToolResult(
+                tool_name=call.name,
+                ok=True,
+                stdout="BEGIN_EVIDENCE" + "x" * 3_000 + "END_EVIDENCE",
+            )
 
     model = ScriptedModel(
         [
@@ -376,7 +381,23 @@ def test_agent_compacts_old_tool_output_and_keeps_tool_call_id(tmp_path) -> None
     assert observed.role == "tool"
     assert observed.tool_call_id == "call-1"
     assert '"compacted":true' in observed.content
+    assert "BEGIN_EVIDENCE" in observed.content
+    assert "END_EVIDENCE" in observed.content
     assert model.requests[1][2].tool_calls[0].arguments == {}
+
+
+def test_repeated_compaction_keeps_original_result_edges() -> None:
+    original = "BEGIN_EVIDENCE" + "x" * 3_000 + "END_EVIDENCE"
+
+    first, first_changed = _compact_tool_observation(original)
+    second, second_changed = _compact_tool_observation(first)
+    third, third_changed = _compact_tool_observation(second)
+    payload = json.loads(third)
+
+    assert first_changed and second_changed and third_changed
+    assert payload["original_chars"] == len(original)
+    assert "BEGIN_EVIDENCE" in payload["summary"]
+    assert "END_EVIDENCE" in payload["summary"]
 
 
 def test_agent_fails_when_prompt_alone_exceeds_context_budget(tmp_path) -> None:

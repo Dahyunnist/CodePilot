@@ -464,11 +464,51 @@ def _fit_context(messages: list[ChatMessage], budget: int) -> int:
             continue
         if message.role != "tool" or message.content is None:
             continue
-        original_chars = len(message.content)
-        message.content = json.dumps(
-            {"compacted": True, "original_chars": original_chars},
-            separators=(",", ":"),
-        )
+        message.content, did_compact = _compact_tool_observation(message.content)
+        if not did_compact:
+            continue
         compacted += 1
     return compacted
+
+
+def _compact_tool_observation(content: str) -> tuple[str, bool]:
+    """Keep a bounded evidence excerpt when old tool output leaves context."""
+    try:
+        previous = json.loads(content)
+    except json.JSONDecodeError:
+        previous = None
+
+    if isinstance(previous, dict) and previous.get("compacted") is True:
+        original_chars = int(previous.get("original_chars", len(content)))
+        summary = str(previous.get("summary", ""))
+        excerpt_limit = 96
+        if len(summary) <= excerpt_limit:
+            return content, False
+    else:
+        original_chars = len(content)
+        summary = content
+        excerpt_limit = 320
+
+    excerpt = _bounded_excerpt(summary, excerpt_limit)
+    compacted = json.dumps(
+        {
+            "compacted": True,
+            "original_chars": original_chars,
+            "summary": excerpt,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    if compacted == content:
+        return content, False
+    return compacted, True
+
+
+def _bounded_excerpt(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    head = limit // 2
+    tail = limit - head
+    omitted = len(text) - limit
+    return f"{text[:head]}…省略 {omitted} 字符…{text[-tail:]}"
 
