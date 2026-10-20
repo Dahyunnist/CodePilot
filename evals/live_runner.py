@@ -11,7 +11,7 @@ import subprocess
 import time
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Sequence
 
 from codepilot.agent import Agent
@@ -101,6 +101,7 @@ def run_live_evaluation(
                 "agent_test_ok": False,
                 "independent_visible_ok": False,
                 "hidden_ok": False,
+                "post_budget_verification": "not_run",
                 "steps": 0,
                 "tokens": 0,
                 "input_tokens": 0,
@@ -117,6 +118,7 @@ def run_live_evaluation(
                 "evaluation_elapsed_ms": round((time.perf_counter() - case_started) * 1000),
                 "patch_sha256": "",
                 "trace_file": "",
+                "verification_workspace": "",
             }
             rows.append(row)
             print(f"{case.case_id}：跳过；基线测试无法执行")
@@ -153,9 +155,15 @@ def run_live_evaluation(
         usage = _trace_usage(trace.path, config.model)
         visible = None
         hidden = None
+        verification_workspace = None
         if result.diff:
-            visible = run_tests(
+            verification_workspace = _prepare_independent_workspace(
+                base,
                 workspace.path,
+                run_root / "verification" / run_id,
+            )
+            visible = run_tests(
+                verification_workspace,
                 case.test_command,
                 execution_mode=execution,
                 docker_image=docker_image,
@@ -168,7 +176,7 @@ def run_live_evaluation(
                 "-q",
             ]
             hidden = run_tests(
-                workspace.path,
+                verification_workspace,
                 hidden_command,
                 execution_mode=execution,
                 docker_image=docker_image,
@@ -179,12 +187,18 @@ def run_live_evaluation(
                 ),
             )
 
-        accepted = (
-            baseline_failed
-            and result.status == "success"
-            and bool(result.test_result and result.test_result.ok)
-            and bool(visible and visible.ok)
-            and bool(hidden and hidden.ok)
+        accepted = _accepted_for_benchmark(
+            baseline_failed=baseline_failed,
+            agent_status=result.status,
+            agent_test_ok=bool(result.test_result and result.test_result.ok),
+            visible_ok=bool(visible and visible.ok),
+            hidden_ok=bool(hidden and hidden.ok),
+        )
+        post_budget_verification = _post_budget_verification_status(
+            failure_type=result.failure_type,
+            patch_available=bool(result.diff),
+            visible_ok=visible.ok if visible is not None else None,
+            hidden_ok=hidden.ok if hidden is not None else None,
         )
         row: dict[str, object] = {
             "case_id": case.case_id,
@@ -209,6 +223,10 @@ def run_live_evaluation(
             "agent_test_ok": bool(result.test_result and result.test_result.ok),
             "independent_visible_ok": bool(visible and visible.ok),
             "hidden_ok": bool(hidden and hidden.ok),
+            "post_budget_verification": post_budget_verification,
+            "verification_workspace": (
+                str(verification_workspace) if verification_workspace else ""
+            ),
             "steps": result.steps,
             "tokens": result.tokens,
             **usage,
@@ -342,12 +360,13 @@ def _write_summary(path: Path, rows: list[dict[str, object]], model: str) -> Non
         f"- 案例累计耗时：{total_ms / 1000:.1f} 秒",
         "- 费用为按 API usage Token 与 DeepSeek 官方费率估算；实际账单以平台为准。",
         "- 费率时段依据运行时 UTC 时段判断；中国法定节假日可能按非高峰计价。",
-        "", "| 案例 | 验收 | 输入 | 缓存输入 | 输出 | 费用 USD | Agent 秒 | 全流程秒 | 步数 | 工具调用 | 读文件 | 读取字符 | 搜索 | 测试 |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "", "| 案例 | 验收 | 预算后独立验证 | 输入 | 缓存输入 | 输出 | 费用 USD | Agent 秒 | 全流程秒 | 步数 | 工具调用 | 读文件 | 读取字符 | 搜索 | 测试 |",
+        "|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         lines.append(
             f"| {row.get('case_id')} | {'通过' if row.get('accepted') else '失败'} | "
+            f"{row.get('post_budget_verification', 'not_run')} | "
             f"{row.get('input_tokens', 0)} | {row.get('cached_input_tokens', 0)} | "
             f"{row.get('output_tokens', 0)} | {row.get('cost_usd_estimate', '')} | "
             f"{int(row.get('elapsed_ms', 0)) / 1000:.1f} | "
@@ -368,6 +387,128 @@ def _git(repo: Path, arguments: list[str]) -> None:
         timeout=15,
         check=True,
         shell=False,
+    )
+
+
+def _prepare_independent_workspace(
+    baseline: Path, agent_workspace: Path, destination: Path
+) -> Path:
+    """Copy trusted baseline, then overlay production changes only."""
+    baseline = baseline.resolve(strict=True)
+    agent_workspace = agent_workspace.resolve(strict=True)
+    if destination.exists():
+        raise FileExistsError(f"refusing to overwrite verification copy: {destination}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(
+        baseline,
+        destination,
+        symlinks=True,
+        ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache", "*.pyc"),
+    )
+
+    changed = subprocess.run(
+        ["git", "diff", "HEAD", "--name-only", "-z"],
+        cwd=agent_workspace,
+        capture_output=True,
+        check=True,
+        shell=False,
+    ).stdout
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+        cwd=agent_workspace,
+        capture_output=True,
+        check=True,
+        shell=False,
+    ).stdout
+    candidates = {
+        item.decode("utf-8", errors="surrogateescape")
+        for item in changed.split(b"\0") + untracked.split(b"\0")
+        if item
+    }
+    for relative in sorted(candidates):
+        git_path = PurePosixPath(relative)
+        if (
+            git_path.is_absolute()
+            or ".." in git_path.parts
+            or "\\" in relative
+            or not _is_verification_source_path(git_path)
+        ):
+            continue
+        source = agent_workspace.joinpath(*git_path.parts)
+        target = destination.joinpath(*git_path.parts)
+        if source.is_symlink():
+            continue
+        if not source.exists():
+            if target.is_file() and not target.is_symlink():
+                target.unlink()
+            continue
+        if not source.is_file():
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    return destination
+
+
+def _is_verification_source_path(path: PurePosixPath) -> bool:
+    excluded_directories = {
+        "test",
+        "tests",
+        "testing",
+        "benchmark_tests",
+        "visible_tests",
+        "hidden_tests",
+    }
+    excluded_files = {
+        ".pytest.ini",
+        "pytest.ini",
+        "tox.ini",
+        "pyproject.toml",
+        "setup.cfg",
+        "conftest.py",
+        "sitecustomize.py",
+        "usercustomize.py",
+    }
+    folded = tuple(part.casefold() for part in path.parts)
+    return not (
+        any(part in excluded_directories for part in folded)
+        or path.name.casefold() in excluded_files
+        or path.name.casefold().startswith("test_")
+        or path.name.casefold().endswith("_test.py")
+    )
+
+
+def _post_budget_verification_status(
+    *,
+    failure_type: str | None,
+    patch_available: bool,
+    visible_ok: bool | None,
+    hidden_ok: bool | None,
+) -> str:
+    """Report independent verification without changing Agent acceptance."""
+    if failure_type != "budget":
+        return "not_applicable"
+    if not patch_available or visible_ok is None or hidden_ok is None:
+        return "not_run"
+    if visible_ok and hidden_ok:
+        return "passed_after_budget_stop"
+    return "failed_after_budget_stop"
+
+
+def _accepted_for_benchmark(
+    *,
+    baseline_failed: bool,
+    agent_status: str,
+    agent_test_ok: bool,
+    visible_ok: bool,
+    hidden_ok: bool,
+) -> bool:
+    """Keep benchmark acceptance tied to a complete successful Agent run."""
+    return (
+        baseline_failed
+        and agent_status == "success"
+        and agent_test_ok
+        and visible_ok
+        and hidden_ok
     )
 
 
