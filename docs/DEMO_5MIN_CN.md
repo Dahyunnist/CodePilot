@@ -16,7 +16,7 @@
 ### 0:00–0:30：检查环境
 
 ```powershell
-cd E:\job\codepilot-lite
+cd <path-to-CodePilot>
 conda activate NN
 python -c "import sys; print(sys.executable)"
 docker version

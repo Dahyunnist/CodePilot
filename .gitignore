@@ -1,17 +1,33 @@
 .venv/
+venv/
 .tmp/
 .env
+.env.*
+!.env.example
 __pycache__/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 *.py[cod]
+*.egg-info/
+build/
+dist/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini
 reports/*.sqlite
 reports/*.sqlite-*
+reports/**/*.jsonl
+reports/**/*.log
+reports/**/*.txt
 evals/public_cases/*/*/repo/
 
-# Local run evidence: traces and logs can contain host paths or project context.
+# Local run evidence may contain host paths, prompts, test output, or state.
 reports/live-model-*/
 reports/public-*/
 reports/runs/
 reports/traces/
 reports/*/run-state.sqlite*
-

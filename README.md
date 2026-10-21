@@ -29,7 +29,7 @@ Agent 会按目标目录读取继承的 `AGENTS.md`，用 Python AST 项目图�
 
 ```powershell
 conda activate NN
-cd E:\job\codepilot-lite
+cd <path-to-CodePilot>
 python -m pytest -q
 ```
 
@@ -68,7 +68,7 @@ python -m evals.runner --docker-image codepilot-runner:0.1
 
 ## 用真实模型评测复杂修复
 
-先确认当前目录是 `E:\job\codepilot-lite`、Conda 环境为 `NN`，并且 Docker Desktop 已启动且镜像已构建。运行：
+先确认当前目录是 CodePilot 仓库根目录、Python 环境已激活，并且 Docker Desktop 已启动且镜像已构建。运行：
 
 ```powershell
 python -m evals.live_runner `
@@ -131,7 +131,7 @@ python -m codepilot run `
 
 ```powershell
 python -m codepilot run `
-  --repo E:\work\company-service `
+  --repo <path-to-target-repository> `
   --task "修复订单折扣金额计算错误" `
   --test-command "python -m pytest tests -q" `
   --apply-to-repo
@@ -170,7 +170,7 @@ python -m evals.live_runner `
 
 ```powershell
 python -m codepilot run `
-  --repo E:\work\company-service `
+  --repo <path-to-target-repository> `
   --task "修复订单折扣金额计算错误" `
   --test-command "python -m pytest tests -q" `
   --tool-backend mcp
@@ -180,7 +180,7 @@ python -m codepilot run `
 
 ```powershell
 python -m codepilot.mcp_server `
-  --repo E:\work\company-service `
+  --repo <path-to-target-repository> `
   --test-command "python -m pytest tests -q" `
   --execution docker
 ```
