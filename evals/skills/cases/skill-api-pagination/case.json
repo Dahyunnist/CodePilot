@@ -1,0 +1,8 @@
+{
+  "case_id": "skill-api-pagination",
+  "category": "api-contract-cross-file",
+  "instruction": "统一分页响应契约：服务端返回 items 和 next_cursor；客户端从这两个字段读取数据。游标为 0 时必须保留，末页的 next_cursor 为 null。修改所有必要模块并保持分页顺序。",
+  "test_command": ["python", "-m", "pytest", "tests", "-q"],
+  "search_query": "nextCursor",
+  "patches": []
+}

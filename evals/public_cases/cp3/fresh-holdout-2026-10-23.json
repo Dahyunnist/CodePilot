@@ -1,0 +1,166 @@
+{
+  "benchmark": "SWE-bench Lite fresh CP-1/CP-2 slice",
+  "frozen_at": "2026-10-23",
+  "dataset_revision": "SWE-bench/SWE-bench_Lite:test",
+  "dataset_source_sha256": "5cb74f0feb564d6c6bf3f51725384ca646b854d2713d62e86227a29af61d1a92",
+  "swebench_code_revision": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
+  "exclusion_policy": "排除此前公开评测任务、S16 urllib3-3636、S21 urllib3-3653",
+  "excluded_seen_task_ids": [
+    "django__django-10924",
+    "django__django-11001",
+    "django__django-11099",
+    "django__django-11133",
+    "mwaskom__seaborn-2848",
+    "mwaskom__seaborn-3010",
+    "mwaskom__seaborn-3190",
+    "mwaskom__seaborn-3407",
+    "pydata__xarray-3364",
+    "pydata__xarray-4094",
+    "pydata__xarray-4248",
+    "pydata__xarray-4493",
+    "pytest-dev__pytest-5103",
+    "pytest-dev__pytest-5221",
+    "pytest-dev__pytest-5413",
+    "pytest-dev__pytest-5495",
+    "requests-6628",
+    "scikit-learn__scikit-learn-10508",
+    "scikit-learn__scikit-learn-10949",
+    "scikit-learn__scikit-learn-11040",
+    "scikit-learn__scikit-learn-12471",
+    "urllib3-3636",
+    "urllib3-3649",
+    "urllib3-3653",
+    "urllib3-3653-narrow",
+    "urllib3-3700",
+    "urllib3-3710"
+  ],
+  "model_exposure": "本次冻结前未调用模型；公开基准仍可能存在训练污染",
+  "gold_patch_policy": "仅保存 SHA-256，不保存 gold patch 内容",
+  "strict_acceptance": "Agent 正常 success 且 Agent 完整测试、独立可见测试、隐藏测试全部通过",
+  "task_count": 4,
+  "repository_count": 4,
+  "repositories": {
+    "django/django": 1,
+    "pydata/xarray": 1,
+    "pytest-dev/pytest": 1,
+    "scikit-learn/scikit-learn": 1
+  },
+  "defect_mechanism_count": 4,
+  "real_model_authorized": false,
+  "real_model_blocker": "账户当前余额未知；须先核对余额与项目账本，不可用离线测试代替",
+  "limits": {
+    "max_total_tokens_per_task": 20000,
+    "context_budget_chars": 12000,
+    "max_steps": 8,
+    "max_elapsed_seconds": 300,
+    "max_input_tokens_per_request": 22000,
+    "max_completion_tokens": 512,
+    "sdk_retries": 0,
+    "max_cost_reserve_usd_per_task": 0.06,
+    "worst_case_cost_usd_per_task": 0.0577152,
+    "max_cost_reserve_usd_all_tasks": 0.24
+  },
+  "preflight_status": "pending_docker_images_and_baselines",
+  "tasks": [
+    {
+      "task_id": "django__django-16379",
+      "repo": "django/django",
+      "license": "BSD-3-Clause",
+      "defect_mechanism": "缓存并发与一致性",
+      "base_commit": "1d0fa848e084cad62d0bb6bde3b51e4862558e57",
+      "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-16379:latest",
+      "issue_url": null,
+      "pull_request_url": null,
+      "environment_setup_commit": "0fbdb9784da915fce5dcc1fe82bac9b4785749e5",
+      "version": "4.2",
+      "created_at": "2022-12-13T09:24:45Z",
+      "problem_statement": "FileBasedCache has_key is susceptible to race conditions\nDescription\n\t \n\t\t(last modified by Marti Raudsepp)\n\t \nI received the exception from Django's cache framework:\nFileNotFoundError: [Errno 2] No such file or directory: '/app/var/cache/d729e4cf4ba88cba5a0f48e0396ec48a.djcache'\n[...]\n File \"django/core/cache/backends/base.py\", line 229, in get_or_set\n\tself.add(key, default, timeout=timeout, version=version)\n File \"django/core/cache/backends/filebased.py\", line 26, in add\n\tif self.has_key(key, version):\n File \"django/core/cache/backends/filebased.py\", line 94, in has_key\n\twith open(fname, \"rb\") as f:\nThe code is:\n\tdef has_key(self, key, version=None):\n\t\tfname = self._key_to_file(key, version)\n\t\tif os.path.exists(fname):\n\t\t\twith open(fname, \"rb\") as f:\n\t\t\t\treturn not self._is_expired(f)\n\t\treturn False\nBetween the exists() check and open(), it's possible for the file to be deleted. In fact, the _is_expired() method itself deletes the file if it finds it to be expired. So if many threads race to read an expired cache at once, it's not that unlikely to hit this window.\n",
+      "problem_statement_sha256": "9ec6e31650dde12f6f886056047263eae7259214462008bc3bc929a58ba50892",
+      "hidden_test_patch_sha256": "f53f75f19734a1288b20167871544d9a36d2670f72d89c76268df9f29e2be98a",
+      "gold_patch_sha256": "342f39a2d9b0bf97230b685f37bbff5862f5a74fbadc495de73db5d70727b99f",
+      "hidden_test_paths": [
+        "tests/cache/tests.py"
+      ],
+      "hidden_test_files": [
+        "tests/cache/tests.py"
+      ],
+      "fail_to_pass_count": 2,
+      "pass_to_pass_count": 362
+    },
+    {
+      "task_id": "pytest-dev__pytest-7168",
+      "repo": "pytest-dev/pytest",
+      "license": "MIT",
+      "defect_mechanism": "异常表示与错误报告",
+      "base_commit": "4787fd64a4ca0dba5528b5651bddd254102fe9f3",
+      "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-7168:latest",
+      "issue_url": null,
+      "pull_request_url": null,
+      "environment_setup_commit": "678c1a0745f1cf175c442c719906a1f13e496910",
+      "version": "5.4",
+      "created_at": "2020-05-05T22:23:38Z",
+      "problem_statement": "INTERNALERROR when exception in __repr__\nMinimal code to reproduce the issue: \r\n```python\r\nclass SomeClass:\r\n    def __getattribute__(self, attr):\r\n        raise\r\n    def __repr__(self):\r\n        raise\r\ndef test():\r\n    SomeClass().attr\r\n```\r\nSession traceback:\r\n```\r\n============================= test session starts ==============================\r\nplatform darwin -- Python 3.8.1, pytest-5.4.1, py-1.8.1, pluggy-0.13.1 -- /usr/local/opt/python@3.8/bin/python3.8\r\ncachedir: .pytest_cache\r\nrootdir: ******\r\nplugins: asyncio-0.10.0, mock-3.0.0, cov-2.8.1\r\ncollecting ... collected 1 item\r\n\r\ntest_pytest.py::test \r\nINTERNALERROR> Traceback (most recent call last):\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/main.py\", line 191, in wrap_session\r\nINTERNALERROR>     session.exitstatus = doit(config, session) or 0\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/main.py\", line 247, in _main\r\nINTERNALERROR>     config.hook.pytest_runtestloop(session=session)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/hooks.py\", line 286, in __call__\r\nINTERNALERROR>     return self._hookexec(self, self.get_hookimpls(), kwargs)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/manager.py\", line 93, in _hookexec\r\nINTERNALERROR>     return self._inner_hookexec(hook, methods, kwargs)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/manager.py\", line 84, in <lambda>\r\nINTERNALERROR>     self._inner_hookexec = lambda hook, methods, kwargs: hook.multicall(\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/callers.py\", line 208, in _multicall\r\nINTERNALERROR>     return outcome.get_result()\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/callers.py\", line 80, in get_result\r\nINTERNALERROR>     raise ex[1].with_traceback(ex[2])\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/callers.py\", line 187, in _multicall\r\nINTERNALERROR>     res = hook_impl.function(*args)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/main.py\", line 272, in pytest_runtestloop\r\nINTERNALERROR>     item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/hooks.py\", line 286, in __call__\r\nINTERNALERROR>     return self._hookexec(self, self.get_hookimpls(), kwargs)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/manager.py\", line 93, in _hookexec\r\nINTERNALERROR>     return self._inner_hookexec(hook, methods, kwargs)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/manager.py\", line 84, in <lambda>\r\nINTERNALERROR>     self._inner_hookexec = lambda hook, methods, kwargs: hook.multicall(\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/callers.py\", line 208, in _multicall\r\nINTERNALERROR>     return outcome.get_result()\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/callers.py\", line 80, in get_result\r\nINTERNALERROR>     raise ex[1].with_traceback(ex[2])\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/callers.py\", line 187, in _multicall\r\nINTERNALERROR>     res = hook_impl.function(*args)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/runner.py\", line 85, in pytest_runtest_protocol\r\nINTERNALERROR>     runtestprotocol(item, nextitem=nextitem)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/runner.py\", line 100, in runtestprotocol\r\nINTERNALERROR>     reports.append(call_and_report(item, \"call\", log))\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/runner.py\", line 188, in call_and_report\r\nINTERNALERROR>     report = hook.pytest_runtest_makereport(item=item, call=call)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/hooks.py\", line 286, in __call__\r\nINTERNALERROR>     return self._hookexec(self, self.get_hookimpls(), kwargs)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/manager.py\", line 93, in _hookexec\r\nINTERNALERROR>     return self._inner_hookexec(hook, methods, kwargs)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/manager.py\", line 84, in <lambda>\r\nINTERNALERROR>     self._inner_hookexec = lambda hook, methods, kwargs: hook.multicall(\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/callers.py\", line 203, in _multicall\r\nINTERNALERROR>     gen.send(outcome)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/skipping.py\", line 129, in pytest_runtest_makereport\r\nINTERNALERROR>     rep = outcome.get_result()\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/callers.py\", line 80, in get_result\r\nINTERNALERROR>     raise ex[1].with_traceback(ex[2])\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/pluggy/callers.py\", line 187, in _multicall\r\nINTERNALERROR>     res = hook_impl.function(*args)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/runner.py\", line 260, in pytest_runtest_makereport\r\nINTERNALERROR>     return TestReport.from_item_and_call(item, call)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/reports.py\", line 294, in from_item_and_call\r\nINTERNALERROR>     longrepr = item.repr_failure(excinfo)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/python.py\", line 1513, in repr_failure\r\nINTERNALERROR>     return self._repr_failure_py(excinfo, style=style)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/nodes.py\", line 355, in _repr_failure_py\r\nINTERNALERROR>     return excinfo.getrepr(\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/_code/code.py\", line 634, in getrepr\r\nINTERNALERROR>     return fmt.repr_excinfo(self)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/_code/code.py\", line 879, in repr_excinfo\r\nINTERNALERROR>     reprtraceback = self.repr_traceback(excinfo_)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/_code/code.py\", line 823, in repr_traceback\r\nINTERNALERROR>     reprentry = self.repr_traceback_entry(entry, einfo)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/_code/code.py\", line 784, in repr_traceback_entry\r\nINTERNALERROR>     reprargs = self.repr_args(entry) if not short else None\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/_code/code.py\", line 693, in repr_args\r\nINTERNALERROR>     args.append((argname, saferepr(argvalue)))\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/_io/saferepr.py\", line 82, in saferepr\r\nINTERNALERROR>     return SafeRepr(maxsize).repr(obj)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/_io/saferepr.py\", line 51, in repr\r\nINTERNALERROR>     s = _format_repr_exception(exc, x)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/_io/saferepr.py\", line 23, in _format_repr_exception\r\nINTERNALERROR>     exc_info, obj.__class__.__name__, id(obj)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/_io/saferepr.py\", line 47, in repr\r\nINTERNALERROR>     s = super().repr(x)\r\nINTERNALERROR>   File \"/usr/local/Cellar/python@3.8/3.8.1/Frameworks/Python.framework/Versions/3.8/lib/python3.8/reprlib.py\", line 52, in repr\r\nINTERNALERROR>     return self.repr1(x, self.maxlevel)\r\nINTERNALERROR>   File \"/usr/local/Cellar/python@3.8/3.8.1/Frameworks/Python.framework/Versions/3.8/lib/python3.8/reprlib.py\", line 62, in repr1\r\nINTERNALERROR>     return self.repr_instance(x, level)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/_io/saferepr.py\", line 60, in repr_instance\r\nINTERNALERROR>     s = _format_repr_exception(exc, x)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/_io/saferepr.py\", line 23, in _format_repr_exception\r\nINTERNALERROR>     exc_info, obj.__class__.__name__, id(obj)\r\nINTERNALERROR>   File \"/usr/local/lib/python3.8/site-packages/_pytest/_io/saferepr.py\", line 56, in repr_instance\r\nINTERNALERROR>     s = repr(x)\r\nINTERNALERROR>   File \"/Users/stiflou/Documents/projets/apischema/tests/test_pytest.py\", line 6, in __repr__\r\nINTERNALERROR>     raise\r\nINTERNALERROR> RuntimeError: No active exception to reraise\r\n\r\n============================ no tests ran in 0.09s ============================\r\n```\n",
+      "problem_statement_sha256": "d2780357b6976f3775c3905b22ba4d9a4a3920b60f9c1e692b63b104dc6fbb0e",
+      "hidden_test_patch_sha256": "ae6288ce2b11af1e23717c3234930c64a88181491124fa236253fdd7634ccc18",
+      "gold_patch_sha256": "6461134e72ddd5997decb656090500402441f32d12bc9f583a9bce0e2f3e806b",
+      "hidden_test_paths": [
+        "testing/io/test_saferepr.py"
+      ],
+      "hidden_test_files": [
+        "testing/io/test_saferepr.py"
+      ],
+      "fail_to_pass_count": 11,
+      "pass_to_pass_count": 0
+    },
+    {
+      "task_id": "pydata__xarray-5131",
+      "repo": "pydata/xarray",
+      "license": "Apache-2.0",
+      "defect_mechanism": "多对象文本表示一致性",
+      "base_commit": "e56905889c836c736152b11a7e6117a229715975",
+      "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-5131:latest",
+      "issue_url": null,
+      "pull_request_url": null,
+      "environment_setup_commit": "1c198a191127c601d091213c4b3292a8bb3054e1",
+      "version": "0.12",
+      "created_at": "2021-04-08T09:19:30Z",
+      "problem_statement": "Trailing whitespace in DatasetGroupBy text representation\nWhen displaying a DatasetGroupBy in an interactive Python session, the first line of output contains a trailing whitespace. The first example in the documentation demonstrate this:\r\n\r\n```pycon\r\n>>> import xarray as xr, numpy as np\r\n>>> ds = xr.Dataset(\r\n...     {\"foo\": ((\"x\", \"y\"), np.random.rand(4, 3))},\r\n...     coords={\"x\": [10, 20, 30, 40], \"letters\": (\"x\", list(\"abba\"))},\r\n... )\r\n>>> ds.groupby(\"letters\")\r\nDatasetGroupBy, grouped over 'letters' \r\n2 groups with labels 'a', 'b'.\r\n```\r\n\r\nThere is a trailing whitespace in the first line of output which is \"DatasetGroupBy, grouped over 'letters' \". This can be seen more clearly by converting the object to a string (note the whitespace before `\\n`):\r\n\r\n```pycon\r\n>>> str(ds.groupby(\"letters\"))\r\n\"DatasetGroupBy, grouped over 'letters' \\n2 groups with labels 'a', 'b'.\"\r\n```\r\n\r\n\r\nWhile this isn't a problem in itself, it causes an issue for us because we use flake8 in continuous integration to verify that our code is correctly formatted and we also have doctests that rely on DatasetGroupBy textual representation. Flake8 reports a violation on the trailing whitespaces in our docstrings. If we remove the trailing whitespaces, our doctests fail because the expected output doesn't match the actual output. So we have conflicting constraints coming from our tools which both seem reasonable. Trailing whitespaces are forbidden by flake8 because, among other reasons, they lead to noisy git diffs. Doctest want the expected output to be exactly the same as the actual output and considers a trailing whitespace to be a significant difference. We could configure flake8 to ignore this particular violation for the files in which we have these doctests, but this may cause other trailing whitespaces to creep in our code, which we don't want. Unfortunately it's not possible to just add `# NoQA` comments to get flake8 to ignore the violation only for specific lines because that creates a difference between expected and actual output from doctest point of view. Flake8 doesn't allow to disable checks for blocks of code either.\r\n\r\nIs there a reason for having this trailing whitespace in DatasetGroupBy representation? Whould it be OK to remove it? If so please let me know and I can make a pull request.\n",
+      "problem_statement_sha256": "56e565a668b384a27890734ec3f34100c0aa4300164152631f37379d1508ba31",
+      "hidden_test_patch_sha256": "fbdd3d0181400d2d880cdcf4f57e03ab279e07c46dffa8e0e5b68df67ea4e345",
+      "gold_patch_sha256": "befc924c7fc576add0184145d2cc41e07e2d4f9536925fc23c4c7bee859d6746",
+      "hidden_test_paths": [
+        "xarray/tests/test_groupby.py"
+      ],
+      "hidden_test_files": [
+        "xarray/tests/test_groupby.py"
+      ],
+      "fail_to_pass_count": 10,
+      "pass_to_pass_count": 24
+    },
+    {
+      "task_id": "scikit-learn__scikit-learn-14087",
+      "repo": "scikit-learn/scikit-learn",
+      "license": "BSD-3-Clause",
+      "defect_mechanism": "模型边界条件与索引安全",
+      "base_commit": "a5743ed36fbd3fbc8e351bdab16561fbfca7dfa1",
+      "docker_image": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-14087:latest",
+      "issue_url": null,
+      "pull_request_url": null,
+      "environment_setup_commit": "7e85a6d1f038bbb932b36f18d75df6be937ed00d",
+      "version": "0.22",
+      "created_at": "2019-06-13T20:09:22Z",
+      "problem_statement": "IndexError thrown with LogisticRegressionCV and refit=False\n#### Description\r\nThe following error is thrown when trying to estimate a regularization parameter via cross-validation, *without* refitting.\r\n\r\n#### Steps/Code to Reproduce\r\n```python\r\nimport sys\r\nimport sklearn\r\nfrom sklearn.linear_model import LogisticRegressionCV\r\nimport numpy as np\r\n\r\nnp.random.seed(29)\r\nX = np.random.normal(size=(1000, 3))\r\nbeta = np.random.normal(size=3)\r\nintercept = np.random.normal(size=None)\r\ny = np.sign(intercept + X @ beta)\r\n\r\nLogisticRegressionCV(\r\ncv=5,\r\nsolver='saga', # same error with 'liblinear'\r\ntol=1e-2,\r\nrefit=False).fit(X, y)\r\n```\r\n\r\n\r\n#### Expected Results\r\nNo error is thrown. \r\n\r\n#### Actual Results\r\n```\r\n---------------------------------------------------------------------------\r\nIndexError                                Traceback (most recent call last)\r\n<ipython-input-3-81609fd8d2ca> in <module>\r\n----> 1 LogisticRegressionCV(refit=False).fit(X, y)\r\n\r\n~/.pyenv/versions/3.6.7/envs/jupyter/lib/python3.6/site-packages/sklearn/linear_model/logistic.py in fit(self, X, y, sample_weight)\r\n   2192                 else:\r\n   2193                     w = np.mean([coefs_paths[:, i, best_indices[i], :]\r\n-> 2194                                  for i in range(len(folds))], axis=0)\r\n   2195 \r\n   2196                 best_indices_C = best_indices % len(self.Cs_)\r\n\r\n~/.pyenv/versions/3.6.7/envs/jupyter/lib/python3.6/site-packages/sklearn/linear_model/logistic.py in <listcomp>(.0)\r\n   2192                 else:\r\n   2193                     w = np.mean([coefs_paths[:, i, best_indices[i], :]\r\n-> 2194                                  for i in range(len(folds))], axis=0)\r\n   2195 \r\n   2196                 best_indices_C = best_indices % len(self.Cs_)\r\n\r\nIndexError: too many indices for array\r\n```\r\n\r\n#### Versions\r\n```\r\nSystem:\r\n    python: 3.6.7 (default, May 13 2019, 16:14:45)  [GCC 4.2.1 Compatible Apple LLVM 10.0.1 (clang-1001.0.46.4)]\r\nexecutable: /Users/tsweetser/.pyenv/versions/3.6.7/envs/jupyter/bin/python\r\n   machine: Darwin-18.6.0-x86_64-i386-64bit\r\n\r\nBLAS:\r\n    macros: NO_ATLAS_INFO=3, HAVE_CBLAS=None\r\n  lib_dirs: \r\ncblas_libs: cblas\r\n\r\nPython deps:\r\n       pip: 19.1.1\r\nsetuptools: 39.0.1\r\n   sklearn: 0.21.2\r\n     numpy: 1.15.1\r\n     scipy: 1.1.0\r\n    Cython: 0.29.6\r\n    pandas: 0.24.2\r\n```\n",
+      "problem_statement_sha256": "0d731842a870c18ba49de0ee6ce5c623522f0a0af328adc9415addcc07f5aae1",
+      "hidden_test_patch_sha256": "39eb64081faff20ec0893607c277ea0ccffc652a4abfa815b7b352e54ac23bf1",
+      "gold_patch_sha256": "819cd93cf36a6010195b74dc7106b268d9af01516be29821358c06ea5fa7600f",
+      "hidden_test_paths": [
+        "sklearn/linear_model/tests/test_logistic.py"
+      ],
+      "hidden_test_files": [
+        "sklearn/linear_model/tests/test_logistic.py"
+      ],
+      "fail_to_pass_count": 3,
+      "pass_to_pass_count": 172
+    }
+  ]
+}

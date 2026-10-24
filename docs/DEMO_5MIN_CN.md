@@ -56,7 +56,7 @@ Agent 在独立 Git 工作副本里修改。普通评测不会写源仓库。真
 
 ### 4:30–5:00：展示外部仓库审批写回
 
-外部仓库完整流程已在 S3 实测：仓库位于 CodePilot 项目目录之外；Agent 在副本修复并通过 Docker 测试；CLI 暂停等待审批；第二个 CLI 进程批准后检查源仓库状态、HEAD、补丁 SHA 和 `git apply --check`；最后在源仓库复测通过。记录见 `docs/learning/stage-S3-project-context.md` 与 `reports/live-model-20261020-s3-writeback-external/`。
+外部仓库流程已完成实测：Agent 在独立副本修复并通过 Docker 测试；CLI 暂停等待审批；批准后检查源仓库状态、HEAD、补丁 SHA 和 `git apply --check`，再在源仓库复测。运行报告和轨迹留在本机，不纳入此发布分支。
 
 ## 架构与信任边界
 

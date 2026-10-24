@@ -1,0 +1,50 @@
+{
+  "benchmark": "SWE-bench Lite CP-2 H3 paired context-selector sample",
+  "frozen_at": "2026-10-23",
+  "parent_manifest": "frozen-selection.json",
+  "parent_manifest_sha256": "f5455478b96a55ed2504a90fe113c483185ef9e62f4ec3cd65281034818f7700",
+  "dataset_source_sha256": "5cb74f0feb564d6c6bf3f51725384ca646b854d2713d62e86227a29af61d1a92",
+  "task_count": 2,
+  "repository_count": 2,
+  "claim": "Exploratory paired sample; public tasks may overlap model training data.",
+  "tasks": [
+    {
+      "task_id": "django__django-11001",
+      "repo": "django/django",
+      "license": "BSD-3-Clause",
+      "base_commit": "ef082ebb84f00e38af4e8880d04e8365c2766d34",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/django/django/pull/11001",
+      "problem_statement": "Incorrect removal of order_by clause created as multiline RawSQL\nDescription\n\t\nHi.\nThe SQLCompiler is ripping off one of my \"order by\" clause, because he \"thinks\" the clause was already \"seen\" (in SQLCompiler.get_order_by()). I'm using expressions written as multiline RawSQLs, which are similar but not the same. \nThe bug is located in SQLCompiler.get_order_by(), somewhere around line computing part of SQL query without ordering:\nwithout_ordering = self.ordering_parts.search(sql).group(1)\nThe sql variable contains multiline sql. As a result, the self.ordering_parts regular expression is returning just a line containing ASC or DESC words. This line is added to seen set, and because my raw queries have identical last lines, only the first clasue is returing from SQLCompiler.get_order_by().\nAs a quick/temporal fix I can suggest making sql variable clean of newline characters, like this:\nsql_oneline = ' '.join(sql.split('\\n'))\nwithout_ordering = self.ordering_parts.search(sql_oneline).group(1)\nNote: beware of unicode (Py2.x u'') and EOL dragons (\\r).\nExample of my query:\n\treturn MyModel.objects.all().order_by(\n\t\tRawSQL('''\n\t\t\tcase when status in ('accepted', 'verification')\n\t\t\t\t then 2 else 1 end''', []).desc(),\n\t\tRawSQL('''\n\t\t\tcase when status in ('accepted', 'verification')\n\t\t\t\t then (accepted_datetime, preferred_datetime)\n\t\t\t\t else null end''', []).asc(),\n\t\tRawSQL('''\n\t\t\tcase when status not in ('accepted', 'verification')\n\t\t\t\t then (accepted_datetime, preferred_datetime, created_at)\n\t\t\t\t else null end''', []).desc())\nThe ordering_parts.search is returing accordingly:\n'\t\t\t\t then 2 else 1 end)'\n'\t\t\t\t else null end'\n'\t\t\t\t else null end'\nSecond RawSQL with a\t\t\t\t else null end part is removed from query.\nThe fun thing is that the issue can be solved by workaround by adding a space or any other char to the last line. \nSo in case of RawSQL I can just say, that current implementation of avoiding duplicates in order by clause works only for special/rare cases (or does not work in all cases). \nThe bug filed here is about wrong identification of duplicates (because it compares only last line of SQL passed to order by clause).\nHope my notes will help you fixing the issue. Sorry for my english.\n",
+      "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-11001:latest",
+      "created_at": "2019-02-17T13:02:09Z",
+      "problem_statement_sha256": "328687883868f41f912690a4f9eb7c43d69d2ac70d89c93ec818a6d9244cdfb2",
+      "hidden_test_patch_sha256": "77691e7ec1c8244184431810e9cd8ea1cdff612626677b7ae9f74259ee112a7a",
+      "gold_patch_sha256": "ad6b8e8ed7854750e064ea5008306035931828a60ba85a65918763880eb71c34",
+      "hidden_test_files": [
+        "tests/expressions/tests.py"
+      ],
+      "fail_to_pass_count": 2,
+      "pass_to_pass_count": 118
+    },
+    {
+      "task_id": "pydata__xarray-4094",
+      "repo": "pydata/xarray",
+      "license": "Apache-2.0",
+      "base_commit": "a64cf2d5476e7bbda099b34c40b7be1880dbd39a",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pydata/xarray/pull/4094",
+      "problem_statement": "to_unstacked_dataset broken for single-dim variables\n<!-- A short summary of the issue, if appropriate -->\r\n\r\n\r\n#### MCVE Code Sample\r\n\r\n```python\r\narr = xr.DataArray(\r\n     np.arange(3),\r\n     coords=[(\"x\", [0, 1, 2])],\r\n )\r\ndata = xr.Dataset({\"a\": arr, \"b\": arr})\r\nstacked = data.to_stacked_array('y', sample_dims=['x'])\r\nunstacked = stacked.to_unstacked_dataset('y')\r\n# MergeError: conflicting values for variable 'y' on objects to be combined. You can skip this check by specifying compat='override'.\r\n```\r\n\r\n#### Expected Output\r\nA working roundtrip.\r\n\r\n#### Problem Description\r\nI need to stack a bunch of variables and later unstack them again, however this doesn't work if the variables only have a single dimension.\r\n\r\n#### Versions\r\n\r\n<details><summary>Output of <tt>xr.show_versions()</tt></summary>\r\n\r\nINSTALLED VERSIONS\r\n------------------\r\ncommit: None\r\npython: 3.7.3 (default, Mar 27 2019, 22:11:17) \r\n[GCC 7.3.0]\r\npython-bits: 64\r\nOS: Linux\r\nOS-release: 4.15.0-96-generic\r\nmachine: x86_64\r\nprocessor: x86_64\r\nbyteorder: little\r\nLC_ALL: None\r\nLANG: en_GB.UTF-8\r\nLOCALE: en_GB.UTF-8\r\nlibhdf5: 1.10.4\r\nlibnetcdf: 4.6.2\r\n\r\nxarray: 0.15.1\r\npandas: 1.0.3\r\nnumpy: 1.17.3\r\nscipy: 1.3.1\r\nnetCDF4: 1.4.2\r\npydap: None\r\nh5netcdf: None\r\nh5py: 2.10.0\r\nNio: None\r\nzarr: None\r\ncftime: 1.0.4.2\r\nnc_time_axis: None\r\nPseudoNetCDF: None\r\nrasterio: None\r\ncfgrib: None\r\niris: None\r\nbottleneck: None\r\ndask: 2.10.1\r\ndistributed: 2.10.0\r\nmatplotlib: 3.1.1\r\ncartopy: None\r\nseaborn: 0.10.0\r\nnumbagg: None\r\nsetuptools: 41.0.0\r\npip: 19.0.3\r\nconda: 4.8.3\r\npytest: 5.3.5\r\nIPython: 7.9.0\r\nsphinx: None\r\n\r\n\r\n</details>\r\n\n",
+      "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-4094:latest",
+      "created_at": "2020-05-26T00:36:02Z",
+      "problem_statement_sha256": "4c60cee2e4247fd72e76052ae5938216ea38eca360d5b87d2a006d71bf4a91bc",
+      "hidden_test_patch_sha256": "3caf7bfbd1a31fc971a0aff74f090c426939bd36946300c3c5f54c30908ad24b",
+      "gold_patch_sha256": "79eac1b06943072daa994e5fb5e7fc9e5eef5e6c34ea151cb550aa09f2da2b3a",
+      "hidden_test_files": [
+        "xarray/tests/test_dataset.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 862
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "benchmark": "SWE-bench Lite CP-2 H5 single fresh task",
+  "frozen_at": "2026-10-23",
+  "model_exposure": "not sent to evaluated model before freeze",
+  "agent_git_sha": "99f1a8dd32f0d62c5c833851e765fced2cd71aa6",
+  "parent_manifest": "frozen-selection.json",
+  "parent_manifest_sha256": "f5455478b96a55ed2504a90fe113c483185ef9e62f4ec3cd65281034818f7700",
+  "dataset": "SWE-bench/SWE-bench_Lite test split",
+  "dataset_sha256": "5cb74f0feb564d6c6bf3f51725384ca646b854d2713d62e86227a29af61d1a92",
+  "task_count": 1,
+  "preflight_status": "passed_environment_repaired",
+  "limits": {
+    "max_total_tokens": 20000,
+    "context_budget_chars": 8000,
+    "max_steps": 8,
+    "max_input_token_upper_bound_per_request": 22000,
+    "max_completion_tokens_per_request": 512,
+    "max_cost_reserve_usd": 0.06,
+    "worst_case_cost_usd": 0.0577152,
+    "max_retries": 0
+  },
+  "tasks": [
+    {
+      "task_id": "django__django-11133",
+      "repo": "django/django",
+      "license": "BSD-3-Clause",
+      "base_commit": "879cc3da6249e920b8d54518a0ae06de835d7373",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/django/django/pull/11133",
+      "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-11133:latest",
+      "problem_statement_sha256": "a7f427b7eb3f746b6985030b467a99099e6e3453319297a41e35effa7c32b8ed",
+      "hidden_test_patch_sha256": "ef28eb84141ad909c3732fc7473368f1c6a22510e9ed51190401876db8e003f9",
+      "hidden_test_files": [
+        "tests/httpwrappers/tests.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 64
+    }
+  ],
+  "preflight": {
+    "docker_server": "29.1.3",
+    "base_image": "swebench/sweb.eval.x86_64.django_1776_django-11133:latest@sha256:914093363dbe12def92c5d36e9bdc5270cce5ed0aa6f3daad8bc4ef0389c29bf",
+    "derived_image": "codepilot-h5-django-11133:pytest4.6.11",
+    "derived_image_id": "sha256:d5d9fa83f99e7be752af5c1e7776c34fbaff17eb9cae9610a5e3425f7d4a8a5d",
+    "environment_repair": "离线安装 pytest==4.6.11 及 Python 3.6 兼容依赖；设置 PYTHONPATH=/workspace/tests、DJANGO_SETTINGS_MODULE=test_sqlite；未改变冻结源码、base commit 或隐藏补丁。",
+    "visible_command": "python -m pytest tests/httpwrappers/tests.py -q",
+    "visible_baseline": {
+      "status": "passed",
+      "passed": 64,
+      "failed": 0,
+      "duration_ms": 7153
+    },
+    "hidden_command": "python -m pytest tests/httpwrappers/tests.py -q",
+    "hidden_baseline": {
+      "status": "expected_target_failure",
+      "passed": 64,
+      "failed": 1,
+      "failure": "HttpResponseTests.test_memoryview_content",
+      "duration_ms": 11488
+    },
+    "model_requests": 0,
+    "model_tokens": 0,
+    "estimated_model_cost_usd": "0.000000"
+  },
+  "evaluation_status": "completed_budget_stop_independent_tests_passed",
+  "live_result": {
+    "run_id": "30caaad3a66a-django__django-11133-9aa272b0",
+    "strict_accepted": false,
+    "agent_status": "budget_exceeded",
+    "failure_type": "budget",
+    "steps": 4,
+    "model_requests": 4,
+    "tokens": 12747,
+    "input_tokens": 12164,
+    "cached_input_tokens": 7296,
+    "output_tokens": 583,
+    "cost_usd_estimate": "0.001102",
+    "pricing_period": "off-peak",
+    "worst_case_cost_reserve_usd": "0.057715",
+    "elapsed_agent_ms": 74772,
+    "elapsed_evaluation_ms": 274412,
+    "patch_sha256": "eb63d4a3ec1a1c9ce1dd5adeef5f91a724a7f75fe640ac3f2730511d41ba3959",
+    "agent_inline_tests": "not_run_budget_guard_stopped_before_test_call",
+    "independent_visible_test": "passed 64",
+    "independent_hidden_test": "passed 65 including target and 64 regressions",
+    "post_budget_verification": "passed_after_budget_stop",
+    "evidence": "local run artifacts intentionally excluded from release branch"
+  }
+}

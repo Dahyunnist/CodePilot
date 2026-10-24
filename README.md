@@ -2,7 +2,7 @@
 
 面向 Python 仓库的轻量修复 Agent。它通过 OpenAI 兼容接口调用模型，使用受限工具检查和修改干净的 Git 工作副本，在受限 Docker 容器中运行 pytest，并记录补丁、测试结果、轨迹和报告。
 
-5 分钟演示、架构、安全边界和准确项目成果见[中文演示指南](docs/DEMO_5MIN_CN.md)。S14–S16 预算管理与公开 holdout 记录见[阶段结果](docs/learning/stage-S16-results.md)。
+5 分钟演示、架构与安全边界见[中文演示指南](docs/DEMO_5MIN_CN.md)。
 
 ## 架构
 
@@ -73,29 +73,46 @@ python -m evals.runner --docker-image codepilot-runner:0.1
 ```powershell
 python -m evals.live_runner `
   --execution docker `
+  --case-ids parse-config `
+  --max-total-tokens 20000 `
+  --context-budget-chars 8000 `
+  --max-steps 8 `
+  --max-input-tokens-per-request 22000 `
+  --max-completion-tokens 512 `
+  --max-cost-reserve-usd 0.06 `
   --output-root reports/live-model-run `
   --work-root .tmp/live-model-run
 ```
 
-默认命令会在三个基础 fixture 上运行真实模型。要运行所有复杂多文件、多缺陷和性能案例，可指定：
+每次只运行一个案例。runner 按请求 JSON 的 UTF-8 字节数加协议余量，计算输入 Token 的保守上界；超过硬上限时，请求不会发送。输出最多 512 Token、最多 8 步。上述设置在 DeepSeek 峰时费率下，单案例最坏费用为 `$0.0577152`，预留 `$0.06`。
+
+要评测复杂案例，每次指定一个案例 ID，并保持单次费用预留不超过 `$0.06`：
 
 ```powershell
 python -m evals.live_runner `
   --execution docker `
-  --case-ids multi-file-discount multi-bug-invoice notification-batch-performance bulk-audit-write-performance atomic-csv-import cursor-pagination retry-transient-only `
-  --max-total-tokens 35000 `
-  --max-elapsed 240 `
+  --case-ids multi-file-discount `
+  --max-total-tokens 20000 `
+  --context-budget-chars 8000 `
+  --max-steps 8 `
+  --max-input-tokens-per-request 22000 `
+  --max-completion-tokens 512 `
+  --max-cost-reserve-usd 0.06 `
   --output-root reports/live-model-complex `
   --work-root .tmp/live-model-complex
 ```
 
 模型 API 请求由本机发出；基线、修复后可见测试和隐藏测试由 Docker 容器执行。容器不联网。每项会生成 JSON 结果、JSONL 轨迹和测试日志，`results.csv` 和 `summary.md` 汇总通过/失败、输入/缓存/输出 Token、Agent 与全流程耗时、按模型费率估算的 API 费用，以及补丁 SHA-256。费用是估算值，实际账单以提供商平台为准。报告不会写入 API key。真实模型调用会产生 API 用量费用。
 
+### 已知能力边界
+
+当前公开案例数量和单次通过，不能证明适用于生产级大型代码库。模型可能漏修隐藏缺陷；Token 与上下文预算可能在验证闭环前耗尽；公开历史任务还可能与模型训练数据重叠。必须按仓库风险审查补丁，并由工程师执行项目级验证。
+
 ### 报告归档与本机运行日志
 
-可复现的评测定义和 fixture 保存在 `evals/`；可分享的阶段结论保存在 `docs/learning/`。确定性评测的 `reports/eval_results.csv`、`reports/eval_results.md` 和 `reports/failure-analysis.md` 继续跟踪。新的 `reports/live-model-*`、`reports/public-*`、`reports/runs/` 和 `reports/traces/` 目录由 `.gitignore` 排除；这些原始运行记录可能包含本机绝对路径、测试输出、JSONL 对话轨迹或 SQLite 状态库，应留在本机。已有 Git 跟踪的历史文件不会因新增忽略规则自动取消跟踪。分享实验结果时，把经过审查的摘要写入 `docs/learning/`，并将可复现任务定义放入 `evals/`；不要提交原始本机日志。
+可复现的评测定义和 fixture 保存在 `evals/`。运行结果、测试日志、对话轨迹和状态数据库写入本机 `reports/` 或 `.tmp/`，由 `.gitignore` 排除；分享阶段结论前先检查并移除本机路径、密钥和私有源码。
 
-成功时终端会显示 `Live model evaluation: 3/3 accepted`。若 Docker 无法连接，先运行 `docker version` 检查 Client 和 Server，再重试；若仍失败，可把命令输出和 `reports/live-model-run/results.csv` 发回排查。
+`真实模型评测：1/1 项通过验收` 只表示该次单个 fixture 通过，不代表公开仓库或生产项目通过。真实模型评测会产生费用；runner 会校验所选案例的最坏费用预留，超过 `$0.06` 时不发送请求。若 Docker 无法连接，先运行 `docker version` 检查 Client 和 Server，再重试；若仍失败，可把命令输出和 `reports/live-model-run/results.csv` 发回排查。
 
 ### 单任务真实模型运行
 
@@ -124,6 +141,20 @@ python -m codepilot run `
 ```
 
 退出码：`0` 表示成功，`1` 表示 Agent 或测试失败，`2` 表示输入或配置无效，`3` 表示等待回写审批。默认只修改独立工作副本，源仓库保持不变。检查终端显示的工作副本路径、JSONL 轨迹、Markdown 报告和 Git 差异。
+
+### 使用受限修复 Skill
+
+Skill 为常见任务提供流程提示、工具白名单和更紧的步数、测试次数及 Token 上限。可选 `pytest-failure-triage` 或 `api-contract-check`：
+
+```powershell
+python -m codepilot run `
+  --repo <path-to-target-repository> `
+  --task "修复失败的 API 契约测试" `
+  --test-command "python -m pytest tests -q" `
+  --skill api-contract-check
+```
+
+Skill 不代替项目约定和工程师输入。遇到缺依赖、行为歧义或白名单外工具请求，Agent 会停止、拒绝调用或向工程师报告；完整测试通过仍是成功条件。
 
 ### 修复 CodePilot 目录之外的项目
 

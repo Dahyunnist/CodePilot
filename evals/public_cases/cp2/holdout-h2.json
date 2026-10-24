@@ -1,0 +1,106 @@
+{
+  "benchmark": "SWE-bench Lite CP-2 H2 frozen public batch",
+  "frozen_at": "2026-10-23",
+  "parent_manifest": "frozen-selection.json",
+  "parent_manifest_sha256": "f5455478b96a55ed2504a90fe113c483185ef9e62f4ec3cd65281034818f7700",
+  "supersedes": "holdout-h1.json",
+  "supersedes_manifest_sha256": "0a796afbeb861b6e58eda9dab373db1ea2b0e774245d0bd2bf535066cfccea6f",
+  "excluded_tasks": [
+    {
+      "task_id": "mwaskom__seaborn-2848",
+      "status": "environment_incompatible",
+      "reason": "Pinned image has pandas 2.0.0 and seaborn 0.12.0.dev0; source uses removed mode.use_inf_as_null; upstream setup.py gives no compatible upper-bound pin."
+    },
+    {
+      "task_id": "django__django-10924",
+      "status": "development_task_not_holdout",
+      "reason": "A real-model request was already attempted."
+    }
+  ],
+  "candidate_rejections": [
+    {
+      "task_id": "django__django-11099",
+      "status": "environment_incompatible",
+      "reason": "Pinned official image lacks pytest; current CodePilot test executor allows pytest only."
+    },
+    {
+      "task_id": "pytest-dev__pytest-5495",
+      "status": "baseline_harness_failure",
+      "reason": "Unmodified official test command fails in setup with missing check_first fixtures; not used for model evaluation."
+    }
+  ],
+  "replacement_task_id": "pytest-dev__pytest-5103",
+  "task_count": 4,
+  "repository_count": 3,
+  "tasks": [
+    {
+      "task_id": "pytest-dev__pytest-5413",
+      "repo": "pytest-dev/pytest",
+      "license": "MIT",
+      "base_commit": "450d2646233c670654744d3d24330b69895bb9d2",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pytest-dev/pytest/pull/5413",
+      "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5413:latest",
+      "problem_statement_sha256": "d07de38ad8ef1399524db3d22cd5127e01ba3242e1c48cc37d5b397598d1b94d",
+      "hidden_test_patch_sha256": "96a694cd889a4b1597e144bc9c0a127960111eab7621b805711b8ebe5ccad8f2",
+      "gold_patch_sha256": "34f5b421e92cf10334e75169f11e7f4a6e20cec510e6b679d26eb455e093e53f",
+      "hidden_test_files": [
+        "testing/code/test_excinfo.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 92
+    },
+    {
+      "task_id": "pydata__xarray-3364",
+      "repo": "pydata/xarray",
+      "license": "Apache-2.0",
+      "base_commit": "863e49066ca4d61c9adfe62aca3bf21b90e1af8c",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pydata/xarray/pull/3364",
+      "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-3364:latest",
+      "problem_statement_sha256": "e78b63861fd05452bec851896facf0a702c5d8313fc29d27d7b2cc57f0d4776d",
+      "hidden_test_patch_sha256": "648f0daea9ee38f4b30f37dff4af749701cf1675d5d916a2ee5a9d3325b9669c",
+      "gold_patch_sha256": "dd7e65a94252a1c6d387e771082a11d8af8cdc23045e987fa2c2e1729b274eb3",
+      "hidden_test_files": [
+        "xarray/tests/test_combine.py",
+        "xarray/tests/test_concat.py"
+      ],
+      "fail_to_pass_count": 2,
+      "pass_to_pass_count": 110
+    },
+    {
+      "task_id": "scikit-learn__scikit-learn-10508",
+      "repo": "scikit-learn/scikit-learn",
+      "license": "BSD-3-Clause",
+      "base_commit": "c753b77ac49e72ebc0fe5e3c2369fe628f975017",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/scikit-learn/scikit-learn/pull/10508",
+      "docker_image": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-10508:latest",
+      "problem_statement_sha256": "78a56f2b40bed531f50fce13f4a877943b003df526983ca62afcfae8cfe3e94f",
+      "hidden_test_patch_sha256": "4f1ae3a3d971cda5b992dfd7323ba0419033674b373e0afc2a5c5f0692a29e6b",
+      "gold_patch_sha256": "7664039eb8b692bddab2bcf1ad5e20b59cd319827a8b2b792818b0769d5d6065",
+      "hidden_test_files": [
+        "sklearn/preprocessing/tests/test_label.py"
+      ],
+      "fail_to_pass_count": 2,
+      "pass_to_pass_count": 18
+    },
+    {
+      "task_id": "pytest-dev__pytest-5103",
+      "repo": "pytest-dev/pytest",
+      "license": "MIT",
+      "base_commit": "10ca84ffc56c2dd2d9dc4bd71b7b898e083500cd",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pytest-dev/pytest/pull/5103",
+      "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5103:latest",
+      "problem_statement_sha256": "92b5c0a0c415a78c9b42b5cfab6f2137190332221fbce3c857d42d0e196fdb0c",
+      "hidden_test_patch_sha256": "89740f6cb7127fc954eb9fa2a84e7b6df26e77f18b76bf96b50db5bfb0ba5c86",
+      "gold_patch_sha256": "5b621eb0099e1e4eeb2bcb42f24a48b15b540e46fe23403475890578f546680c",
+      "hidden_test_files": [
+        "testing/test_assertrewrite.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 64
+    }
+  ]
+}

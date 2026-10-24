@@ -57,6 +57,7 @@ class ToolRegistry:
         test_timeout_seconds: float = 30,
         execution_mode: str = "host",
         docker_image: str = "codepilot-runner:0.1",
+        docker_python: str = "python",
         host_tests_approved: bool = False,
         tool_types: Sequence[type[Tool]] | None = None,
     ) -> None:
@@ -66,6 +67,7 @@ class ToolRegistry:
             test_timeout_seconds=test_timeout_seconds,
             execution_mode=execution_mode,
             docker_image=docker_image,
+            docker_python=docker_python,
         )
         self.host_tests_approved = host_tests_approved
         self._approved_call_ids: set[str] = set()

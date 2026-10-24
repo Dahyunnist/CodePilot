@@ -14,7 +14,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
 from codepilot.agent import Agent
-from codepilot.schemas import RunResult, Task
+from codepilot.schemas import RunResult, Task, ToolCall
+from codepilot.tools.registry import ToolRegistry
 from codepilot.workspace import Workspace, WorkspaceError, WorkspaceManager
 
 
@@ -82,7 +83,12 @@ def _build_graph(
     database: Path,
     manager: WorkspaceManager,
     agent_factory: AgentFactory,
+    tracer: Any | None = None,
 ):
+    def trace(event: str, state: DurableRunState, **fields: Any) -> None:
+        if tracer is not None:
+            tracer.event(event, 0, **fields)
+
     def run_agent(state: DurableRunState) -> dict[str, Any]:
         task = Task.model_validate(state["task"])
         progress = _load_agent_progress(database, state["run_id"])
@@ -103,15 +109,29 @@ def _build_graph(
                 resume_data=progress,
             )
         workspace = Path(state["workspace"])
-        patch_hash = hashlib.sha256(
-            _git_patch(workspace, state["base_commit"])
-        ).hexdigest()
+        patch = _git_patch(workspace, state["base_commit"])
+        patch_hash = hashlib.sha256(patch).hexdigest()
+        if (
+            state.get("apply_to_repo")
+            and result.status == "success"
+            and result.diff != patch.decode("utf-8", errors="replace")
+        ):
+            result.status = "failed"
+            result.failure_type = "policy"
+            result.error = "补丁完整差异无法被审批预览完整呈现；已拒绝回写"
+            trace("writeback_finished", state, outcome="unreviewable_diff")
         return {"result": result.model_dump(mode="json"), "patch_sha256": patch_hash}
 
     def approval_gate(state: DurableRunState) -> dict[str, Any]:
         result = RunResult.model_validate(state["result"])
         if not state.get("apply_to_repo") or result.status != "success":
             return {"approval": False}
+        trace(
+            "writeback_approval_requested",
+            state,
+            patch_sha256=state["patch_sha256"],
+            tests_passed=bool(result.test_result and result.test_result.ok),
+        )
         approved = interrupt(
             {
                 "type": "repository_writeback_approval",
@@ -123,16 +143,27 @@ def _build_graph(
                 "diff": result.diff,
             }
         )
+        trace(
+            "writeback_approval_decided",
+            state,
+            approved=bool(approved),
+            patch_sha256=state["patch_sha256"],
+        )
         return {"approval": bool(approved)}
 
     def delivery(state: DurableRunState) -> dict[str, Any]:
         result = RunResult.model_validate(state["result"])
         if not state.get("apply_to_repo"):
+            trace("writeback_finished", state, outcome="workspace_only")
             return {"delivery": "workspace_only"}
+        if result.status != "success":
+            trace("writeback_finished", state, outcome="agent_failed")
+            return {"delivery": "not_delivered"}
         if not state.get("approval"):
             result.status = "needs_approval"
             result.failure_type = "policy"
             result.error = "用户拒绝补丁回写"
+            trace("writeback_finished", state, outcome="rejected")
             return {"result": result.model_dump(mode="json"), "delivery": "rejected"}
 
         workspace = Workspace(
@@ -147,17 +178,92 @@ def _build_graph(
             result.status = "failed"
             result.failure_type = "policy"
             result.error = "等待审批期间补丁已变化；旧测试和审批均作废"
+            trace("writeback_finished", state, outcome="stale_patch")
             return {"result": result.model_dump(mode="json"), "delivery": "stale_patch"}
+        patch = _git_patch(workspace.path, workspace.base_commit)
+        if result.diff != patch.decode("utf-8", errors="replace"):
+            result.status = "failed"
+            result.failure_type = "policy"
+            result.error = "补丁完整差异无法被审批预览完整呈现；已拒绝回写"
+            trace("writeback_finished", state, outcome="unreviewable_diff")
+            return {"result": result.model_dump(mode="json"), "delivery": "unreviewable_diff"}
+        runtime = state.get("runtime", {})
+        if (
+            runtime.get("execution_mode", "docker") == "host"
+            and not runtime.get("host_tests_approved", False)
+        ):
+            result.status = "failed"
+            result.failure_type = "policy"
+            result.error = "恢复写回前需明确授权主机测试；旧测试结果不再有效"
+            trace("writeback_finished", state, outcome="revalidation_not_approved")
+            return {
+                "result": result.model_dump(mode="json"),
+                "delivery": "revalidation_failed",
+            }
+        task = Task.model_validate(state["task"])
+        registry = ToolRegistry(
+            workspace.path,
+            task.test_command,
+            test_timeout_seconds=float(runtime.get("test_timeout_seconds", 30)),
+            execution_mode=str(runtime.get("execution_mode", "docker")),
+            docker_image=str(runtime.get("docker_image", "codepilot-runner:0.1")),
+            docker_python=str(runtime.get("docker_python", "python")),
+            host_tests_approved=bool(runtime.get("host_tests_approved", False)),
+        )
+        revalidation = registry.execute(
+            ToolCall(id=f"resume-test-{state['run_id']}", name="run_tests", arguments={})
+        )
+        result.test_result = revalidation
+        result.tool_results.append(revalidation)
+        if not revalidation.ok:
+            result.status = "failed"
+            result.failure_type = (
+                "tool"
+                if revalidation.error_type in {"execution", "timeout"}
+                else "test"
+            )
+            result.error = "恢复后的完整测试未通过；补丁未回写"
+            trace(
+                "writeback_finished",
+                state,
+                outcome="revalidation_failed",
+                exit_code=revalidation.exit_code,
+                error_type=revalidation.error_type,
+            )
+            return {
+                "result": result.model_dump(mode="json"),
+                "delivery": "revalidation_failed",
+            }
+        revalidated_hash = hashlib.sha256(
+            _git_patch(workspace.path, workspace.base_commit)
+        ).hexdigest()
+        if revalidated_hash != current_hash:
+            result.status = "failed"
+            result.failure_type = "policy"
+            result.error = "恢复验证期间补丁发生变化；已拒绝回写"
+            trace("writeback_finished", state, outcome="patch_changed_during_revalidation")
+            return {
+                "result": result.model_dump(mode="json"),
+                "delivery": "stale_patch",
+            }
+        trace(
+            "writeback_started",
+            state,
+            patch_sha256=state["patch_sha256"],
+            base_commit=state["base_commit"],
+        )
         try:
             changed = manager.apply_changes(workspace)
         except WorkspaceError as exc:
             result.status = "failed"
             result.failure_type = "policy"
             result.error = f"补丁未能回写到源仓库：{exc}"
+            trace("writeback_finished", state, outcome="rejected", error=str(exc))
             return {"result": result.model_dump(mode="json"), "delivery": "rejected"}
         result.final_text += (
             "\n修复补丁已应用到源仓库。" if changed else "\n源仓库没有需要回写的补丁。"
         )
+        trace("writeback_finished", state, outcome="applied", patch_sha256=current_hash)
         return {"result": result.model_dump(mode="json"), "delivery": "applied"}
 
     builder = StateGraph(DurableRunState)
@@ -168,7 +274,6 @@ def _build_graph(
     builder.add_edge("run_agent", "approval_gate")
     builder.add_edge("approval_gate", "delivery")
     builder.add_edge("delivery", END)
-    database.parent.mkdir(parents=True, exist_ok=True)
     return builder
 
 
@@ -182,12 +287,14 @@ def start_durable_run(
     run_id: str,
     apply_to_repo: bool,
     runtime: dict[str, Any] | None = None,
+    tracer: Any | None = None,
 ) -> dict[str, Any]:
     """Run and checkpoint one task; return an interrupt payload if approval waits."""
     config = {"configurable": {"thread_id": run_id}}
+    database.parent.mkdir(parents=True, exist_ok=True)
     with SqliteSaver.from_conn_string(str(database)) as saver:
         graph = _build_graph(
-            database=database, manager=manager, agent_factory=agent_factory
+            database=database, manager=manager, agent_factory=agent_factory, tracer=tracer
         ).compile(checkpointer=saver)
         return graph.invoke(
             {
@@ -210,12 +317,14 @@ def resume_durable_run(
     agent_factory: AgentFactory,
     run_id: str,
     approved: bool | None,
+    tracer: Any | None = None,
 ) -> dict[str, Any]:
     """Resume a paused approval or an interrupted graph node; reject replays."""
     config = {"configurable": {"thread_id": run_id}}
+    database.parent.mkdir(parents=True, exist_ok=True)
     with SqliteSaver.from_conn_string(str(database)) as saver:
         graph = _build_graph(
-            database=database, manager=manager, agent_factory=agent_factory
+            database=database, manager=manager, agent_factory=agent_factory, tracer=tracer
         ).compile(checkpointer=saver)
         snapshot = graph.get_state(config)
         if not snapshot.values:

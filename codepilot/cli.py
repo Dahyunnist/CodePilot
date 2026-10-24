@@ -20,6 +20,7 @@ from codepilot.mcp_client import HybridMCPToolRegistry, MCPClientError, MCPToolR
 from codepilot.report import format_run_report, write_markdown_report
 from codepilot.run_graph import resume_durable_run, start_durable_run
 from codepilot.schemas import RunResult, Task, ToolCall
+from codepilot.skills import SKILLS
 from codepilot.tools.registry import ToolRegistry
 from codepilot.tracing import TraceLogger
 from codepilot.workspace import WorkspaceError, WorkspaceManager
@@ -165,6 +166,9 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="运行一个仓库修复任务")
     run_parser.add_argument("--repo", required=True, type=Path, help="仓库路径")
     run_parser.add_argument("--task", required=True, help="用中文描述要修复的问题")
+    run_parser.add_argument(
+        "--skill", choices=tuple(SKILLS), help="可选的受限修复工作流"
+    )
     run_parser.add_argument("--test-command", required=True, help="pytest 测试命令")
     run_parser.add_argument("--max-steps", type=int, default=12, help="模型最多交互步数")
     run_parser.add_argument("--max-test-attempts", type=int, default=3, help="最多运行测试次数")
@@ -206,12 +210,19 @@ def main(
     args = build_parser().parse_args(argv)
     if args.command == "resume":
         try:
+            trace = TraceLogger(args.reports_root / "traces" / f"{args.run_id}.jsonl", args.run_id)
+            trace.event(
+                "resume_requested",
+                0,
+                decision="approve" if args.approve else "reject" if args.reject else "continue",
+            )
             state = resume_durable_run(
                 database=args.state_db,
                 manager=WorkspaceManager(Path(".tmp/workspaces")),
                 agent_factory=_resume_agent_factory(args.reports_root),
                 run_id=args.run_id,
                 approved=True if args.approve else False if args.reject else None,
+                tracer=trace,
             )
             result = RunResult.model_validate(state["result"])
             if "__interrupt__" in state:
@@ -252,6 +263,7 @@ def main(
             repo_path=workspace.path,
             instruction=args.task,
             test_command=shlex.split(args.test_command, posix=False),
+            skill_id=args.skill,
             max_steps=args.max_steps,
             max_test_attempts=args.max_test_attempts,
             max_elapsed_seconds=args.max_elapsed,
@@ -325,6 +337,7 @@ def main(
             "reports_root": str(args.reports_root),
             "tool_backend": args.tool_backend,
         },
+        tracer=trace,
     )
     result = RunResult.model_validate(state["result"])
     if "__interrupt__" in state:

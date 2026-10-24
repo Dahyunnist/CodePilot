@@ -12,7 +12,11 @@
 - Docker runs as a non-root user with no network, dropped capabilities, a
   read-only container root and workspace, and CPU, memory, process, output, and
   time limits. Pytest temporary files go to the writable `/tmp` tmpfs.
+- Docker provides resource and namespace controls, not a strong isolation
+  boundary. Docker Desktop and the host kernel remain trusted components.
 - Trace events exclude source text, patch contents, stdout, stderr, and API keys.
+- Trace events share a trace ID and link model/tool spans; approval and
+  writeback events record decisions and patch hashes without storing the diff.
 - Host execution requires approval and receives a minimal environment.
 - Workspace run IDs are restricted to safe directory names; failed clones remove
   their partial destination.

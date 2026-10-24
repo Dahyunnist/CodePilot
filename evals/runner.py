@@ -56,6 +56,15 @@ class CaseSpec(BaseModel):
     issue_url: str | None = None
     pull_request_url: str | None = None
     archive_sha256: str | None = None
+    hidden_test_patch: str | None = None
+    hidden_test_command: list[str] | None = None
+    docker_image: str | None = None
+    baseline_expected_failure: bool = True
+    test_timeout_seconds: int = Field(default=30, ge=1, le=600)
+    docker_python: str = Field(default="python", min_length=1)
+    generated_version_sha256: str | None = None
+    compiled_extensions_sha256: str | None = None
+    visible_test_sha256: str | None = None
     case_dir: Path | None = None
 
 

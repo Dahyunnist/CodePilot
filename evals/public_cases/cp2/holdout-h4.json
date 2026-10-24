@@ -1,0 +1,45 @@
+{
+  "benchmark": "SWE-bench Lite CP-2 H4 single fresh task",
+  "frozen_at": "2026-10-23",
+  "model_exposure": "not sent to evaluated model before freeze",
+  "parent_manifest": "frozen-selection.json",
+  "parent_manifest_sha256": "f5455478b96a55ed2504a90fe113c483185ef9e62f4ec3cd65281034818f7700",
+  "dataset": "SWE-bench/SWE-bench_Lite test split",
+  "dataset_sha256": "5cb74f0feb564d6c6bf3f51725384ca646b854d2713d62e86227a29af61d1a92",
+  "task_count": 1,
+  "preflight_status": "passed",
+  "tasks": [
+    {
+      "task_id": "pydata__xarray-4248",
+      "repo": "pydata/xarray",
+      "license": "Apache-2.0",
+      "base_commit": "98dc1f4ea18738492e074e9e51ddfed5cd30ab94",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pydata/xarray/pull/4248",
+      "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-4248:latest",
+      "problem_statement_sha256": "c3ed7e2a4bcf766f85ad8d923d929840f46121409ceae0a80412b840bfed69a4",
+      "hidden_test_patch_sha256": "c295e6acb9392b7f9b5a89b45bc53049472ed16319c5626198653d0e77ac5fc6",
+      "gold_patch_sha256": "cb60278c84b3245408864d4fde2f83e88229e920e6345b0f64ed74092b8f02d2",
+      "hidden_test_files": [
+        "xarray/tests/test_formatting.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 18
+    }
+  ],
+  "preflight": {
+    "docker_server": "29.1.3",
+    "visible_baseline": {
+      "status": "passed",
+      "duration_ms": 9612
+    },
+    "hidden_baseline": {
+      "status": "expected_failure",
+      "failed": 1,
+      "passed": 18,
+      "duration_ms": 11218,
+      "failing_test": "test_inline_variable_array_repr_custom_repr"
+    },
+    "model_requests": 0
+  }
+}

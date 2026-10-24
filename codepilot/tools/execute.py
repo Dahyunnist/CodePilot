@@ -1,8 +1,9 @@
-"""Controlled pytest execution without a shell."""
+"""Controlled project test execution without a shell."""
 
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import time
@@ -13,11 +14,11 @@ from codepilot.schemas import ToolResult
 
 
 class CommandPolicyError(RuntimeError):
-    """Raised when a command is outside the pytest-only policy."""
+    """Raised when a command is outside the supported test-runner policy."""
 
 
 def normalize_test_command(command: list[str]) -> list[str]:
-    """Map a portable Python command to the active interpreter and validate it."""
+    """Normalize and validate supported pytest or Django test commands."""
     if not command:
         raise CommandPolicyError("test command must not be empty")
 
@@ -26,14 +27,45 @@ def normalize_test_command(command: list[str]) -> list[str]:
         normalized[0] = sys.executable
 
     executable_name = Path(normalized[0]).name.lower()
-    python_pytest = (
-        Path(normalized[0]).resolve() == Path(sys.executable).resolve()
-        and normalized[1:3] == ["-m", "pytest"]
-    )
+    python_command = Path(normalized[0]).resolve() == Path(sys.executable).resolve()
+    python_pytest = python_command and normalized[1:3] == ["-m", "pytest"]
     direct_pytest = executable_name in {"pytest", "pytest.exe", "py.test", "py.test.exe"}
-    if not python_pytest and not direct_pytest:
-        raise CommandPolicyError("only pytest commands are allowed")
+    django_runner = (
+        python_command
+        and len(normalized) > 2
+        and normalized[1] == "tests/runtests.py"
+        and _valid_django_test_arguments(normalized[2:])
+    )
+    if not python_pytest and not direct_pytest and not django_runner:
+        raise CommandPolicyError(
+            "only pytest or the bounded Django tests/runtests.py command is allowed"
+        )
     return normalized
+
+
+def _valid_django_test_arguments(arguments: list[str]) -> bool:
+    """Allow test labels and a small set of non-executable Django test options."""
+    labels = 0
+    index = 0
+    while index < len(arguments):
+        value = arguments[index]
+        if value in {"--parallel", "--verbosity"}:
+            index += 1
+            if index >= len(arguments) or not arguments[index].isdigit():
+                return False
+            number = int(arguments[index])
+            if value == "--parallel" and not 1 <= number <= 4:
+                return False
+            if value == "--verbosity" and not 0 <= number <= 3:
+                return False
+        elif value in {"--keepdb", "--noinput", "--shuffle"}:
+            pass
+        elif value.startswith("-") or not re.fullmatch(r"[A-Za-z0-9_.:-]+", value):
+            return False
+        else:
+            labels += 1
+        index += 1
+    return labels > 0
 
 
 def run_tests(
@@ -44,9 +76,10 @@ def run_tests(
     *,
     execution_mode: str = "host",
     docker_image: str = "codepilot-runner:0.1",
+    docker_python: str = "python",
     additional_mounts: tuple[tuple[Path, str], ...] = (),
 ) -> ToolResult:
-    """Run a validated pytest command and normalize all outcomes."""
+    """Run a validated project test command and normalize all outcomes."""
     started = time.perf_counter()
     try:
         normalized = normalize_test_command(command)
@@ -67,7 +100,8 @@ def run_tests(
             normalized,
             docker_image,
             container_name,
-            additional_mounts,
+            docker_python=docker_python,
+            additional_mounts=additional_mounts,
         )
     elif execution_mode != "host":
         return ToolResult(
@@ -161,10 +195,12 @@ def build_docker_command(
     normalized_command: list[str],
     image: str,
     container_name: str,
+    *,
+    docker_python: str = "python",
     additional_mounts: tuple[tuple[Path, str], ...] = (),
 ) -> list[str]:
-    """Build a networkless, resource-limited Docker pytest command."""
-    pytest_arguments = _pytest_arguments(normalized_command)
+    """Build a networkless, resource-limited Docker test command."""
+    runner = _test_runner(normalized_command)
     root = repo_root.resolve(strict=True)
     command = [
         "docker",
@@ -205,21 +241,33 @@ def build_docker_command(
         )
     if (root / "src").is_dir():
         command.extend(["--env", "PYTHONPATH=/workspace/src"])
-    command.extend(
-        [
-            "--workdir",
-            "/workspace",
-            image,
-            "python",
-            "-m",
-            "pytest",
-            *pytest_arguments,
-            "-p",
-            "no:cacheprovider",
-            "--basetemp=/tmp/pytest-tmp",
-        ]
-    )
+    command.extend(["--workdir", "/workspace", image, docker_python])
+    if runner == "pytest":
+        command.extend(
+            [
+                "-m",
+                "pytest",
+                *_pytest_arguments(normalized_command),
+                "-p",
+                "no:cacheprovider",
+                "--basetemp=/tmp/pytest-tmp",
+            ]
+        )
+    else:
+        command.extend(["tests/runtests.py", *normalized_command[2:]])
     return command
+
+
+def _test_runner(command: list[str]) -> str:
+    executable_name = Path(command[0]).name.lower()
+    if (
+        command[1:3] == ["-m", "pytest"]
+        or executable_name in {"pytest", "pytest.exe", "py.test", "py.test.exe"}
+    ):
+        return "pytest"
+    if len(command) > 2 and command[1] == "tests/runtests.py":
+        return "django"
+    raise CommandPolicyError("unsupported test runner")
 
 
 def _pytest_arguments(command: list[str]) -> list[str]:
@@ -238,6 +286,7 @@ def _safe_environment() -> dict[str, str]:
     allowed = {
         "COMSPEC",
         "DOCKER_CONFIG",
+        "DOCKER_CONTEXT",
         "HOME",
         "LANG",
         "PATH",

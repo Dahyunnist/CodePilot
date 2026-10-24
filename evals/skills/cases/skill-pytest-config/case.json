@@ -1,0 +1,8 @@
+{
+  "case_id": "skill-pytest-config",
+  "category": "pytest-failure-triage",
+  "instruction": "修复 parse_options：空输入、空白行和以 # 开头的注释应被忽略；key=value 中只按第一个等号切分。保留其他解析行为。",
+  "test_command": ["python", "-m", "pytest", "tests", "-q"],
+  "search_query": "def parse_options",
+  "patches": []
+}

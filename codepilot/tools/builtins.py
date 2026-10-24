@@ -161,6 +161,7 @@ class RunSelectedTestsTool(Tool[SelectedTestsArguments]):
             self.context.test_timeout_seconds,
             execution_mode=self.context.execution_mode,
             docker_image=self.context.docker_image,
+            docker_python=self.context.docker_python,
         )
         self.context.last_test_result = result
         return result
@@ -264,7 +265,7 @@ class ApplyPatchTool(Tool[ApplyPatchArguments]):
 
 class RunTestsTool(Tool[NoArguments]):
     name = "run_tests"
-    description = "运行任务配置的 pytest 测试命令。"
+    description = "运行任务配置的 pytest 命令，或受限的 Django tests/runtests.py 命令。"
     arguments_model = NoArguments
     approval_policy = "host_tests"
 
@@ -275,6 +276,7 @@ class RunTestsTool(Tool[NoArguments]):
             self.context.test_timeout_seconds,
             execution_mode=self.context.execution_mode,
             docker_image=self.context.docker_image,
+            docker_python=self.context.docker_python,
         )
         self.context.last_test_result = result
         return result

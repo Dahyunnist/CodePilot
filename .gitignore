@@ -25,9 +25,17 @@ reports/**/*.log
 reports/**/*.txt
 evals/public_cases/*/*/repo/
 
+# Generated evaluation artifacts and local run logs.
+reports/
+
 # Local run evidence may contain host paths, prompts, test output, or state.
 reports/live-model-*/
+reports/live-model/
 reports/public-*/
+reports/cp2-*/
+reports/cp4-paired/
 reports/runs/
 reports/traces/
 reports/*/run-state.sqlite*
+reports/cp1-selector-pair/
+reports/cp1-preflight-recheck-*/

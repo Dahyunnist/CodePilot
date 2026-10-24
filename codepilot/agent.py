@@ -11,8 +11,10 @@ from pathlib import Path
 from typing import Any, Callable, Protocol, Sequence
 
 from codepilot.model import ModelClientError
+from codepilot.context_selector import ContextSelector
 from codepilot.prompts import SYSTEM_PROMPT, task_prompt
 from codepilot.security import redact_sensitive_text
+from codepilot.skills import RepairSkill, get_skill
 from codepilot.schemas import (
     AgentState,
     ChatMessage,
@@ -60,7 +62,9 @@ class TraceLike(Protocol):
 
     def tool_started(self, step: int, call: ToolCall) -> None: ...
 
-    def tool_finished(self, step: int, result: ToolResult) -> None: ...
+    def tool_finished(
+        self, step: int, result: ToolResult, call_id: str | None = None
+    ) -> None: ...
 
 
 class Agent:
@@ -74,12 +78,14 @@ class Agent:
         approval: ApprovalProvider | None = None,
         tracer: TraceLike | None = None,
         run_id: str | None = None,
+        context_selection_enabled: bool = True,
     ) -> None:
         self.model = model
         self.tools = tools
         self.approval = approval
         self.tracer = tracer
         self.run_id = run_id or uuid.uuid4().hex
+        self.context_selection_enabled = context_selection_enabled
 
     _EXPLORATION_TOOLS = frozenset(
         {
@@ -94,7 +100,17 @@ class Agent:
         }
     )
     _EXPLORATION_REMINDER_AFTER = 2
+    _EXPLORATION_FOCUS_AFTER = 3
     _EXPLORATION_STOP_AFTER = 6
+    _REPAIR_FOCUS_TOOLS = frozenset(
+        {
+            "apply_patch",
+            "suggest_tests",
+            "run_selected_tests",
+            "run_tests",
+            "git_diff",
+        }
+    )
 
     def run(
         self,
@@ -105,6 +121,18 @@ class Agent:
     ) -> RunResult:
         """Run until the model finishes, errors, or exhausts max_steps."""
         started = time.perf_counter()
+        skill = get_skill(task.skill_id)
+        if skill:
+            task = task.model_copy(
+                update={
+                    "max_steps": min(task.max_steps, skill.max_steps),
+                    "max_test_attempts": min(task.max_test_attempts, skill.max_test_attempts),
+                    "max_total_tokens": min(
+                        task.max_total_tokens or skill.max_total_tokens,
+                        skill.max_total_tokens,
+                    ),
+                }
+            )
         elapsed_before_ms = int((resume_data or {}).get("elapsed_ms", 0))
         self._progress_callback = progress_callback
         self._progress_started = started
@@ -146,6 +174,7 @@ class Agent:
             effective_context_chars=context_budget,
             max_tool_observation_chars=max_observation_chars,
             max_total_tokens=task.max_total_tokens,
+            skill_id=skill.skill_id if skill else None,
         )
         if state.model_request_in_flight and state.pending_model_reply is None:
             state.transition("failed")
@@ -164,6 +193,7 @@ class Agent:
 
         while state.step_count < task.max_steps or state.pending_model_reply is not None:
             exploration_streak = state.attempts.get("__exploration_streak", 0)
+            repair_focus = exploration_streak >= self._EXPLORATION_FOCUS_AFTER
             if (
                 state.pending_model_reply is None
                 and exploration_streak >= self._EXPLORATION_STOP_AFTER
@@ -171,7 +201,7 @@ class Agent:
                 state.transition("needs_user_input")
                 message = (
                     f"连续 {exploration_streak} 轮只读探索，没有代码修改。"
-                    "Agent 已暂停；请补充修复方向或指出需要确认的行为。"
+                    "Agent 已触发安全熔断并暂停；只有存在具体需求歧义时，才需用户补充信息。"
                 )
                 self._trace(
                     "exploration_circuit_breaker",
@@ -198,7 +228,12 @@ class Agent:
                     failure_type="budget",
                 )
             resuming_reply = state.pending_model_reply is not None
-            compacted = 0 if resuming_reply else _fit_context(state.messages, context_budget)
+            compacted = 0 if resuming_reply else _fit_context(
+                state.messages,
+                context_budget,
+                deduplicate=self.context_selection_enabled,
+                prioritize_layers=self.context_selection_enabled,
+            )
             if compacted:
                 self._trace(
                     "context_compacted",
@@ -206,6 +241,23 @@ class Agent:
                     tool_messages=compacted,
                     context_chars=_context_chars(state.messages),
                     budget_chars=context_budget,
+                )
+            if repair_focus and not state.attempts.get("__repair_focus_sent"):
+                state.messages.append(
+                    ChatMessage(
+                        role="developer",
+                        content=(
+                            "修复聚焦：只读探索已达 3 轮。请基于现有证据提交最小补丁并运行测试；"
+                            "若确有阻止安全修复的需求歧义，请提出具体问题和选项。"
+                            "不得继续搜索或重复读取，也不得把未验证补丁称为完成。"
+                        ),
+                    )
+                )
+                state.attempts["__repair_focus_sent"] = 1
+                self._trace(
+                    "repair_focus_entered",
+                    state.step_count,
+                    consecutive_read_only_rounds=exploration_streak,
                 )
             if not resuming_reply and _context_chars(state.messages) > context_budget:
                 state.transition("budget_exceeded")
@@ -218,14 +270,41 @@ class Agent:
                     failure_type="budget",
                 )
             available_tools = self.tools.read_tools()
+            if skill:
+                available_tools = tuple(
+                    tool
+                    for tool in available_tools
+                    if tool.function.name in skill.allowed_tools
+                )
+            if repair_focus:
+                available_tools = tuple(
+                    tool
+                    for tool in available_tools
+                    if tool.function.name in self._REPAIR_FOCUS_TOOLS
+                )
+            if self.context_selection_enabled:
+                available_tools = ContextSelector.order_tools(available_tools)
+            self._trace(
+                "context_selection_applied",
+                state.step_count,
+                strategy=(
+                    ContextSelector.VERSION
+                    if self.context_selection_enabled
+                    else "baseline"
+                ),
+                layers=ContextSelector.describe_layers(available_tools),
+                tool_count=len(available_tools),
+            )
             if resuming_reply:
                 reply = state.pending_model_reply
+                model_span_id = None
             else:
                 remaining = (
                     task.max_total_tokens - state.tokens
                     if task.max_total_tokens is not None
                     else None
                 )
+                needs_test = last_test is None or not last_test.ok
                 input_reserve = _estimate_request_tokens(state.messages, available_tools)
                 configured_output = getattr(
                     getattr(self.model, "config", None), "max_completion_tokens", 1024
@@ -233,7 +312,6 @@ class Agent:
                 completion_ceiling = 256 if last_test is not None and last_test.ok else 512
                 output_limit = min(int(configured_output), completion_ceiling)
                 if remaining is not None:
-                    needs_test = last_test is None or not last_test.ok
                     future_reserve = _protected_future_tokens(
                         context_budget,
                         available_tools,
@@ -246,6 +324,13 @@ class Agent:
                     minimum_output = min(int(configured_output), 128)
                     if output_limit < minimum_output:
                         state.transition("budget_exceeded")
+                        last_test = self._verify_patch_before_budget_stop(
+                            state,
+                            tool_results,
+                            last_test,
+                            available_tools,
+                            skill,
+                        )
                         return self._finish(
                             state, tool_results, last_test, started,
                             error=(
@@ -257,6 +342,7 @@ class Agent:
                 else:
                     future_reserve = 0
                 state.step_count += 1
+                model_span_id = uuid.uuid4().hex
                 state.model_request_in_flight = True
                 self._save_progress(state, tool_results, last_test)
                 self._trace(
@@ -266,8 +352,15 @@ class Agent:
                     max_completion_tokens=output_limit,
                     remaining_tokens=remaining,
                     protected_future_tokens=future_reserve,
+                    reserved_patch_tokens=_future_output_reservations()[0] if needs_test else 0,
+                    reserved_test_tokens=_future_output_reservations()[1] if needs_test else 0,
+                    reserved_final_tokens=_future_output_reservations()[2] if needs_test else 0,
                     needs_test=last_test is None or not last_test.ok,
                     effective_context_chars=context_budget,
+                    hard_input_token_limit=getattr(
+                        self.model, "max_input_tokens_per_request", None
+                    ),
+                    span_id=model_span_id,
                 )
                 try:
                     reply = self.model.complete(
@@ -276,6 +369,12 @@ class Agent:
                         max_completion_tokens=output_limit,
                     )
                 except ModelClientError as exc:
+                    self._trace(
+                        "model_failed",
+                        state.step_count,
+                        span_id=model_span_id,
+                        error=str(exc),
+                    )
                     state.model_request_in_flight = False
                     self._save_progress(state, tool_results, last_test)
                     state.transition("failed")
@@ -318,7 +417,11 @@ class Agent:
                 input_tokens=reply.input_tokens,
                 cached_input_tokens=reply.cached_input_tokens,
                 output_tokens=reply.output_tokens,
+                input_token_upper_bound=getattr(
+                    self.model, "last_input_token_upper_bound", None
+                ),
                 tool_calls=len(reply.tool_calls),
+                span_id=model_span_id or uuid.uuid4().hex,
             )
             if task.max_total_tokens is not None and state.tokens > task.max_total_tokens:
                 state.transition("budget_exceeded")
@@ -372,6 +475,8 @@ class Agent:
             if (
                 not resuming_reply
                 and execute_many is not None
+                and not repair_focus
+                and (skill is None or all(call.name in skill.allowed_tools for call in reply.tool_calls))
                 and can_parallel(reply.tool_calls)
             ):
                 for call in reply.tool_calls:
@@ -413,9 +518,12 @@ class Agent:
                             failure_type="budget",
                         )
 
-                    requires_approval = getattr(
-                        self.tools, "requires_approval", lambda unused: False
-                    )(call)
+                    requires_approval = (
+                        (skill is None or call.name in skill.allowed_tools)
+                        and getattr(
+                            self.tools, "requires_approval", lambda unused: False
+                        )(call)
+                    )
                     if requires_approval:
                         if self.approval is None or not self.approval.approve(call):
                             state.transition("needs_approval")
@@ -432,7 +540,7 @@ class Agent:
                     state.attempts[call.name] = state.attempts.get(call.name, 0) + 1
                     if self.tracer:
                         self.tracer.tool_started(state.step_count, call)
-                    result = self.tools.execute(call)
+                    result = self._execute_tool(call, skill, repair_focus=repair_focus)
                     last_test = self._record_tool_result(
                         state, tool_results, last_test, call, result, available_tools
                     )
@@ -502,7 +610,7 @@ class Agent:
         observation_limit = getattr(self, "_max_observation_chars", 4_000)
         result = _bounded_tool_result(result, observation_limit)
         if self.tracer:
-            self.tracer.tool_finished(state.step_count, result)
+            self.tracer.tool_finished(state.step_count, result, call.id)
         state.last_tool_result = result
         tool_results.append(result)
         if call.name == "run_tests":
@@ -521,6 +629,102 @@ class Agent:
             )
         )
         return last_test
+
+    def _verify_patch_before_budget_stop(
+        self,
+        state: AgentState,
+        tool_results: list[ToolResult],
+        last_test: ToolResult | None,
+        available_tools: Sequence[ToolSpec],
+        skill: RepairSkill | None,
+    ) -> ToolResult | None:
+        """Use remaining non-model budget to test a patch without declaring success."""
+        if last_test is not None and last_test.ok:
+            return last_test
+        if "run_tests" not in {tool.function.name for tool in available_tools}:
+            self._trace(
+                "budget_verification_skipped",
+                state.step_count,
+                reason="run_tests_unavailable",
+            )
+            return last_test
+        attempts = sum(
+            state.attempts.get(name, 0)
+            for name in ("run_tests", "run_selected_tests")
+        )
+        if attempts >= state.task.max_test_attempts:
+            self._trace(
+                "budget_verification_skipped",
+                state.step_count,
+                reason="test_attempt_limit",
+            )
+            return last_test
+
+        diff_call = ToolCall(
+            id=f"budget-diff-{state.step_count}", name="git_diff", arguments={}
+        )
+        diff_result = self.tools.execute(diff_call)
+        if not diff_result.ok or diff_result.stdout.strip() in {"", "(no output)"}:
+            self._trace(
+                "budget_verification_skipped", state.step_count, reason="no_patch"
+            )
+            return last_test
+
+        test_call = ToolCall(
+            id=f"budget-final-tests-{state.step_count}",
+            name="run_tests",
+            arguments={},
+        )
+        if getattr(self.tools, "requires_approval", lambda unused: False)(test_call):
+            self._trace(
+                "budget_verification_skipped",
+                state.step_count,
+                reason="approval_required",
+            )
+            return last_test
+        self._trace(
+            "budget_verification_started",
+            state.step_count,
+            test_attempt=attempts + 1,
+        )
+        state.attempts["run_tests"] = state.attempts.get("run_tests", 0) + 1
+        if self.tracer:
+            self.tracer.tool_started(state.step_count, test_call)
+        result = self._execute_tool(test_call, skill, repair_focus=True)
+        last_test = self._record_tool_result(
+            state, tool_results, last_test, test_call, result, available_tools
+        )
+        self._save_progress(state, tool_results, last_test)
+        self._trace(
+            "budget_verification_finished",
+            state.step_count,
+            ok=result.ok,
+            terminal_status=state.status,
+        )
+        return last_test
+
+    def _execute_tool(
+        self,
+        call: ToolCall,
+        skill: RepairSkill | None,
+        *,
+        repair_focus: bool = False,
+    ) -> ToolResult:
+        if repair_focus and call.name not in self._REPAIR_FOCUS_TOOLS:
+            return ToolResult(
+                tool_name=call.name,
+                ok=False,
+                stderr=f"修复聚焦阶段禁止继续只读工具调用：{call.name}",
+                error_type="policy",
+            )
+        if skill and call.name not in skill.allowed_tools:
+            return ToolResult(
+                tool_name=call.name,
+                ok=False,
+                stderr=f"工具不在当前 Skill 白名单中：{call.name}",
+                error_type="policy",
+            )
+        return self.tools.execute(call)
 
     def _finish(
         self,
@@ -647,19 +851,16 @@ def _count_repository_files(repo_root: Any, limit: int = 2_000) -> int:
 
 
 def _effective_context_budget(task: Task, repository_files: int | None = None) -> int:
-    """Scale per-request history by repository size and total token budget."""
+    """Scale conversation history by repository size, independently of token quota."""
     if repository_files is None:
         repository_files = _count_repository_files(task.repo_path)
     if repository_files < 100:
         scale_limit = 16_000
     elif repository_files < 500:
-        scale_limit = 10_000
+        scale_limit = 12_000
     else:
-        scale_limit = 8_000
+        scale_limit = 12_000
     budget = min(task.max_context_chars, scale_limit)
-    if task.max_total_tokens is not None:
-        token_budget_limit = max(6_000, min(16_000, int(task.max_total_tokens * 0.30)))
-        budget = min(budget, token_budget_limit)
     return budget
 
 
@@ -674,15 +875,15 @@ def _protected_future_tokens(
     *,
     needs_test: bool,
 ) -> int:
-    """Hold budget for one test decision and its final response."""
+    """Hold separately named output budget for patch, test, and final response."""
     if not needs_test:
         return 0
-    tool_bytes = len(
-        json.dumps([tool.model_dump() for tool in tools], ensure_ascii=False).encode("utf-8")
-    )
-    projected_input = math.ceil(context_budget / 3) + math.ceil(tool_bytes / 3) + 128
-    completion_floor = 256
-    return 2 * (projected_input + completion_floor)
+    return sum(_future_output_reservations())
+
+
+def _future_output_reservations() -> tuple[int, int, int]:
+    """Return patch, test-decision, and final-answer completion reserves."""
+    return 512, 1_024, 512
 
 
 def _bounded_tool_result(result: ToolResult, limit: int) -> ToolResult:
@@ -739,26 +940,45 @@ def _tool_observation(
     return "\n".join(lines)
 
 
-def _fit_context(messages: list[ChatMessage], budget: int) -> int:
-    compacted = 0
+def _fit_context(
+    messages: list[ChatMessage],
+    budget: int,
+    *,
+    deduplicate: bool = True,
+    prioritize_layers: bool = True,
+) -> int:
+    compacted = ContextSelector.deduplicate_history(messages) if deduplicate else 0
     while _context_chars(messages) > budget:
         pass_compacted = 0
         for message in messages:
             if _context_chars(messages) <= budget:
                 break
-            if message.role == "assistant" and message.tool_calls:
-                for call in message.tool_calls:
-                    if call.arguments:
-                        call.arguments = {}
-                        pass_compacted += 1
-                compacted_content = "Historical tool-call details compacted."
-                if message.content and message.content != compacted_content:
-                    message.content = compacted_content
+            if message.role != "assistant" or not message.tool_calls:
+                continue
+            for call in message.tool_calls:
+                if call.arguments:
+                    call.arguments = {}
                     pass_compacted += 1
-                continue
-            if message.role != "tool" or message.content is None:
-                continue
-            message.content, did_compact = _compact_tool_observation(message.content)
+            compacted_content = "Historical tool-call details compacted."
+            if message.content and message.content != compacted_content:
+                message.content = compacted_content
+                pass_compacted += 1
+        tool_indexes = (
+            ContextSelector.compaction_order(messages)
+            if prioritize_layers
+            else [
+                index
+                for index, message in enumerate(messages)
+                if message.role == "tool" and message.content is not None
+            ]
+        )
+        for index in tool_indexes:
+            if _context_chars(messages) <= budget:
+                break
+            message = messages[index]
+            message.content, did_compact = _compact_tool_observation(
+                message.content or ""
+            )
             if did_compact:
                 pass_compacted += 1
         if not pass_compacted:
