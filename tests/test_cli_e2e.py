@@ -109,6 +109,40 @@ def make_demo_repo(tmp_path: Path) -> Path:
     return repo
 
 
+def test_cli_validates_model_config_before_creating_workspace(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    repo = make_demo_repo(tmp_path)
+    workspace_root = tmp_path / "workspaces"
+    monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
+    for name in (
+        "LLM_MODEL",
+        "LLM_API_KEY",
+        "LLM_BASE_URL",
+        "LLM_TIMEOUT_SECONDS",
+        "LLM_MAX_COMPLETION_TOKENS",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    exit_code = main(
+        [
+            "run",
+            "--repo",
+            str(repo),
+            "--task",
+            "修复 parse_config 空输入问题。",
+            "--test-command",
+            "python -m pytest tests -q",
+            "--workspace-root",
+            str(workspace_root),
+        ]
+    )
+
+    assert exit_code == 2
+    assert "ModelConfig" in capsys.readouterr().err
+    assert not workspace_root.exists()
+
+
 def test_cli_repairs_demo_repository(tmp_path, capsys) -> None:
     repo = make_demo_repo(tmp_path)
 

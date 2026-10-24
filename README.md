@@ -46,6 +46,8 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 notepad .env
 ```
 
+CLI 会先校验模型配置，再创建隔离工作副本。配置缺失或无效时返回退出码 `2`，不会复制目标仓库。
+
 DeepSeek 示例：
 
 ```env

@@ -256,6 +256,7 @@ def main(
     run_id = uuid.uuid4().hex
     try:
         workspace_manager = WorkspaceManager(args.workspace_root)
+        model = model_client or ModelClient(ModelConfig.from_env())
         workspace = workspace_manager.prepare(
             repo, run_id, require_clean_source=args.apply_to_repo
         )
@@ -270,7 +271,6 @@ def main(
             max_total_tokens=args.max_tokens,
             max_context_chars=args.context_budget_chars,
         )
-        model = model_client or ModelClient(ModelConfig.from_env())
         tools = (
             ToolRegistry(
                 workspace.path,
