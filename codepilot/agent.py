@@ -259,16 +259,6 @@ class Agent:
                     state.step_count,
                     consecutive_read_only_rounds=exploration_streak,
                 )
-            if not resuming_reply and _context_chars(state.messages) > context_budget:
-                state.transition("budget_exceeded")
-                return self._finish(
-                    state,
-                    tool_results,
-                    last_test,
-                    started,
-                    error="conversation context budget exceeded",
-                    failure_type="budget",
-                )
             available_tools = self.tools.read_tools()
             if skill:
                 available_tools = tuple(
@@ -295,6 +285,23 @@ class Agent:
                 layers=ContextSelector.describe_layers(available_tools),
                 tool_count=len(available_tools),
             )
+            if not resuming_reply and _context_chars(state.messages) > context_budget:
+                state.transition("budget_exceeded")
+                last_test = self._verify_patch_before_budget_stop(
+                    state,
+                    tool_results,
+                    last_test,
+                    available_tools,
+                    skill,
+                )
+                return self._finish(
+                    state,
+                    tool_results,
+                    last_test,
+                    started,
+                    error="conversation context budget exceeded",
+                    failure_type="budget",
+                )
             if resuming_reply:
                 reply = state.pending_model_reply
                 model_span_id = None

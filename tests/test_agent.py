@@ -1193,6 +1193,69 @@ def test_agent_fails_when_prompt_alone_exceeds_context_budget(tmp_path) -> None:
     assert model.requests == []
 
 
+def test_context_budget_stop_verifies_existing_patch_without_accepting_run(
+    tmp_path,
+) -> None:
+    specs = tuple(
+        ToolSpec(
+            function=FunctionSpec(
+                name=name,
+                description=name,
+                parameters={"type": "object", "properties": {}},
+            )
+        )
+        for name in ("apply_patch", "git_diff", "run_tests")
+    )
+
+    class PatchTools(StubTools):
+        specs: tuple[ToolSpec, ...] = ()
+
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def execute(self, call: ToolCall) -> ToolResult:
+            self.calls.append(call.name)
+            if call.name == "git_diff":
+                return ToolResult(
+                    tool_name=call.name, ok=True, stdout="diff --git a/file b/file"
+                )
+            if call.name == "run_tests":
+                return ToolResult(tool_name=call.name, ok=True, exit_code=0)
+            return ToolResult(tool_name=call.name, ok=True, stdout="patch applied")
+
+    PatchTools.specs = specs
+    limited_task = task(tmp_path)
+    limited_task.instruction = "x" * 5_300
+    limited_task.max_context_chars = 6_500
+    model = ScriptedModel(
+        [
+            ModelReply(
+                tool_calls=[
+                    ToolCall(
+                        id="patch",
+                        name="apply_patch",
+                        arguments={
+                            "path": "file.py",
+                            "old_text": "old",
+                            "new_text": "new",
+                        },
+                    )
+                ]
+            )
+        ]
+    )
+    tools = PatchTools()
+
+    result = Agent(model, tools).run(limited_task)
+
+    assert result.status == "budget_exceeded"
+    assert result.failure_type == "budget"
+    assert result.error == "conversation context budget exceeded"
+    assert tools.calls == ["apply_patch", "git_diff", "run_tests", "git_diff"]
+    assert result.test_result is not None and result.test_result.ok
+    assert len(model.requests) == 1
+
+
 def test_agent_maps_tool_timeout_to_timeout_status(tmp_path) -> None:
     model = ScriptedModel(
         [
