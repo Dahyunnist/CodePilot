@@ -20,3 +20,16 @@ def test_canonicalize_twenty_ids_and_freeze_separate_hashes(tmp_path):
     assert rec["task_count"]==20 and rec["source_parquet_sha256"]=="a"*64
     assert rec["subset_json_sha256"]==sha256(payload).hexdigest()
     assert rec["source_parquet_sha256"] != rec["subset_json_sha256"]
+
+def test_freeze_is_create_once_and_verify_rejects_changes(tmp_path):
+    from scripts.fetch_cp2_dataset import freeze_manifest, verify_manifest
+    from hashlib import sha256
+    dest=tmp_path/"freeze.json"; subset=b"[]"
+    freeze_manifest("a"*64, subset, dest)
+    assert verify_manifest("a"*64, subset, dest)["task_count"] == 20
+    with pytest.raises(ValueError, match="never overwrite"):
+        freeze_manifest("b"*64, subset, dest)
+    with pytest.raises(ValueError, match="source Parquet SHA"):
+        verify_manifest("b"*64, subset, dest)
+    with pytest.raises(ValueError, match="subset JSON SHA"):
+        verify_manifest("a"*64, b"[1]", dest)
