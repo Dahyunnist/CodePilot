@@ -15,3 +15,8 @@
 
 2026-11-11 使用 D:\Anaconda3\envs\NN\python.exe -m pytest -q：59 passed，143 errors，148.32 秒。错误集中在 Windows 沙箱文件创建/路径权限（OSError），需查看 pytest 完整日志逐类区分环境错误与代码失败；不得将整套测试记为通过。定向 validator 测试此前 4 passed，CLI python -m codepilot --help 通过。
 
+## Windows 沙箱测试边界（2026-11-11）
+
+`git --version` 与标准库 `subprocess.run(['git', '-C', temp, 'init'])` 在当前进程通过；但 pytest 中 CLI E2E 子进程输出 `sh.exe: NtCreateDirectoryObject(...): 0xC0000022`，随后 `fatal: Could not read from remote repository.`，使 `tests/test_cli_e2e.py::test_cli_repairs_demo_repository` 因 `model.requests` 为空失败。该证据指向 CodexSandbox 下 Git for Windows/MSYS 的子进程限制，不足以判定产品缺陷。不要改生产代码规避。
+
+宿主复测：在普通 Windows CMD 激活 NN 环境，进入仓库，运行 `python -m pytest tests/test_cli_e2e.py::test_cli_repairs_demo_repository -vv`。此前使用 pytest basetemp 指向 `.tmp/pytest-basetemp` 可避免临时目录不存在；未完成全套重跑。全套当前可信结果仅为先前 59 passed/143 errors（临时目录缺失因素混杂），后续 `-x` 有 48 passed/1 环境性失败。其余测试集尚未验证。
