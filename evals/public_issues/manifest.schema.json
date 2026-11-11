@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CodePilot public issue candidate manifest",
+  "type": "object",
+  "required": ["id", "repository", "issue_url", "license", "base_sha", "fix_sha", "test_commands", "status"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "repository": {"type": "string", "pattern": "^[^/]+/[^/]+$"},
+    "issue_url": {"type": "string", "format": "uri"},
+    "license": {"type": ["string", "null"]},
+    "base_sha": {"type": ["string", "null"]},
+    "fix_sha": {"type": ["string", "null"]},
+    "test_commands": {"type": ["array", "null"], "items": {"type": "string"}},
+    "status": {"enum": ["pending_reproduction", "frozen", "excluded"]},
+    "source_verified_by_parent": {"type": "boolean"},
+    "candidate_not_frozen_until_base_repro": {"type": "boolean"}
+  }
+}

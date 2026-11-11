@@ -1,0 +1,5 @@
+[
+  {"id":"flask-2751","repository":"pallets/flask","issue_url":"https://github.com/pallets/flask/issues/2751","license":null,"base_sha":null,"fix_sha":null,"test_commands":null,"status":"pending_reproduction","source_verified_by_parent":true,"candidate_not_frozen_until_base_repro":true},
+  {"id":"requests-6730","repository":"psf/requests","issue_url":"https://github.com/psf/requests/issues/6730","license":null,"base_sha":null,"fix_sha":null,"test_commands":null,"status":"pending_reproduction","source_verified_by_parent":true,"candidate_not_frozen_until_base_repro":true},
+  {"id":"pydantic-13084","repository":"pydantic/pydantic","issue_url":"https://github.com/pydantic/pydantic/pull/13084","license":null,"base_sha":null,"fix_sha":null,"test_commands":null,"status":"pending_reproduction","source_verified_by_parent":true,"candidate_not_frozen_until_base_repro":true}
+]
