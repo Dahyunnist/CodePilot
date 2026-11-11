@@ -20,3 +20,9 @@
 `git --version` 与标准库 `subprocess.run(['git', '-C', temp, 'init'])` 在当前进程通过；但 pytest 中 CLI E2E 子进程输出 `sh.exe: NtCreateDirectoryObject(...): 0xC0000022`，随后 `fatal: Could not read from remote repository.`，使 `tests/test_cli_e2e.py::test_cli_repairs_demo_repository` 因 `model.requests` 为空失败。该证据指向 CodexSandbox 下 Git for Windows/MSYS 的子进程限制，不足以判定产品缺陷。不要改生产代码规避。
 
 宿主复测：在普通 Windows CMD 激活 NN 环境，进入仓库，运行 `python -m pytest tests/test_cli_e2e.py::test_cli_repairs_demo_repository -vv`。此前使用 pytest basetemp 指向 `.tmp/pytest-basetemp` 可避免临时目录不存在；未完成全套重跑。全套当前可信结果仅为先前 59 passed/143 errors（临时目录缺失因素混杂），后续 `-x` 有 48 passed/1 环境性失败。其余测试集尚未验证。
+
+## 宿主原生 PowerShell 复核补充（用户回报，2026-11-11）
+
+用户在普通 Windows PowerShell 使用 NN 环境复测 `tests/test_cli_e2e.py::test_cli_repairs_demo_repository`，结果 `1 passed in 3.37s`。这补足 Codex MSYS 子进程权限错误不能代表产品缺陷的证据；该单项真实 Git CLI E2E 已在宿主通过。此前 Codex 环境中的 `-x` 结果仍为 50 passed/1 sandbox failure，不替代完整套件。本条为用户提供的运行记录，当前会话未自行复跑。
+
+分支核对：本地 HEAD 与记录的 `origin/publish/safe-source-20261024` 都为 `f3f22e7258b6216e8e1fa41ec35fd3da696e7281`。尚无新提交。CP-2 实际公开仓库 base/fix 实验、CP-1真实任务效果对比、CP-4真实模型配对效果仍未完成；费用账本和当前余额不可核验，继续暂停模型调用。
