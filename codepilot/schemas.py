@@ -134,6 +134,9 @@ class ToolResult(BaseModel):
     stderr: str = ""
     duration_ms: int = Field(default=0, ge=0)
     error_type: str | None = None
+    truncation_reason: str | None = None
+    original_chars: int | None = Field(default=None, ge=0)
+    retained_chars: int | None = Field(default=None, ge=0)
 
 
 AgentStatus = Literal[

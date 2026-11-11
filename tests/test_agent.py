@@ -978,6 +978,9 @@ def test_tool_observations_are_bounded_for_model_context():
     assert "已截断" in bounded.stdout or "已截断" in bounded.stderr
     assert "BEGIN_SOURCE" in bounded.stdout
     assert "END_SOURCE" in bounded.stdout
+    assert bounded.truncation_reason == "agent_context_observation_limit"
+    assert bounded.original_chars == len(original.stdout) + len(original.stderr)
+    assert bounded.retained_chars == len(bounded.stdout) + len(bounded.stderr)
 
 
 def test_budget_reservation_is_traced_before_model_request(tmp_path) -> None:

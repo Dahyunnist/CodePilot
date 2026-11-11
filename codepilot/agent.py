@@ -895,7 +895,8 @@ def _future_output_reservations() -> tuple[int, int, int]:
 
 def _bounded_tool_result(result: ToolResult, limit: int) -> ToolResult:
     """Keep useful edges of large tool output before adding it to history."""
-    if len(result.stdout) + len(result.stderr) <= limit:
+    original_chars = len(result.stdout) + len(result.stderr)
+    if original_chars <= limit:
         return result
     stderr_limit = min(len(result.stderr), max(128, limit // 3)) if result.stderr else 0
     stdout_limit = max(0, limit - stderr_limit)
@@ -905,6 +906,9 @@ def _bounded_tool_result(result: ToolResult, limit: int) -> ToolResult:
         update={
             "stdout": _bounded_tool_text(result.stdout, stdout_limit),
             "stderr": _bounded_tool_text(result.stderr, stderr_limit),
+            "truncation_reason": "agent_context_observation_limit",
+            "original_chars": original_chars,
+            "retained_chars": min(limit, len(_bounded_tool_text(result.stdout, stdout_limit)) + len(_bounded_tool_text(result.stderr, stderr_limit))),
         }
     )
 
