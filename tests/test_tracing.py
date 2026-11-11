@@ -161,3 +161,22 @@ def test_opentelemetry_spans_do_not_export_secrets_or_patch_text(tmp_path):
     assert spans["codepilot.model.call"].ended
     assert all("sk-1234567890abcdef" not in repr(span.attributes) for span in otel.spans)
     assert all("private source" not in repr(span.attributes) for span in otel.spans)
+
+def test_test_tool_span_parent_links_to_model_span(tmp_path):
+    trace_path = tmp_path / "trace-test-parent.jsonl"
+    trace = TraceLogger(trace_path, "run-test-parent")
+    trace.event("run_started", 0)
+    trace.event("model_budget_reserved", 1, span_id="model-span-tests")
+    trace.event("model_finished", 1, span_id="model-span-tests")
+    call = ToolCall(id="tests-call", name="run_tests", arguments={})
+    trace.tool_started(1, call)
+    trace.tool_finished(1, ToolResult(tool_name="run_tests", ok=True), call.id)
+
+    events = read_events(trace_path)
+    model = next(item for item in events if item["event"] == "model_finished")
+    started = next(item for item in events if item["event"] == "tool_started")
+    finished = next(item for item in events if item["event"] == "tool_finished")
+    assert started["tool"] == "run_tests"
+    assert started["parent_span_id"] == model["span_id"]
+    assert finished["span_id"] == started["span_id"]
+    assert finished["parent_span_id"] == started["parent_span_id"]
