@@ -10,3 +10,8 @@
 ## 本轮记录
 
 候选登记仅表示待复现，不是正式 benchmark。冻结前需核准许可证与来源 SHA，在 base 上确认可见测试失败、fix 上通过，并验证隐藏测试及 Docker 命令。失败样本保留并注明原因。新增 validator 的 pytest 命令：`python -m pytest tests/test_public_issue_manifest.py -q`；需先安装项目开发依赖 `python -m pip install -e ".[dev]"`。本机 `C:\Python314\python.exe` 缺 pytest；本轮未运行测试，不报告通过。
+
+## 全套测试结果
+
+2026-11-11 使用 D:\Anaconda3\envs\NN\python.exe -m pytest -q：59 passed，143 errors，148.32 秒。错误集中在 Windows 沙箱文件创建/路径权限（OSError），需查看 pytest 完整日志逐类区分环境错误与代码失败；不得将整套测试记为通过。定向 validator 测试此前 4 passed，CLI python -m codepilot --help 通过。
+
