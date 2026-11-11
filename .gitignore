@@ -39,3 +39,5 @@ reports/traces/
 reports/*/run-state.sqlite*
 reports/cp1-selector-pair/
 reports/cp1-preflight-recheck-*/
+
+.tmp/
