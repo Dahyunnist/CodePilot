@@ -30,9 +30,26 @@ def test_builtin_skills_define_inputs_tools_budgets_and_exit_guidance():
     assert "完整测试" in pytest_skill.instructions
     assert "兼容性" in api_skill.instructions
     assert any("完整测试通过" in item for item in pytest_skill.exit_conditions)
+    assert pytest_skill.schema_version == api_skill.schema_version == 1
     assert any("询问用户" in item for item in api_skill.exit_conditions)
     with pytest.raises(ValueError, match="未知修复 Skill"):
         get_skill("not-a-skill")
+
+
+def test_skill_loader_accepts_schema_version_one():
+    assert get_skill("pytest-failure-triage").schema_version == 1
+
+
+def test_skill_loader_rejects_unsupported_schema_version(monkeypatch):
+    from dataclasses import replace
+
+    monkeypatch.setitem(
+        SKILLS,
+        "pytest-failure-triage",
+        replace(SKILLS["pytest-failure-triage"], schema_version=2),
+    )
+    with pytest.raises(ValueError, match="不支持的修复 Skill schema_version"):
+        get_skill("pytest-failure-triage")
 
 
 def test_task_prompt_includes_selected_skill_and_limits(tmp_path):

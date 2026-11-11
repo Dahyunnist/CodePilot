@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class RepairSkill:
+    schema_version: int
     skill_id: str
     title: str
     objective: str
@@ -36,6 +37,7 @@ _READ_AND_PATCH = frozenset(
 
 SKILLS: dict[str, RepairSkill] = {
     "pytest-failure-triage": RepairSkill(
+        schema_version=1,
         skill_id="pytest-failure-triage",
         title="pytest 失败定位与修复",
         objective="根据 pytest 失败证据定位根因，提交最小修复并验证回归。",
@@ -55,6 +57,7 @@ SKILLS: dict[str, RepairSkill] = {
         max_total_tokens=18_000,
     ),
     "api-contract-check": RepairSkill(
+        schema_version=1,
         skill_id="api-contract-check",
         title="API 契约检查与跨文件修复",
         objective="核对 API 输入、输出、错误语义及调用方，修复跨文件契约不一致。",
@@ -81,6 +84,9 @@ def get_skill(skill_id: str | None) -> RepairSkill | None:
     if skill_id is None:
         return None
     try:
-        return SKILLS[skill_id]
+        skill = SKILLS[skill_id]
     except KeyError as exc:
         raise ValueError(f"未知修复 Skill：{skill_id}") from exc
+    if type(skill.schema_version) is not int or skill.schema_version != 1:
+        raise ValueError(f"不支持的修复 Skill schema_version：{skill.schema_version!r}")
+    return skill
