@@ -268,3 +268,13 @@ def test_src_layout_is_importable_without_inheriting_host_pythonpath(tmp_path, m
 
     assert result.ok is True
 
+
+def test_run_tests_rejects_command_with_side_effect_before_execution(tmp_path):
+    marker = tmp_path / "must-not-exist.txt"
+    result = run_tests(
+        tmp_path,
+        [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('executed')"],
+    )
+    assert result.ok is False
+    assert result.error_type == "policy"
+    assert not marker.exists()
