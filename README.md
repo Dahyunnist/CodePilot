@@ -279,3 +279,26 @@ python -m pytest tests/test_benchmark_manifest_integrity.py tests/test_cp2_datas
 ```
 
 CP-3 Git clone、junction/symlink 与 Docker 集成测试需要宿主权限；Codex 沙箱可能因 MSYS 权限限制失败。请在普通 Windows PowerShell 单独运行：`python -m pytest tests/test_workspace.py tests/test_cli_e2e.py -q`。
+
+## CP-2 SWE-bench Lite 数据冻结（手动）
+
+只冻结公开数据，不运行 Agent 或模型。来源是 SWE-bench Lite `test` split，revision `b0dde10`，Parquet SHA-256 `438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3`。官方数据页说明该数据集包含公开 issue/PR 样本；存在训练污染与答案泄漏风险，不是盲测，也不是 SWE-bench Verified。
+
+仓库许可声明见 `evals/public_cases/cp2/frozen-selection.json`；逐题候选与来源 URL 见 `evals/public_cases/cp2/auditable-candidates-v1.json`。PR 与 issue 链接分开保存；缺少 issue 链接时留空，不从 PR 编号推导。冻结前仍需在各 base commit 核查许可文件。
+
+在普通 PowerShell 下载到独立目录并校验 SHA：
+
+```powershell
+$dir = 'E:\job\codepilot-lite\cp2-download'
+New-Item -ItemType Directory -Force $dir | Out-Null
+$file = Join-Path $dir 'test-00000-of-00001.parquet'
+Invoke-WebRequest 'https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite/resolve/b0dde10/data/test-00000-of-00001.parquet' -OutFile $file
+$expected = '438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3'
+$actual = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLower()
+if ($actual -ne $expected) { throw "SHA-256 mismatch: $actual" }
+python -m pip install -r requirements-bench.txt
+python -m scripts.fetch_cp2_dataset --fetch --source-file $file --expected-source-sha256 $expected --output-dir E:\job\codepilot-lite\cp2-freeze --mode freeze
+python -m scripts.fetch_cp2_dataset --fetch --source-file $file --expected-source-sha256 $expected --output-dir E:\job\codepilot-lite\cp2-freeze --mode verify
+```
+
+源 Parquet 和规范化 20 题子集分别计算 SHA。freeze 只允许首次创建；verify 后续核验两项哈希和 task 数，不覆盖原记录。`.tmp` 默认被 Git 忽略；上述命令使用独立输出目录。仅把下载与 hash verify 结果回传后，才能审核冻结 manifest；不运行模型。
