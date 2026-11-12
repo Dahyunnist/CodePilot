@@ -122,3 +122,12 @@ def test_skill_tool_allowlist_is_enforced_in_prompt_and_execution(tmp_path):
     assert "run_tests" in model.tools_by_request[0]
     assert tools.executed == ["run_tests", "git_diff"]
     assert result.tool_results[0].error_type == "policy"
+
+def test_skill_loader_rejects_boolean_schema_version(monkeypatch):
+    from dataclasses import replace
+    monkeypatch.setitem(
+        SKILLS, "pytest-failure-triage",
+        replace(SKILLS["pytest-failure-triage"], schema_version=True),
+    )
+    with pytest.raises(ValueError, match="不支持的修复 Skill schema_version"):
+        get_skill("pytest-failure-triage")
