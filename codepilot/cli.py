@@ -224,6 +224,12 @@ def main(
                 approved=True if args.approve else False if args.reject else None,
                 tracer=trace,
             )
+            trace.event(
+                "checkpoint_resume",
+                0,
+                phase="approval" if args.approve or args.reject else "interrupted_node",
+                outcome="waiting_approval" if "__interrupt__" in state else "resumed",
+            )
             result = RunResult.model_validate(state["result"])
             if "__interrupt__" in state:
                 result.status = "needs_approval"
