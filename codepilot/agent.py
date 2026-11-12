@@ -617,6 +617,13 @@ class Agent:
         observation_limit = getattr(self, "_max_observation_chars", 4_000)
         result = _bounded_tool_result(result, observation_limit)
         if self.tracer:
+            if result.error_type == "policy":
+                self.tracer.event(
+                    "unsafe_action_blocked",
+                    state.step_count,
+                    tool=call.name,
+                    rejection_category="tool_policy",
+                )
             self.tracer.tool_finished(state.step_count, result, call.id)
         state.last_tool_result = result
         tool_results.append(result)
