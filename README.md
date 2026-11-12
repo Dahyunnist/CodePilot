@@ -282,9 +282,11 @@ CP-3 Git clone、junction/symlink 与 Docker 集成测试需要宿主权限；Co
 
 ## CP-2 SWE-bench Lite 数据冻结（手动）
 
-只冻结公开数据，不运行 Agent 或模型。来源是 SWE-bench Lite `test` split，revision `b0dde10`，Parquet SHA-256 `438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3`。官方数据页说明该数据集包含公开 issue/PR 样本；存在训练污染与答案泄漏风险，不是盲测，也不是 SWE-bench Verified。
+只冻结公开数据，不运行 Agent 或模型。来源是 SWE-bench Lite `test` split，完整 Hugging Face revision `b0dde1093fe417d83b7184254edf8199c1f0dff5`；官方 [Parquet 文件页](https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite/blob/b0dde1093fe417d83b7184254edf8199c1f0dff5/data/test-00000-of-00001.parquet) 的 LFS SHA-256 为 `438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3`。数据集包含公开 issue/PR 样本；存在训练污染与答案泄漏风险，不是盲测，也不是 SWE-bench Verified。
 
-仓库许可声明见 `evals/public_cases/cp2/frozen-selection.json`；逐题候选与来源 URL 见 `evals/public_cases/cp2/auditable-candidates-v1.json`。PR 与 issue 链接分开保存；缺少 issue 链接时留空，不从 PR 编号推导。冻结前仍需在各 base commit 核查许可文件。
+仓库许可声明见 `evals/public_cases/cp2/frozen-selection.json`；逐题候选与来源 URL 见 `evals/public_cases/cp2/auditable-candidates-v1.json`。PR 与 issue 链接分开保存；缺少 issue 链接时留空，`issue_url_status` 保留 `unverified_missing`，不从 PR 编号推导。冻结前仍需在各 base commit 核查许可文件。
+
+兼容历史记录：`frozen-selection.json` 的 `dataset_revision: "SWE-bench/SWE-bench_Lite:test"` 是旧清单使用的数据集/分 split 标签，不是不可变 HF commit；其 `dataset_source_sha256`（以及引用它的旧 holdout 字段）是此前选择清单记录的历史来源指纹，尚未证明对应当前 Parquet 文件字节。不要把 `5cb74f...` 当成下载文件 SHA，也不要为了改名而重写旧 holdout 哈希。当前冻结流程的权威源文件 SHA 是 `438e...`，写入命令 `--output-dir` 指定目录下的 `freeze.json` 中 `source_parquet_sha256`；按下方命令即 `E:\job\codepilot-lite\cp2-freeze\freeze.json`。其中 `revision` 与 `source_url` 一并固定到上方 HF revision。
 
 在普通 PowerShell 下载到独立目录并校验 SHA：
 
@@ -301,4 +303,4 @@ python -m scripts.fetch_cp2_dataset --fetch --source-file $file --expected-sourc
 python -m scripts.fetch_cp2_dataset --fetch --source-file $file --expected-source-sha256 $expected --output-dir E:\job\codepilot-lite\cp2-freeze --mode verify
 ```
 
-源 Parquet 和规范化 20 题子集分别计算 SHA。freeze 只允许首次创建；verify 后续核验两项哈希和 task 数，不覆盖原记录。`.tmp` 默认被 Git 忽略；上述命令使用独立输出目录。仅把下载与 hash verify 结果回传后，才能审核冻结 manifest；不运行模型。
+源 Parquet 和规范化 20 题子集分别计算 SHA。freeze 只允许首次创建；verify 核验源 SHA、固定的数据集/revision/URL、子集 SHA 和 task 数，不覆盖原记录。`.tmp` 默认被 Git 忽略；上述命令使用独立输出目录。仅把下载与 hash verify 结果回传后，才能审核冻结 manifest；不运行模型。

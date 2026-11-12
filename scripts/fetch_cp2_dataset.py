@@ -2,7 +2,8 @@
 import argparse, hashlib, json, os, urllib.request
 from pathlib import Path
 
-REVISION = "b0dde10"
+REVISION = "b0dde1093fe417d83b7184254edf8199c1f0dff5"
+SOURCE_SHA256 = "438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3"
 URL = f"https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite/resolve/{REVISION}/data/test-00000-of-00001.parquet"
 MANIFEST = Path("evals/public_cases/cp2/frozen-selection.json")
 DEST = Path(".tmp/cp2-swebench-lite-v1/test.parquet")
@@ -28,8 +29,11 @@ def canonicalize_rows(rows, expected_ids):
     return payload
 
 def freeze_manifest(source_sha256, subset_bytes, dest=FREEZE):
+    if source_sha256 != SOURCE_SHA256:
+        raise ValueError("source Parquet SHA-256 does not match pinned Hugging Face LFS object")
     record = {"asset":"cp2-swebench-lite-v1", "dataset":"SWE-bench/SWE-bench_Lite", "revision":REVISION,
-              "source_file":"data/test-00000-of-00001.parquet", "source_parquet_sha256":source_sha256,
+              "source_url":URL, "source_file":"data/test-00000-of-00001.parquet",
+              "source_parquet_sha256":source_sha256,
               "subset_json_sha256":hashlib.sha256(subset_bytes).hexdigest(), "task_count":20,
               "subset_json":subset_bytes.decode("utf-8")}
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -43,6 +47,10 @@ def freeze_manifest(source_sha256, subset_bytes, dest=FREEZE):
 
 def verify_manifest(source_sha256, subset_bytes, path=FREEZE):
     record = json.loads(path.read_text(encoding="utf-8"))
+    if source_sha256 != SOURCE_SHA256:
+        raise ValueError("source Parquet SHA-256 does not match pinned Hugging Face LFS object")
+    if record.get("dataset") != "SWE-bench/SWE-bench_Lite" or record.get("revision") != REVISION or record.get("source_url") != URL:
+        raise ValueError("sealed source dataset/revision/URL mismatch")
     if record["source_parquet_sha256"] != source_sha256:
         raise ValueError("sealed source Parquet SHA-256 mismatch")
     if record["subset_json_sha256"] != hashlib.sha256(subset_bytes).hexdigest():
