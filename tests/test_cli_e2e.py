@@ -305,6 +305,9 @@ def test_cli_can_apply_successful_patch_to_external_repository(tmp_path, capsys)
         item["event"] == "writeback_finished" and item.get("outcome") == "applied"
         for item in events
     )
+    checkpoint_events = [item for item in events if item["event"] == "checkpoint_resume"]
+    assert len(checkpoint_events) == 1
+    assert checkpoint_events[0]["outcome"] == "resumed"
     tool_spans = {}
     for item in events:
         if item["event"] == "tool_started":
@@ -317,6 +320,23 @@ def test_cli_can_apply_successful_patch_to_external_repository(tmp_path, capsys)
     )
     assert duplicate == 2
     assert "拒绝重复恢复" in capsys.readouterr().err
+
+
+def test_cli_missing_checkpoint_does_not_emit_checkpoint_resume(tmp_path, capsys) -> None:
+    run_id = "missing-checkpoint"
+    reports = tmp_path / "reports"
+    exit_code = main([
+        "resume", "--run-id", run_id, "--reject",
+        "--state-db", str(tmp_path / "empty-state.sqlite"),
+        "--reports-root", str(reports),
+    ])
+
+    assert exit_code == 2
+    assert "错误：" in capsys.readouterr().err
+    trace_path = reports / "traces" / f"{run_id}.jsonl"
+    events = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
+    assert "resume_requested" in {item["event"] for item in events}
+    assert "checkpoint_resume" not in {item["event"] for item in events}
 
 
 def test_cli_rejects_writeback_after_restart(tmp_path, capsys) -> None:
