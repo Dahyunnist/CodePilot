@@ -260,3 +260,22 @@ Docker 和命令白名单能降低风险，但不构成生产级沙箱。详见 
 - `codepilot/cli.py`：命令解析、依赖装配、退出码和报告。
 - `evals/runner.py`：固定案例重置、修复、隐藏测试验证和 CSV 输出。
 - `evals/live_runner.py`：真实模型固定案例运行和证据记录。
+
+## 离线机制验证
+
+以下命令只验证固定 fixture 和机制，不调用模型、不下载评测数据，也不表示真实任务修复效果：
+
+```powershell
+python scripts/evaluate_cp1_context_offline.py
+python -m evals.skills.ablation
+python -m pytest tests/test_benchmark_manifest_integrity.py tests/test_cp2_dataset_fetch.py tests/test_skill_ablation.py -q
+```
+
+指定 pytest 临时目录可避免受限环境默认临时目录创建失败：
+
+```powershell
+New-Item -ItemType Directory -Force .tmp/pytest-doc-smoke | Out-Null
+python -m pytest tests/test_benchmark_manifest_integrity.py tests/test_cp2_dataset_fetch.py tests/test_skill_ablation.py -q --basetemp=.tmp/pytest-doc-smoke
+```
+
+CP-3 Git clone、junction/symlink 与 Docker 集成测试需要宿主权限；Codex 沙箱可能因 MSYS 权限限制失败。请在普通 Windows PowerShell 单独运行：`python -m pytest tests/test_workspace.py tests/test_cli_e2e.py -q`。
