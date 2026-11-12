@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from enum import StrEnum
 
 from opentelemetry import trace as otel_trace
 from opentelemetry.trace import Status, StatusCode
@@ -23,6 +24,20 @@ _SENSITIVE_FIELD = re.compile(
 _PRIVATE_FIELD = re.compile(
     r"(?i)^(?:content|prompt|observation|patch|diff|source|stdout|stderr|messages|error)$"
 )
+
+class StandardTraceEvent(StrEnum):
+    TIMEOUT = "timeout"
+    RETRY = "retry"
+    BUDGET_EXCEEDED = "budget_exceeded"
+    UNSAFE_ACTION_BLOCKED = "unsafe_action_blocked"
+    CANCEL = "cancel"
+    CHECKPOINT_RESUME = "checkpoint_resume"
+
+def validate_event_name(event: str) -> str:
+    """Validate event spelling while preserving legacy custom event names."""
+    if not isinstance(event, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", event):
+        raise ValueError(f"invalid trace event name: {event!r}")
+    return StandardTraceEvent(event).value if event in StandardTraceEvent._value2member_map_ else event
 
 
 class TraceLogger:
@@ -47,6 +62,7 @@ class TraceLogger:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def event(self, event: str, step: int, **fields: Any) -> None:
+        event = validate_event_name(event)
         span_id = str(fields.pop("span_id", uuid.uuid4().hex))
         parent_span_id = str(fields.pop("parent_span_id", self.root_span_id))
         if event == "run_started":

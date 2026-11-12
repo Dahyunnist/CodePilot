@@ -180,3 +180,30 @@ def test_test_tool_span_parent_links_to_model_span(tmp_path):
     assert started["parent_span_id"] == model["span_id"]
     assert finished["span_id"] == started["span_id"]
     assert finished["parent_span_id"] == started["parent_span_id"]
+
+import pytest
+from codepilot.tracing import StandardTraceEvent, validate_event_name
+
+@pytest.mark.parametrize("event", list(StandardTraceEvent))
+def test_standard_lifecycle_events_write_shared_trace_identity(tmp_path, event):
+    path=tmp_path/f"{event.value}.jsonl"
+    trace=TraceLogger(path,"run-standard",trace_id="trace-standard")
+    trace.event(event.value,2,span_id="span-standard")
+    record=read_events(path)[0]
+    assert record["event"]==event.value
+    assert record["run_id"]=="run-standard"
+    assert record["trace_id"]=="trace-standard"
+    assert record["span_id"]=="span-standard"
+
+
+def test_event_validator_keeps_legacy_names_and_rejects_malformed_names():
+    assert validate_event_name("model_finished")=="model_finished"
+    with pytest.raises(ValueError): validate_event_name("not valid!")
+
+
+def test_standard_event_redacts_sensitive_fields(tmp_path):
+    path=tmp_path/"sensitive-event.jsonl"
+    TraceLogger(path,"safe-run").event("unsafe_action_blocked",1,api_key="secret-value")
+    serialized=path.read_text(encoding="utf-8")
+    assert "secret-value" not in serialized
+    assert read_events(path)[0]["api_key"]=="[REDACTED]"
