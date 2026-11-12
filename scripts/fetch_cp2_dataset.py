@@ -52,7 +52,7 @@ def verify_manifest(source_sha256, subset_bytes, path=FREEZE):
     return record
 
 def main():
-    parser=argparse.ArgumentParser(); parser.add_argument("--fetch", action="store_true"); parser.add_argument("--mode", choices=("freeze", "verify"), default="verify"); args=parser.parse_args()
+    parser=argparse.ArgumentParser(); parser.add_argument("--fetch", action="store_true"); parser.add_argument("--source-file", type=Path); parser.add_argument("--output-dir", type=Path, default=DEST.parent); parser.add_argument("--expected-source-sha256"); parser.add_argument("--mode", choices=("freeze", "verify"), default="verify"); args=parser.parse_args()
     if not args.fetch:
         print(f"dry-run: {URL} -> {DEST}; pass --fetch to download")
         return 0
@@ -61,13 +61,21 @@ def main():
     except ImportError as exc:
         raise SystemExit("缺少可选依赖：pip install -r requirements-bench.txt") from exc
     manifest=json.loads(MANIFEST.read_text(encoding="utf-8-sig")); ids=[t["task_id"] for t in manifest["tasks"]]
-    data, digest=fetch_bytes(URL, REVISION, None, DEST)
-    rows=pq.read_table(DEST).to_pylist(); subset=canonicalize_rows(rows, ids)
+    if args.source_file:
+        data=args.source_file.read_bytes(); digest=hashlib.sha256(data).hexdigest()
+        if not args.expected_source_sha256 or digest != args.expected_source_sha256:
+            raise SystemExit(f"source SHA-256 mismatch: {digest}")
+        source_path=args.source_file
+    else:
+        data, digest=fetch_bytes(URL, REVISION, args.expected_source_sha256, DEST)
+        source_path=DEST
+    rows=pq.read_table(source_path).to_pylist(); subset=canonicalize_rows(rows, ids)
+    freeze_path=args.output_dir/"freeze.json"
     if args.mode == "freeze":
-        freeze_manifest(digest, subset)
+        freeze_manifest(digest, subset, freeze_path)
         print(f"frozen 20 tasks; parquet_sha256={digest}; subset_sha256={hashlib.sha256(subset).hexdigest()}")
     else:
-        verify_manifest(digest, subset)
+        verify_manifest(digest, subset, freeze_path)
         print("verified sealed 20-task asset")
     return 0
 if __name__ == "__main__": raise SystemExit(main())
