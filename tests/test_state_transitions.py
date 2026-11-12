@@ -19,3 +19,11 @@ def test_state_transition_allows_pause_resume_and_rejects_terminal_resume():
     state.transition("success")
     with pytest.raises(ValueError, match="非法 Agent 状态转移"):
         state.transition("running")
+
+def test_approval_checkpoint_cannot_skip_decision_state():
+    state = make_state()
+    state.transition("needs_approval")
+    with pytest.raises(ValueError, match="非法 Agent 状态转移"):
+        state.transition("success")
+    state.transition("running")
+    assert state.status == "running"
