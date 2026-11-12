@@ -1,0 +1,366 @@
+[
+  {
+    "instance_id": "django__django-10924",
+    "repo": "django/django",
+    "issue_url": "https://github.com/django/django/issues/10924",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "bceadd2788dc2dad53eba0caae172bd8522fd483",
+    "license": "BSD-3-Clause",
+    "gold_patch_sha256": "c15a336f335509fea0aa33a77e41b88e9ab95359f344a31fa7fa68eaa97165ac",
+    "test_patch_sha256": "418a17eede0c413fb5424bc202f1d1cd43d51ee67941370580e21b87be0550ce",
+    "hidden_test_files": [
+      "tests/model_fields/test_filepathfield.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 1,
+    "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-10924:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "django__django-11001",
+    "repo": "django/django",
+    "issue_url": "https://github.com/django/django/issues/11001",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "ef082ebb84f00e38af4e8880d04e8365c2766d34",
+    "license": "BSD-3-Clause",
+    "gold_patch_sha256": "ad6b8e8ed7854750e064ea5008306035931828a60ba85a65918763880eb71c34",
+    "test_patch_sha256": "77691e7ec1c8244184431810e9cd8ea1cdff612626677b7ae9f74259ee112a7a",
+    "hidden_test_files": [
+      "tests/expressions/tests.py"
+    ],
+    "fail_to_pass_count": 2,
+    "pass_to_pass_count": 118,
+    "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-11001:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "django__django-11099",
+    "repo": "django/django",
+    "issue_url": "https://github.com/django/django/issues/11099",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "d26b2424437dabeeca94d7900b37d2df4410da0c",
+    "license": "BSD-3-Clause",
+    "gold_patch_sha256": "cf203df5a90df3747f2d9a59cb0d02620d70228c29cb0c3477e5509056c19c09",
+    "test_patch_sha256": "04959a592788c803778193589f239dfcc5f7caa80597363dca6f2504debfb238",
+    "hidden_test_files": [
+      "tests/auth_tests/test_validators.py"
+    ],
+    "fail_to_pass_count": 3,
+    "pass_to_pass_count": 19,
+    "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-11099:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "django__django-11133",
+    "repo": "django/django",
+    "issue_url": "https://github.com/django/django/issues/11133",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "879cc3da6249e920b8d54518a0ae06de835d7373",
+    "license": "BSD-3-Clause",
+    "gold_patch_sha256": "a0fd6d0a4a1c733a1c6f98cbb524604ea24e643c26c5fcb152be4bfb29fb1c3d",
+    "test_patch_sha256": "ef28eb84141ad909c3732fc7473368f1c6a22510e9ed51190401876db8e003f9",
+    "hidden_test_files": [
+      "tests/httpwrappers/tests.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 64,
+    "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-11133:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "pytest-dev__pytest-5103",
+    "repo": "pytest-dev/pytest",
+    "issue_url": "https://github.com/pytest-dev/pytest/issues/5103",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "10ca84ffc56c2dd2d9dc4bd71b7b898e083500cd",
+    "license": "MIT",
+    "gold_patch_sha256": "5b621eb0099e1e4eeb2bcb42f24a48b15b540e46fe23403475890578f546680c",
+    "test_patch_sha256": "89740f6cb7127fc954eb9fa2a84e7b6df26e77f18b76bf96b50db5bfb0ba5c86",
+    "hidden_test_files": [
+      "testing/test_assertrewrite.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 64,
+    "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5103:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "pytest-dev__pytest-5221",
+    "repo": "pytest-dev/pytest",
+    "issue_url": "https://github.com/pytest-dev/pytest/issues/5221",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "4a2fdce62b73944030cff9b3e52862868ca9584d",
+    "license": "MIT",
+    "gold_patch_sha256": "be5549ceff2ee5643ad3743e8919241e16ebf9549c79c68cd56a0ee3aaaf666b",
+    "test_patch_sha256": "2ef78e8e8f6ae6965c52756f15af115a80e980bcb52dfe7147a7d38c6f70de08",
+    "hidden_test_files": [
+      "testing/python/fixtures.py"
+    ],
+    "fail_to_pass_count": 2,
+    "pass_to_pass_count": 170,
+    "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5221:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "pytest-dev__pytest-5413",
+    "repo": "pytest-dev/pytest",
+    "issue_url": "https://github.com/pytest-dev/pytest/issues/5413",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "450d2646233c670654744d3d24330b69895bb9d2",
+    "license": "MIT",
+    "gold_patch_sha256": "34f5b421e92cf10334e75169f11e7f4a6e20cec510e6b679d26eb455e093e53f",
+    "test_patch_sha256": "96a694cd889a4b1597e144bc9c0a127960111eab7621b805711b8ebe5ccad8f2",
+    "hidden_test_files": [
+      "testing/code/test_excinfo.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 92,
+    "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5413:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "pytest-dev__pytest-5495",
+    "repo": "pytest-dev/pytest",
+    "issue_url": "https://github.com/pytest-dev/pytest/issues/5495",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "1aefb24b37c30fba8fd79a744829ca16e252f340",
+    "license": "MIT",
+    "gold_patch_sha256": "4346eff024daf047d9dbb3c759eb53952edb7c57e613424f8f4fb98e999ca8b1",
+    "test_patch_sha256": "ffed6b9dd4e8e7deb186cd4b1b3d183a92f9cf7003235b0fa3147b010114c4b2",
+    "hidden_test_files": [
+      "testing/test_assertion.py"
+    ],
+    "fail_to_pass_count": 2,
+    "pass_to_pass_count": 86,
+    "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5495:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "pydata__xarray-3364",
+    "repo": "pydata/xarray",
+    "issue_url": "https://github.com/pydata/xarray/issues/3364",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "863e49066ca4d61c9adfe62aca3bf21b90e1af8c",
+    "license": "Apache-2.0",
+    "gold_patch_sha256": "dd7e65a94252a1c6d387e771082a11d8af8cdc23045e987fa2c2e1729b274eb3",
+    "test_patch_sha256": "648f0daea9ee38f4b30f37dff4af749701cf1675d5d916a2ee5a9d3325b9669c",
+    "hidden_test_files": [
+      "xarray/tests/test_combine.py",
+      "xarray/tests/test_concat.py"
+    ],
+    "fail_to_pass_count": 2,
+    "pass_to_pass_count": 110,
+    "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-3364:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "pydata__xarray-4094",
+    "repo": "pydata/xarray",
+    "issue_url": "https://github.com/pydata/xarray/issues/4094",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "a64cf2d5476e7bbda099b34c40b7be1880dbd39a",
+    "license": "Apache-2.0",
+    "gold_patch_sha256": "79eac1b06943072daa994e5fb5e7fc9e5eef5e6c34ea151cb550aa09f2da2b3a",
+    "test_patch_sha256": "3caf7bfbd1a31fc971a0aff74f090c426939bd36946300c3c5f54c30908ad24b",
+    "hidden_test_files": [
+      "xarray/tests/test_dataset.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 862,
+    "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-4094:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "pydata__xarray-4248",
+    "repo": "pydata/xarray",
+    "issue_url": "https://github.com/pydata/xarray/issues/4248",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "98dc1f4ea18738492e074e9e51ddfed5cd30ab94",
+    "license": "Apache-2.0",
+    "gold_patch_sha256": "cb60278c84b3245408864d4fde2f83e88229e920e6345b0f64ed74092b8f02d2",
+    "test_patch_sha256": "c295e6acb9392b7f9b5a89b45bc53049472ed16319c5626198653d0e77ac5fc6",
+    "hidden_test_files": [
+      "xarray/tests/test_formatting.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 18,
+    "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-4248:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "pydata__xarray-4493",
+    "repo": "pydata/xarray",
+    "issue_url": "https://github.com/pydata/xarray/issues/4493",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "a5f53e203c52a7605d5db799864046471115d04f",
+    "license": "Apache-2.0",
+    "gold_patch_sha256": "22bc8533c9a98fcafe60dac9502e8196f2b7fd50cfd1e6225bb6f4be43522a47",
+    "test_patch_sha256": "c39c7c8cebace60e973e36a1691c3b969f6a75994088cb1a939bb1f840ccbe48",
+    "hidden_test_files": [
+      "xarray/tests/test_dask.py",
+      "xarray/tests/test_dataset.py",
+      "xarray/tests/test_interp.py",
+      "xarray/tests/test_variable.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 1689,
+    "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-4493:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "mwaskom__seaborn-2848",
+    "repo": "mwaskom/seaborn",
+    "issue_url": "https://github.com/mwaskom/seaborn/issues/2848",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "94621cef29f80282436d73e8d2c0aa76dab81273",
+    "license": "BSD-3-Clause",
+    "gold_patch_sha256": "c57a9e1c3469d1fa115576ec277fa828a7a5e4b32c41e3975bc5b426cf33048d",
+    "test_patch_sha256": "ac2da37d734c9c3c388b098ae9b631c8c06bf4590e4449ca2d186d68baad6e9d",
+    "hidden_test_files": [
+      "tests/test_relational.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 50,
+    "docker_image": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-2848:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "mwaskom__seaborn-3010",
+    "repo": "mwaskom/seaborn",
+    "issue_url": "https://github.com/mwaskom/seaborn/issues/3010",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "0f5a013e2cf43562deec3b879458e59a73853813",
+    "license": "BSD-3-Clause",
+    "gold_patch_sha256": "2d282a78db2b88dc42330fea5dc78b0551629b7d15c6d5b22f20c57a2ee3d1d7",
+    "test_patch_sha256": "1ba4f740fddbe1d3e1b82f09cf4dc724bd0d65eeed3a108f0892519b0ec8761b",
+    "hidden_test_files": [
+      "tests/_stats/test_regression.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 2,
+    "docker_image": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-3010:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "mwaskom__seaborn-3190",
+    "repo": "mwaskom/seaborn",
+    "issue_url": "https://github.com/mwaskom/seaborn/issues/3190",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "4a9e54962a29c12a8b103d75f838e0e795a6974d",
+    "license": "BSD-3-Clause",
+    "gold_patch_sha256": "e014761e43e1a1d3eb8879a4ac67aadc810db3aab87701a8f499ba7c4571fe77",
+    "test_patch_sha256": "01e17193a78a28dd4f466984444568127713dc21a3f1fc6a75a30ddec5aacefe",
+    "hidden_test_files": [
+      "tests/_core/test_scales.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 84,
+    "docker_image": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-3190:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "mwaskom__seaborn-3407",
+    "repo": "mwaskom/seaborn",
+    "issue_url": "https://github.com/mwaskom/seaborn/issues/3407",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "515286e02be3e4c0ff2ef4addb34a53c4a676ee4",
+    "license": "BSD-3-Clause",
+    "gold_patch_sha256": "a1d60cf5bd6ca42f45bbd89aef9d736758cdf9ca4c81357efddf7fb78a942b1a",
+    "test_patch_sha256": "ae7ef0f0f93f59681eab94fd38e1301d26b566915cf4bec5dcd74d46d6eae3cd",
+    "hidden_test_files": [
+      "tests/test_axisgrid.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 120,
+    "docker_image": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-3407:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-10508",
+    "repo": "scikit-learn/scikit-learn",
+    "issue_url": "https://github.com/scikit-learn/scikit-learn/issues/10508",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "c753b77ac49e72ebc0fe5e3c2369fe628f975017",
+    "license": "BSD-3-Clause",
+    "gold_patch_sha256": "7664039eb8b692bddab2bcf1ad5e20b59cd319827a8b2b792818b0769d5d6065",
+    "test_patch_sha256": "4f1ae3a3d971cda5b992dfd7323ba0419033674b373e0afc2a5c5f0692a29e6b",
+    "hidden_test_files": [
+      "sklearn/preprocessing/tests/test_label.py"
+    ],
+    "fail_to_pass_count": 2,
+    "pass_to_pass_count": 18,
+    "docker_image": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-10508:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-10949",
+    "repo": "scikit-learn/scikit-learn",
+    "issue_url": "https://github.com/scikit-learn/scikit-learn/issues/10949",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "3b5abf76597ce6aff76192869f92647c1b5259e7",
+    "license": "BSD-3-Clause",
+    "gold_patch_sha256": "aa168cdbc5873f2b6658f12c884eacb82802b44ab74259f7266aa5d9d8f8f913",
+    "test_patch_sha256": "9cddddbfebbc73cb20a3afd28968a7a2c79b20ea91ced1e5d8fdf45c15f74841",
+    "hidden_test_files": [
+      "sklearn/utils/tests/test_validation.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 42,
+    "docker_image": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-10949:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-11040",
+    "repo": "scikit-learn/scikit-learn",
+    "issue_url": "https://github.com/scikit-learn/scikit-learn/issues/11040",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "96a02f3934952d486589dddd3f00b40d5a5ab5f2",
+    "license": "BSD-3-Clause",
+    "gold_patch_sha256": "d770bda380b128a8d911b61f4694928eba0685d0585a1c7a32f0f28b05aaa7b2",
+    "test_patch_sha256": "fc59843536ebe943a5f698e424994dfc410e3d76b643e5d8ab18cefcdf33a785",
+    "hidden_test_files": [
+      "sklearn/neighbors/tests/test_neighbors.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 44,
+    "docker_image": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-11040:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-12471",
+    "repo": "scikit-learn/scikit-learn",
+    "issue_url": "https://github.com/scikit-learn/scikit-learn/issues/12471",
+    "issue_url_status": "derived_unverified",
+    "base_commit": "02dc9ed680e7f53f1b0d410dcdd37341c7958eb1",
+    "license": "BSD-3-Clause",
+    "gold_patch_sha256": "bffe9a207f0b6fa5ddde03c26e6a25d1167c8f0e33d17fc48662d6128f67e5b5",
+    "test_patch_sha256": "bc69e5d24abf9bc58a1ec74919d9f74b08de89a8471b7c596afdb698a10ed2d8",
+    "hidden_test_files": [
+      "sklearn/preprocessing/tests/test_encoders.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 53,
+    "docker_image": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-12471:latest",
+    "status": "candidate_metadata_only",
+    "benchmark": "SWE-bench Lite; not Verified; not blind"
+  }
+]
