@@ -7,11 +7,11 @@ OUTPUT=Path("evals/public_cases/cp2/auditable-candidates-v1.json")
 def build_candidates(data):
     out=[]
     for task in data["tasks"]:
-        match=re.search(r"-(\d+)$",task["task_id"])
-        number=match.group(1) if match else None
         out.append({"instance_id":task["task_id"],"repo":task["repo"],
-          "issue_url":task.get("issue_url") or (f"https://github.com/{task['repo']}/issues/{number}" if number else None),
-          "issue_url_status":"derived_unverified" if not task.get("issue_url") and number else "source_manifest",
+          "issue_url":task.get("issue_url") or None,
+          "issue_url_status":"source_manifest" if task.get("issue_url") else "unverified_missing",
+          "source_pr_url":task.get("pull_request_url"),
+          "related_issue_url":None,
           "base_commit":task["base_commit"],"license":task.get("license"),
           "gold_patch_sha256":task.get("gold_patch_sha256"),
           "test_patch_sha256":task.get("hidden_test_patch_sha256"),
