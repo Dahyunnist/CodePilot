@@ -26,3 +26,9 @@
 用户在普通 Windows PowerShell 使用 NN 环境复测 `tests/test_cli_e2e.py::test_cli_repairs_demo_repository`，结果 `1 passed in 3.37s`。这补足 Codex MSYS 子进程权限错误不能代表产品缺陷的证据；该单项真实 Git CLI E2E 已在宿主通过。此前 Codex 环境中的 `-x` 结果仍为 50 passed/1 sandbox failure，不替代完整套件。本条为用户提供的运行记录，当前会话未自行复跑。
 
 分支核对：本地 HEAD 与记录的 `origin/publish/safe-source-20261024` 都为 `f3f22e7258b6216e8e1fa41ec35fd3da696e7281`。尚无新提交。CP-2 实际公开仓库 base/fix 实验、CP-1真实任务效果对比、CP-4真实模型配对效果仍未完成；费用账本和当前余额不可核验，继续暂停模型调用。
+
+## 全套测试状态复核（2026-11-12）
+
+全套 `pytest -q --basetemp=.tmp\\pytest-final` 未获得完整终态汇总，运行过程在约 34% 出现多项失败并长时间无输出。限时 `-x` 复现首错：50 passed、1 failed、10.58 秒；失败为 `tests/test_cli_e2e.py::test_cli_repairs_demo_repository`，Codex MSYS 子进程报 `NtCreateDirectoryObject(...): 0xC0000022`。用户随后在原生 Windows PowerShell 报告同一单项 1 passed in 3.37s。因此不能把 Codex 首错视为产品失败，也不能把全套称为通过；仍需原生宿主执行全套。
+
+CP-1 新增 deterministic fixture 定向测试 3 passed。该结果是机制测试，不代表模型修复效果。
