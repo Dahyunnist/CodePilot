@@ -44,3 +44,14 @@ def test_three_task_same_sha_pair_reduces_redundancy_and_keeps_cross_file_eviden
         results.append(baseline_tokens - selected_tokens)
     median = statistics.median(results)
     assert len(results) == 3 and median > 0
+
+def test_same_task_paired_clipping_keeps_cross_file_and_unfinished_test():
+    from evals.context_selector_offline import measure_duplicate_pair
+    report=measure_duplicate_pair(3,4000)
+    assert report["sample_count"]==3
+    assert report["model_calls"]==0
+    assert report["median_redundant_chars_removed"]>0
+    assert all(row["cross_file_retained"] for row in report["runs"])
+    assert all(row["unfinished_test_retained"] for row in report["runs"])
+    assert all(row["within_budget"] for row in report["runs"])
+

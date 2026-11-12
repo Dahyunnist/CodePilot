@@ -111,3 +111,29 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+def measure_duplicate_pair(repeats: int = 3, budget: int = 1_500) -> dict[str, object]:
+    """Same-task deterministic synthetic pair; uses _context_chars for both arms."""
+    import statistics
+    deltas=[]
+    retained=[]
+    for trial in range(repeats):
+        digest="sha256:shared-source-evidence"
+        repeated=f"{digest} source evidence " + "detail " * 240
+        fixture=[
+            ChatMessage(role="assistant",tool_calls=[
+                ToolCall(id=f"src-{trial}-{i}",name="read_file",arguments={}) for i in range(3)
+            ]+[ToolCall(id=f"xref-{trial}",name="find_references",arguments={}),ToolCall(id=f"pending-{trial}",name="run_tests",arguments={})]),
+            *(ChatMessage(role="tool",tool_call_id=f"src-{trial}-{i}",content=repeated) for i in range(3)),
+            ChatMessage(role="tool",tool_call_id=f"xref-{trial}",content="CROSS_FILE_COMPLEMENT: client.py:88 calls service.fetch"),
+            ChatMessage(role="tool",tool_call_id=f"pending-{trial}",content="TEST_INCOMPLETE: 3 passed, 1 still running"),
+        ]
+        baseline=copy.deepcopy(fixture); selected=copy.deepcopy(fixture)
+        _fit_context(baseline,budget,deduplicate=False,prioritize_layers=False)
+        _fit_context(selected,budget,deduplicate=True,prioritize_layers=True)
+        before=_context_chars(baseline); after=_context_chars(selected)
+        text="\n".join(m.content or "" for m in selected if m.role=="tool")
+        deltas.append(before-after)
+        retained.append({"trial":trial+1,"input_chars":_context_chars(fixture),"baseline_chars":before,"selector_chars":after,"redundant_chars_removed":before-after,"cross_file_retained":"CROSS_FILE_COMPLEMENT" in text,"unfinished_test_retained":"TEST_INCOMPLETE" in text,"within_budget":after<=budget})
+    gains=[x["redundant_chars_removed"] for x in retained]
+    return {"kind":"synthetic_same_task_context_pair","model_calls":0,"token_counter":"codepilot.agent._context_chars (serialized chars; not model tokens)","sample_count":repeats,"budget_chars":budget,"median_redundant_chars_removed":statistics.median(gains),"runs":retained}
