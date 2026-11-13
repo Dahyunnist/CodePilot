@@ -32,3 +32,18 @@
 全套 `pytest -q --basetemp=.tmp\\pytest-final` 未获得完整终态汇总，运行过程在约 34% 出现多项失败并长时间无输出。限时 `-x` 复现首错：50 passed、1 failed、10.58 秒；失败为 `tests/test_cli_e2e.py::test_cli_repairs_demo_repository`，Codex MSYS 子进程报 `NtCreateDirectoryObject(...): 0xC0000022`。用户随后在原生 Windows PowerShell 报告同一单项 1 passed in 3.37s。因此不能把 Codex 首错视为产品失败，也不能把全套称为通过；仍需原生宿主执行全套。
 
 CP-1 新增 deterministic fixture 定向测试 3 passed。该结果是机制测试，不代表模型修复效果。
+
+## CP-1..CP-4 路线状态更新（2026-11-13）
+
+本节按当前安全发布分支证据更新；历史测试记录保留，不以新提交倒推旧测试结果。
+
+| 阶段 | 当前状态 | 已有离线证据 | 未完成验收 |
+|---|---|---|---|
+| CP-1 | 部分完成 | 确定性上下文机制、重复证据与同任务配对 fixture；见 `docs/learning/cp1-*.md`。 | 未在真实任务上比较修复质量、上下文效果或成本；fixture 不代表模型效果。 |
+| CP-2 | 部分完成 | 候选清单审计、固定 HF revision 与 LFS SHA、独立 freeze/verify 脚本及离线测试；见 `docs/learning/cp2-*.md` 和 README 的“CP-2 SWE-bench Lite 数据冻结（手动）”。 | 数据尚未下载或冻结；未完成 base/fix 可见测试、隐藏测试、Docker 和真实仓库复现。 |
+| CP-3 | 部分完成 | 静态安全负例、命令策略、trace 与 checkpoint 恢复的定向验证；见 `docs/learning/cp3-*.md`。 | 未完成普通 Windows 宿主上的完整集成验收；多仓库真实任务和外部仓库完整回写仍缺本轮证据。 |
+| CP-4 | 部分完成 | 离线技能消融与 schema 边界回归；见 `docs/learning/cp4-*.md`。 | 三仓六次真实模型配对实验未运行；没有成功率、费用或耗时结论。 |
+
+当前 HEAD 为 `49c2dfe928da0c6d982f2e17677600dfae5100d3`，其前一份 CP-2 操作文档提交为 `9bacb83fb5c318640458fba67f0d314b1164ff29`。CP-2 历史清单的 `dataset_source_sha256=5cb74f...` 未被重写；它不是已验证的当前 Parquet 字节哈希。待用户下载后，当前冻结流程要求源文件 SHA 为 `438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3`，并写入独立 `freeze.json`。因此现在不能声称数据已冻结。
+
+相关可离线校验：`python -m pytest tests/test_cp2_dataset_fetch.py tests/test_benchmark_manifest_integrity.py tests/test_lite_candidate_audit.py -q`。2026-11-13 执行结果为 8 passed；此测试只验证清单结构、来源固定值和冻结脚本行为，不下载数据、不运行 Agent 或模型。README 中 HF 文件页链接固定到同一完整 revision；真实网络可达性与下载完整性仍需用户执行下载和 SHA 命令后确认。未推送分支。
