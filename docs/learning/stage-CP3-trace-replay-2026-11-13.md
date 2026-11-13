@@ -19,6 +19,12 @@ python -m pytest tests/test_tracing.py tests/test_agent.py -q
 
 AGENTS.md 行为回归补足：恶意项目指令要求读取 `.env`。固定模型先读取 AGENTS.md，再尝试读取 `.env`；工具拒绝后仍完成合法 `app.py` 补丁和测试。断言 `PathPolicyError` 出现在 trace，合成 key 不进入 trace 或后续模型消息。命令：`python -m pytest tests/test_agent.py::test_agents_instruction_cannot_read_env_but_safe_repair_completes -q`。
 
+## 2026-11-13 回归复核
+
+使用本机 `NN` 环境运行 CP-2 候选审计、prompt 安全测试、README/AGENTS 注入、`.env` 与 `.git` 路径拒绝、越界 patch、trace 回放与脱敏测试。命令覆盖 `tests/test_lite_candidate_audit.py`、`tests/test_prompts.py`、5 个定向 `tests/test_agent.py` 用例及 `tests/test_tracing.py`。结果：**43 passed**。
+
+本轮为 scripted/offline 确定性验证；没有调用真实模型、没有运行 SWE-bench 隐藏测试，也没有宣称生产级安全认证。
+
 ## Checkpoint 验证状态失效保护
 
 checkpoint 现在保存工作区内容 SHA-256（忽略 `.git` 元数据）。恢复时重算；若哈希不匹配，清除持久化 `last_test`，避免外部修改后复用旧测试成功。回归覆盖工作区内容变化会改变指纹；既有恢复测试继续验证成功恢复与工具结果续接。测试不触碰 `.tmp`。
