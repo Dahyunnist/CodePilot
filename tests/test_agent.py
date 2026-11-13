@@ -724,6 +724,16 @@ def test_future_budget_names_patch_test_and_final_reserves():
     assert _protected_future_tokens(9_000, (), needs_test=True) == patch + test + final
 
 
+def test_budget_reservation_fails_closed_before_model_when_future_steps_do_not_fit(tmp_path):
+    model = ScriptedModel([ModelReply(text="must not be called")])
+    limited = task(tmp_path)
+    limited.max_total_tokens = 1
+    result = Agent(model, StubTools()).run(limited)
+    assert result.status == "budget_exceeded"
+    assert result.failure_type == "budget"
+    assert model.requests == []
+
+
 def test_fit_context_deduplicates_identical_tool_evidence_with_hash_reference():
     messages = [
         ChatMessage(role="tool", tool_call_id="first", content="source.py:1 def f(): pass"),
