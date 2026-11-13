@@ -28,6 +28,17 @@ def test_fetch_rejects_short_revision_and_wrong_pinned_hash(tmp_path):
     with pytest.raises(ValueError, match="pinned Hugging Face LFS object"):
         freeze_manifest("0"*64, b"[]", tmp_path/"wrong.json")
 
+def test_fetch_accepts_configured_mirror_only_for_pinned_revision(tmp_path, monkeypatch):
+    class Response:
+        def __enter__(self): return self
+        def __exit__(self,*a): pass
+        def read(self): return b"payload"
+    monkeypatch.setattr("scripts.fetch_cp2_dataset.urllib.request.urlopen", lambda *a,**k: Response())
+    mirror = f"https://mirror.example/hf/datasets/SWE-bench/SWE-bench_Lite/resolve/{REVISION}/data/test-00000-of-00001.parquet"
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        fetch_bytes(mirror, REVISION, SOURCE_SHA256, tmp_path/"mirror.parquet")
+    assert not (tmp_path/"mirror.parquet").exists()
+
 def test_canonicalize_twenty_ids_and_freeze_separate_hashes(tmp_path):
     ids=[f"repo__p-{n}" for n in range(20)]
     payload=canonicalize_rows([{"instance_id":i,"repo":"repo"} for i in reversed(ids)],ids)

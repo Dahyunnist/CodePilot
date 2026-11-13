@@ -10,7 +10,7 @@ DEST = Path(".tmp/cp2-swebench-lite-v1/test.parquet")
 FREEZE = Path(".tmp/cp2-swebench-lite-v1/freeze.json")
 
 def fetch_bytes(url, revision, sha256, dest):
-    if revision != REVISION or url != URL:
+    if revision != REVISION or REVISION not in url or not url.endswith("/data/test-00000-of-00001.parquet"):
         raise ValueError("source URL/revision mismatch")
     with urllib.request.urlopen(url, timeout=60) as response:
         data = response.read()
@@ -60,7 +60,7 @@ def verify_manifest(source_sha256, subset_bytes, path=FREEZE):
     return record
 
 def main():
-    parser=argparse.ArgumentParser(); parser.add_argument("--fetch", action="store_true"); parser.add_argument("--source-file", type=Path); parser.add_argument("--output-dir", type=Path, default=DEST.parent); parser.add_argument("--expected-source-sha256"); parser.add_argument("--mode", choices=("freeze", "verify"), default="verify"); args=parser.parse_args()
+    parser=argparse.ArgumentParser(); parser.add_argument("--fetch", action="store_true"); parser.add_argument("--source-file", type=Path); parser.add_argument("--mirror-url", help="mirror URL for the exact pinned Parquet path/revision"); parser.add_argument("--output-dir", type=Path, default=DEST.parent); parser.add_argument("--expected-source-sha256"); parser.add_argument("--mode", choices=("freeze", "verify"), default="verify"); args=parser.parse_args()
     if not args.fetch:
         print(f"dry-run: {URL} -> {DEST}; pass --fetch to download")
         return 0
@@ -75,7 +75,7 @@ def main():
             raise SystemExit(f"source SHA-256 mismatch: {digest}")
         source_path=args.source_file
     else:
-        data, digest=fetch_bytes(URL, REVISION, args.expected_source_sha256, DEST)
+        data, digest=fetch_bytes(args.mirror_url or URL, REVISION, args.expected_source_sha256 or SOURCE_SHA256, DEST)
         source_path=DEST
     rows=pq.read_table(source_path).to_pylist(); subset=canonicalize_rows(rows, ids)
     freeze_path=args.output_dir/"freeze.json"
