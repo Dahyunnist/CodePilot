@@ -66,6 +66,10 @@ class TraceLike(Protocol):
         self, step: int, result: ToolResult, call_id: str | None = None
     ) -> None: ...
 
+    def patch_started(self, call: ToolCall) -> None: ...
+
+    def patch_finished(self, call: ToolCall, result: ToolResult) -> None: ...
+
 
 class Agent:
     """Ask the model, execute validated tools, and feed observations back."""
@@ -738,7 +742,18 @@ class Agent:
                 stderr=f"工具不在当前 Skill 白名单中：{call.name}",
                 error_type="policy",
             )
-        return self.tools.execute(call)
+        if call.name != "apply_patch" or not self.tracer:
+            return self.tools.execute(call)
+        self.tracer.patch_started(call)
+        try:
+            result = self.tools.execute(call)
+        except Exception:
+            self.tracer.patch_finished(
+                call, ToolResult(tool_name="apply_patch", ok=False, error_type="tool_error")
+            )
+            raise
+        self.tracer.patch_finished(call, result)
+        return result
 
     def _finish(
         self,

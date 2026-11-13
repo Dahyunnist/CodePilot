@@ -57,6 +57,7 @@ class TraceLogger:
         self.root_span_id = uuid.uuid4().hex
         self._last_model_span_id: str | None = None
         self._tool_spans: dict[str, tuple[str, str]] = {}
+        self._patch_spans: dict[str, str] = {}
         self._otel_tracer = otel_tracer or otel_trace.get_tracer("codepilot")
         self._otel_spans: dict[str, Any] = {}
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -122,6 +123,12 @@ class TraceLogger:
                 {"codepilot.run_id": self.run_id, "codepilot.step": record["step"], **fields},
             )
             return
+        if event == "patch_started":
+            self._start_span(span_id, parent_id, "codepilot.workspace.patch", {
+                "codepilot.run_id": self.run_id, "codepilot.trace_id": self.trace_id,
+                "codepilot.tool": "apply_patch",
+            })
+            return
         if event in {"writeback_approval_requested", "writeback_started"}:
             self._start_span(
                 span_id,
@@ -137,6 +144,8 @@ class TraceLogger:
         elif event == "model_failed":
             close_span = self._otel_spans.pop(span_id, None)
         elif event == "tool_finished":
+            close_span = self._otel_spans.pop(span_id, None)
+        elif event == "patch_finished":
             close_span = self._otel_spans.pop(span_id, None)
         elif event == "writeback_approval_decided":
             close_span = self._otel_spans.pop("writeback_approval", None)
@@ -199,19 +208,26 @@ class TraceLogger:
             call_id or "", (uuid.uuid4().hex, self.root_span_id)
         )
         self.event(
-            "tool_finished",
-            step,
-            tool=result.tool_name,
-            ok=result.ok,
-            exit_code=result.exit_code,
-            duration_ms=result.duration_ms,
-            error_type=result.error_type,
-            stdout_chars=len(result.stdout),
-            stderr_chars=len(result.stderr),
-            call_id=call_id,
-            span_id=span_id,
-            parent_span_id=parent_span_id,
+            "tool_finished", step, tool=result.tool_name, ok=result.ok,
+            exit_code=result.exit_code, duration_ms=result.duration_ms,
+            error_type=result.error_type, stdout_chars=len(result.stdout),
+            stderr_chars=len(result.stderr), call_id=call_id,
+            span_id=span_id, parent_span_id=parent_span_id,
         )
+
+    def patch_started(self, call: ToolCall) -> None:
+        span_id = uuid.uuid4().hex
+        tool_span = self._tool_spans.get(call.id)
+        parent_id = tool_span[0] if tool_span else self.root_span_id
+        self._patch_spans[call.id] = span_id
+        self.event("patch_started", 0, span_id=span_id, parent_span_id=parent_id)
+
+    def patch_finished(self, call: ToolCall, result: ToolResult) -> None:
+        span_id = self._patch_spans.pop(call.id, None)
+        if span_id:
+            self.event("patch_finished", 0, span_id=span_id,
+                       parent_span_id=self._tool_spans.get(call.id, ("", ""))[0],
+                       ok=result.ok, error_type=result.error_type or "")
 
 
 def _redact_value(value: Any) -> Any:

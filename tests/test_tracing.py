@@ -1,7 +1,9 @@
 import json
+import pytest
 
 from codepilot.schemas import ToolCall, ToolResult
 from codepilot.tracing import TraceLogger
+from codepilot.agent import Agent
 
 
 def read_events(path):
@@ -186,6 +188,44 @@ def test_opentelemetry_spans_do_not_export_secrets_or_patch_text(tmp_path):
     assert all("sk-1234567890abcdef" not in repr(span.attributes) for span in otel.spans)
     assert all("private source" not in repr(span.attributes) for span in otel.spans)
 
+
+@pytest.mark.parametrize("result", [
+    ToolResult(tool_name="apply_patch", ok=True),
+    ToolResult(tool_name="apply_patch", ok=False, error_type="PathPolicyError"),
+])
+def test_agent_patch_execution_emits_child_span_without_patch_payload(tmp_path, monkeypatch, result):
+    from codepilot import tracing
+
+    class PatchTools:
+        def execute(self, _call):
+            return result
+
+    monkeypatch.setattr(tracing.otel_trace, "set_span_in_context", lambda span: span)
+    otel = FakeTracer()
+    path = tmp_path / "patch-trace.jsonl"
+    trace = TraceLogger(path, "run-patch", otel_tracer=otel)
+    trace.event("run_started", 0)
+    trace.event("model_budget_reserved", 1, span_id="model-patch")
+    trace.event("model_finished", 1, span_id="model-patch")
+    call = ToolCall(id="patch-1", name="apply_patch", arguments={
+        "path": "src/app.py", "patch": "private patch payload",
+    })
+    trace.tool_started(1, call)
+    executed = Agent(model=object(), tools=PatchTools(), tracer=trace)._execute_tool(call, None)
+    trace.tool_finished(1, executed, call.id)
+    trace.event("run_finished", 1, status="success" if result.ok else "failed")
+
+    by_name = {span.name: span for span in otel.spans}
+    patch_span = by_name["codepilot.workspace.patch"]
+    tool_span = by_name["codepilot.tool.execute"]
+    assert patch_span.context is tool_span
+    assert patch_span.ended
+    assert patch_span.attributes["codepilot.ok"] is result.ok
+    assert "private patch payload" not in repr(patch_span.attributes)
+    assert "private patch payload" not in path.read_text(encoding="utf-8")
+    if not result.ok:
+        assert patch_span.status is not None
+
 def test_test_tool_span_parent_links_to_model_span(tmp_path):
     trace_path = tmp_path / "trace-test-parent.jsonl"
     trace = TraceLogger(trace_path, "run-test-parent")
@@ -205,7 +245,6 @@ def test_test_tool_span_parent_links_to_model_span(tmp_path):
     assert finished["span_id"] == started["span_id"]
     assert finished["parent_span_id"] == started["parent_span_id"]
 
-import pytest
 from codepilot.tracing import StandardTraceEvent, validate_event_name
 
 @pytest.mark.parametrize("event", list(StandardTraceEvent))
