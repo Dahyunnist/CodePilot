@@ -8,6 +8,10 @@ import os
 import shutil
 import subprocess
 import uuid
+import hashlib
+import json
+import re
+from datetime import datetime, timezone
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -25,6 +29,46 @@ from evals.summarize import write_summary
 MODEL_NAME = "scripted-oracle"
 PROMPT_VERSION = "explicit-loop-v1"
 TEMPERATURE = 0.0
+RUN_MANIFEST_FIELDS = {"schema_version", "project", "git_sha", "dataset_id", "dataset_sha256", "split", "model_id", "prompt_sha", "tool_schema_sha", "runtime_digest", "max_steps", "max_tokens", "scorer_sha", "gold_source", "cost_usd_estimate", "run_id", "trace_id", "started_at", "ended_at", "status"}
+
+
+def validate_run_manifest(manifest: dict[str, object]) -> None:
+    if set(manifest) != RUN_MANIFEST_FIELDS:
+        raise ValueError("run manifest fields mismatch")
+    if manifest["schema_version"] != 1 or not re.fullmatch(r"[0-9a-f]{40}", str(manifest["git_sha"])):
+        raise ValueError("invalid run manifest schema or git sha")
+    for field in ("dataset_sha256", "prompt_sha", "tool_schema_sha", "scorer_sha"):
+        value = manifest[field]
+        if value is not None and not re.fullmatch(r"[0-9a-f]{64}", str(value)):
+            raise ValueError(f"invalid {field}")
+    if manifest["model_id"] != "scripted-oracle" or manifest["cost_usd_estimate"] != 0:
+        raise ValueError("scripted-oracle identity/cost mismatch")
+    for field in ("runtime_digest",):
+        if manifest[field] is not None and not isinstance(manifest[field], str):
+            raise ValueError(f"invalid {field}")
+    for field in ("project", "dataset_id", "split", "gold_source", "run_id", "trace_id", "status"):
+        if not isinstance(manifest[field], str) or not manifest[field]:
+            raise ValueError(f"invalid {field}")
+    for field in ("max_steps", "max_tokens"):
+        if manifest[field] is not None and (type(manifest[field]) is not int or manifest[field] < 0):
+            raise ValueError(f"invalid {field}")
+    for field in ("started_at", "ended_at"):
+        try:
+            datetime.fromisoformat(str(manifest[field]))
+        except ValueError as exc:
+            raise ValueError(f"invalid {field}") from exc
+
+
+def write_run_manifest(path: Path, manifest: dict[str, object]) -> None:
+    validate_run_manifest(manifest)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def build_run_manifest(*, run_id: str, trace_id: str, git_sha: str, dataset_sha256: str | None, started_at: str, ended_at: str, status: str) -> dict[str, object]:
+    prompt_sha = hashlib.sha256(PROMPT_VERSION.encode()).hexdigest()
+    manifest = {"schema_version": 1, "project": "codepilot-lite", "git_sha": git_sha, "dataset_id": "evals/cases", "dataset_sha256": dataset_sha256, "split": "fixed-cases", "model_id": MODEL_NAME, "prompt_sha": prompt_sha, "tool_schema_sha": None, "runtime_digest": None, "max_steps": 8, "max_tokens": None, "scorer_sha": None, "gold_source": "case.json patch plan; scripted oracle", "cost_usd_estimate": 0, "run_id": run_id, "trace_id": trace_id, "started_at": started_at, "ended_at": ended_at, "status": status}
+    return manifest
 
 
 class PatchSpec(BaseModel):
@@ -152,6 +196,7 @@ def run_evaluation(
 ) -> list[dict[str, object]]:
     """Reset, repair, independently verify, and record every fixed case."""
     eval_run_id = uuid.uuid4().hex
+    started_at = datetime.now(timezone.utc).isoformat()
     run_root = work_root.resolve() / eval_run_id
     rows: list[dict[str, object]] = []
     demo_trace: Path | None = None
@@ -242,6 +287,19 @@ def run_evaluation(
             }
         )
 
+    ended_at = datetime.now(timezone.utc).isoformat()
+    try:
+        git_sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    except (subprocess.CalledProcessError, OSError):
+        git_sha = "0" * 40
+    dataset_sha = hashlib.sha256("".join(sorted(case.case_id for case in load_cases(cases_root))).encode()).hexdigest()
+    manifest = build_run_manifest(run_id=eval_run_id, trace_id=eval_run_id, git_sha=git_sha,
+                                  dataset_sha256=dataset_sha, started_at=started_at,
+                                  ended_at=ended_at,
+                                  status="success" if all(row.get("status") == "success" for row in rows) else "failed")
+    reports_root.mkdir(parents=True, exist_ok=True)
+    manifest_path = reports_root / "run_manifest.json"
+    write_run_manifest(manifest_path, manifest)
     _write_csv(output_csv, rows)
     write_summary(rows, output_csv.with_suffix(".md"))
     if demo_trace and demo_trace.exists():
