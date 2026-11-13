@@ -7,6 +7,7 @@ import uuid
 import json
 import math
 import os
+import hashlib
 from pathlib import Path
 from typing import Any, Callable, Protocol, Sequence
 
@@ -155,6 +156,10 @@ class Agent:
             ]
             raw_last_test = resume_data.get("last_test")
             last_test = ToolResult.model_validate(raw_last_test) if raw_last_test else None
+            saved_workspace_hash = resume_data.get("workspace_state_sha256")
+            if saved_workspace_hash and saved_workspace_hash != _workspace_state_sha256(task.repo_path):
+                last_test = None
+                self._trace("checkpoint_test_invalidated", state.step_count, reason="workspace_state_changed")
         else:
             state = AgentState(
                 task=task,
@@ -824,6 +829,7 @@ class Agent:
             "agent_state": state.model_dump(mode="json"),
             "tool_results": [item.model_dump(mode="json") for item in tool_results],
             "last_test": last_test.model_dump(mode="json") if last_test else None,
+            "workspace_state_sha256": _workspace_state_sha256(state.task.repo_path),
             "elapsed_ms": elapsed_before_ms + max(0, round((time.perf_counter() - started) * 1000)),
             "done": result is not None,
         }
@@ -834,6 +840,18 @@ class Agent:
 
 def _context_chars(messages: list[ChatMessage]) -> int:
     return sum(len(json.dumps(message.to_api_dict(), ensure_ascii=False)) for message in messages)
+
+
+def _workspace_state_sha256(root: Path) -> str:
+    digest = hashlib.sha256()
+    for current, dirs, files in os.walk(root):
+        dirs[:] = sorted(d for d in dirs if d != ".git")
+        for name in sorted(files):
+            path = Path(current) / name
+            relative = path.relative_to(root).as_posix()
+            digest.update(relative.encode("utf-8"))
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
 
 
 def _estimate_request_tokens(

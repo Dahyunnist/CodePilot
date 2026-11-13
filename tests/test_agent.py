@@ -503,6 +503,19 @@ def test_agent_resumes_from_persisted_tool_result_without_repeating_tool(tmp_pat
     assert resumed_model.requests[0][-1].tool_call_id == "search-1"
 
 
+def test_workspace_state_hash_invalidates_stale_checkpoint_test_result(tmp_path):
+    from codepilot.agent import _workspace_state_sha256
+    source = tmp_path / "app.py"
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    initial = _workspace_state_sha256(tmp_path)
+    source.write_text("VALUE = 2\n", encoding="utf-8")
+    assert _workspace_state_sha256(tmp_path) != initial
+    git = tmp_path / ".git"
+    git.mkdir()
+    (git / "HEAD").write_text("ignored metadata", encoding="utf-8")
+    assert _workspace_state_sha256(tmp_path) != initial
+
+
 def test_agent_requires_retest_after_successful_patch(tmp_path) -> None:
     model = ScriptedModel(
         [
