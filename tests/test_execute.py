@@ -132,6 +132,28 @@ def test_docker_command_has_isolation_and_resource_limits(tmp_path) -> None:
     ]
 
 
+def test_cp2_django_visible_preflight_hashes_and_docker_command_are_isolated(tmp_path):
+    import hashlib
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).parents[1]
+    data = root / ".tmp/cp2-single-preflight"
+    manifest_path = data / "one-task.json"
+    case_path = data / "prepared/django__django-11133/case.json"
+    assert hashlib.sha256(manifest_path.read_bytes()).hexdigest() == "d12214881ed1ef50aaf2153d2b329b24285ae1f68dca46c64d22b7dedaff00fb"
+    assert hashlib.sha256(case_path.read_bytes()).hexdigest() == "a84d45bc56d1d49adc32b0048b920c0c7c4aad3ed43b8d994bb339617c746f51"
+    case = json.loads(case_path.read_text(encoding="utf-8"))
+    public_command = case["test_command"]
+    assert public_command == ["python", "-m", "pytest", "tests/httpwrappers/tests.py", "-q"]
+    command = build_docker_command(tmp_path, public_command, case["docker_image"], "cp2-django-visible")
+    assert command[command.index("--network") + 1] == "none"
+    assert "--read-only" in command and command[command.index("--cap-drop") + 1] == "ALL"
+    mounts = [command[i + 1] for i, item in enumerate(command[:-1]) if item == "--mount"]
+    assert all(mount.endswith(",readonly") for mount in mounts)
+    assert not any("hidden" in item.casefold() for item in public_command)
+
+
 def test_docker_command_can_select_image_specific_python(tmp_path) -> None:
     command = build_docker_command(
         tmp_path,
