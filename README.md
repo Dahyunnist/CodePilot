@@ -294,7 +294,7 @@ CP-3 Git clone、junction/symlink 与 Docker 集成测试需要宿主权限；Co
 $dir = 'E:\job\codepilot-lite\cp2-download'
 New-Item -ItemType Directory -Force $dir | Out-Null
 $file = Join-Path $dir 'test-00000-of-00001.parquet'
-Invoke-WebRequest 'https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite/resolve/b0dde10/data/test-00000-of-00001.parquet' -OutFile $file
+Invoke-WebRequest 'https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite/resolve/b0dde1093fe417d83b7184254edf8199c1f0dff5/data/test-00000-of-00001.parquet' -OutFile $file
 $expected = '438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3'
 $actual = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLower()
 if ($actual -ne $expected) { throw "SHA-256 mismatch: $actual" }

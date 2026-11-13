@@ -22,6 +22,12 @@ def test_fetch_rejects_wrong_sha_before_write(tmp_path, monkeypatch):
         fetch_bytes(URL, REVISION,"0"*64,dest)
     assert not dest.exists()
 
+def test_fetch_rejects_short_revision_and_wrong_pinned_hash(tmp_path):
+    with pytest.raises(ValueError, match="URL/revision mismatch"):
+        fetch_bytes(URL.replace(REVISION, "b0dde10"), "b0dde10", SOURCE_SHA256, tmp_path/"short.parquet")
+    with pytest.raises(ValueError, match="pinned Hugging Face LFS object"):
+        freeze_manifest("0"*64, b"[]", tmp_path/"wrong.json")
+
 def test_canonicalize_twenty_ids_and_freeze_separate_hashes(tmp_path):
     ids=[f"repo__p-{n}" for n in range(20)]
     payload=canonicalize_rows([{"instance_id":i,"repo":"repo"} for i in reversed(ids)],ids)
