@@ -4,8 +4,8 @@
 
 - `django__django-10924`：污染，永久排除本轮评测。此前本地产生过候选补丁和测试文件，也运行过对应基线/修复测试。它们不构成有效基准证据；不得提交、复用或宣称成功。
 - `django__django-11133`：排除。此前读取过该题 gold patch 正文。
-- `mwaskom__seaborn-3010`、`pytest-dev__pytest-5495`：本地已知 CP-2 缓存目录未发现对应题目补丁/工作区；扫描范围有限，不能证明整台机器不存在其他副本。两题均未运行模型或官方隐藏测试。
-- 两题已在冻结基线上完成 issue 复现、许可证哈希和独立可见修复实验；两题仍为 `candidate_metadata_only`，未构成完整 SWE-bench 验收。没有模型成功率、成本或耗时结果。
+- `mwaskom__seaborn-3010`、`pytest-dev__pytest-5495`、`django__django-11099`：本地已知 CP-2 缓存目录未发现对应题目补丁/工作区；扫描范围有限，不能证明整台机器不存在其他副本。三题均未运行模型或官方隐藏测试。
+- 三题已在冻结基线上完成 issue 复现、许可证哈希和独立可见修复实验；仍为 `candidate_metadata_only`，未构成完整 SWE-bench 验收。没有模型成功率、成本或耗时结果。
 
 ## 来源核验
 
@@ -59,4 +59,21 @@
 - issue 临时测试补丁后仍按预期以断言失败结束，但输出改为 `- '`、`+ '42`；不再出现整数 `52`。新回归测试验证该格式。
 - 未查看或套用 PR diff、gold/hidden patch；没有模型调用。候选仍是 `candidate_metadata_only`，隐藏验收未做，不能称完整基准通过。
 
-CP-2 当前已有两个独立候选实验，目标 3–5 题仍未完成。下一个阶段需再核验一题，并继续保持污染的 `django_10924` 目录不动、不提交。
+CP-2 当前已有三个独立候选实验，达到至少三个案例；若按 3–5 个案例目标，仍可再补一至两题。继续保持污染的 `django_10924` 目录不动、不提交。
+
+## 第三候选：Django #11099
+
+- 候选：`django__django-11099`，仓库 `django/django`。本地已知 CP-2 缓存目录未发现该 task ID 的工作区或补丁；扫描仅覆盖已知 CP-2 缓存目录。
+- 官方问题：[Django ticket #30257](https://code.djangoproject.com/ticket/30257)；[关联 PR #11099](https://github.com/django/django/pull/11099)。问题说明 `UsernameValidator` 的 `$` 可在字符串末尾换行前匹配，令带 `\n` 用户名通过。
+- 冻结 base：`d26b2424437dabeeca94d7900b37d2df4410da0c`。Docker 镜像 `swebench/sweb.eval.x86_64.django_1776_django-11099:latest`，ID `sha256:cca302934edd881cc4f1e4647a389a25cdaa3c02bfa33667a4204934a09c4fb1`；镜像仓库含该 Git 对象，detached checkout 后 SHA 精确匹配，工作树干净。
+- base 许可元数据：BSD-3-Clause；根目录 `LICENSE` SHA-256：`b846415d1b514e9c1dff14a22deb906d794bc546ca6129f950a18cd091e2a669`。
+- 环境：镜像自带 `/opt/miniconda3/envs/testbed/bin/python`，Python 3.6，Django `3.0.dev20190322115239`。镜像没有 pytest；未安装依赖，使用 Python 自带 `unittest`。
+- 未修复基线直接调用 `ASCIIUsernameValidator` 与 `UnicodeUsernameValidator`，两者都接受 `"username\\n"`。这是 ticket 的可见现象；未读取隐藏测试 `tests/auth_tests/test_validators.py`。
+
+### 独立修复与可见验证
+
+- 补丁：[candidate.patch](../../evals/public_cases/cp2/reproductions/django_11099/candidate.patch)，SHA-256：`092258892bea38f7959d72b7bda1e4cb48b56a0a275a77d0581389566c8d450c`。
+- 独立修复：两个 username validator 的 regex 结束锚点从 `$` 改为 `\Z`；保留 `^`，因为问题只涉及末尾换行。
+- 新增测试：`tests/auth_tests/test_username_trailing_newline.py::UsernameValidatorTrailingNewlineTests.test_ascii_validator_rejects_trailing_newline` 与 `...test_unicode_validator_rejects_trailing_newline`。
+- 命令：`python -m unittest test_username_trailing_newline -v`，工作目录 `tests/auth_tests`，`PYTHONPATH=/testbed`。结果：`Ran 2 tests ... OK`。
+- 未读或套用 PR diff/gold/hidden patch；未调用模型。候选仍为 `candidate_metadata_only`；没有跑官方隐藏验收或完整 Django 测试集。
