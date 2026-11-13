@@ -14,4 +14,6 @@ Agent 只接收 `case_dir/repo` 的工作副本；仓库工具 `list_files` 与 
 D:\Anaconda3\envs\NN\python.exe -m pytest tests/test_swebench_prepare.py::test_hidden_patch_stays_outside_agent_workspace_and_runs_in_verifier -q --basetemp=.tmp\pytest-isolation
 ```
 
-结果：`1 passed`。本轮只验证合成夹具；没有读取冻结题面、运行真实单题或调用模型。完整文件套件另有环境失败：`test_safe_archive_materializes_in_tree_file_symlinks_as_hard_links` 在 Windows 环境无法创建硬链接（`cannot materialize safe source symlink as a hard link`）；其余 11 项通过。Docker 真实预检仍未运行。
+结果：专项用例 `1 passed`。整份 `tests/test_swebench_prepare.py` 在本机执行 `12 passed`。准备、runner、manifest、候选集及 benchmark integrity 相关套件合计 `40 passed`。后两项需为当前临时工作树的 Git 子进程设置一次性 `safe.directory`；未改全局 Git 配置。
+
+本轮只验证合成夹具；没有运行真实冻结题、没有调用模型、没有声称 CP-2 基准完成。Docker 真实预检仍未运行。
