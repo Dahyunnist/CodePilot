@@ -284,23 +284,23 @@ CP-3 Git clone、junction/symlink 与 Docker 集成测试需要宿主权限；Co
 
 只冻结公开数据，不运行 Agent 或模型。来源是 SWE-bench Lite `test` split，完整 Hugging Face revision `b0dde1093fe417d83b7184254edf8199c1f0dff5`；官方 [Parquet 文件页](https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite/blob/b0dde1093fe417d83b7184254edf8199c1f0dff5/data/test-00000-of-00001.parquet) 的 LFS SHA-256 为 `438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3`。数据集包含公开 issue/PR 样本；存在训练污染与答案泄漏风险，不是盲测，也不是 SWE-bench Verified。
 
-仓库许可声明见 `evals/public_cases/cp2/frozen-selection.json`；逐题候选与来源 URL 见 `evals/public_cases/cp2/auditable-candidates-v1.json`。PR 与 issue 链接分开保存；缺少 issue 链接时留空，`issue_url_status` 保留 `unverified_missing`，不从 PR 编号推导。冻结前仍需在各 base commit 核查许可文件。
+仓库许可声明见 `evals/public_cases/cp2/frozen-selection.json`；逐题候选与来源 URL 见 `evals/public_cases/cp2/auditable-candidates-v1.json`。PR 与 issue 链接分开保存；缺少 issue 链接时留空，`issue_url_status` 保留 `unverified_missing`，不从 PR 编号推导。冻结器用固定 repo→license allowlist 和两份清单交叉校验；逐 base commit 许可证文件审计仍未完成。
 
-兼容历史记录：`frozen-selection.json` 的 `dataset_revision: "SWE-bench/SWE-bench_Lite:test"` 是旧清单使用的数据集/分 split 标签，不是不可变 HF commit；其 `dataset_source_sha256`（以及引用它的旧 holdout 字段）是此前选择清单记录的历史来源指纹，尚未证明对应当前 Parquet 文件字节。不要把 `5cb74f...` 当成下载文件 SHA，也不要为了改名而重写旧 holdout 哈希。当前冻结流程的权威源文件 SHA 是 `438e...`，写入命令 `--output-dir` 指定目录下的 `freeze.json` 中 `source_parquet_sha256`；按下方命令即 `E:\job\codepilot-lite\cp2-freeze\freeze.json`。其中 `revision` 与 `source_url` 一并固定到上方 HF revision。
+兼容历史记录：`frozen-selection.json` 的 `dataset_revision: "SWE-bench/SWE-bench_Lite:test"` 是旧清单使用的数据集/分 split 标签，不是不可变 HF commit；其 `dataset_source_sha256`（以及引用它的旧 holdout 字段）是此前选择清单记录的历史来源指纹。不要把 `5cb74f...` 当成 Parquet 文件 SHA，也不要重写旧 holdout 哈希。当前源 SHA 为 `438e...`。冻结只允许写入 ignored `.tmp/`。
 
 在普通 PowerShell 下载到独立目录并校验 SHA：
 
 ```powershell
-$dir = 'E:\job\codepilot-lite\cp2-download'
+$dir = 'E:\job\codepilot-lite\.tmp\cp2-swebench-lite-v1'
 New-Item -ItemType Directory -Force $dir | Out-Null
-$file = Join-Path $dir 'test-00000-of-00001.parquet'
+$file = Join-Path $dir 'test.parquet'
 Invoke-WebRequest 'https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite/resolve/b0dde1093fe417d83b7184254edf8199c1f0dff5/data/test-00000-of-00001.parquet' -OutFile $file
 $expected = '438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3'
 $actual = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLower()
 if ($actual -ne $expected) { throw "SHA-256 mismatch: $actual" }
-python -m pip install -r requirements-bench.txt
-python -m scripts.fetch_cp2_dataset --fetch --source-file $file --expected-source-sha256 $expected --output-dir E:\job\codepilot-lite\cp2-freeze --mode freeze
-python -m scripts.fetch_cp2_dataset --fetch --source-file $file --expected-source-sha256 $expected --output-dir E:\job\codepilot-lite\cp2-freeze --mode verify
+D:\Anaconda3\python.exe -m pip install -r E:\job\codepilot-lite\requirements-bench.txt
+D:\Anaconda3\python.exe E:\job\codepilot-lite\scripts\fetch_cp2_dataset.py --fetch --source-file $file --expected-source-sha256 $expected --output-dir $dir --mode freeze
+D:\Anaconda3\python.exe E:\job\codepilot-lite\scripts\fetch_cp2_dataset.py --fetch --source-file $file --expected-source-sha256 $expected --output-dir $dir --mode verify
 ```
 
-源 Parquet 和规范化 20 题子集分别计算 SHA。freeze 只允许首次创建；verify 核验源 SHA、固定的数据集/revision/URL、子集 SHA 和 task 数，不覆盖原记录。`.tmp` 默认被 Git 忽略；上述命令使用独立输出目录。仅把下载与 hash verify 结果回传后，才能审核冻结 manifest；不运行模型。
+2026-11-13 用户已完成下载与冻结：20 个唯一 task ID，source SHA `438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3`，subset SHA `8fb7c6b9a93a3eaef1d0c55839e8d5420ad222447cac7b247735faf23927941d`。源 Parquet 和 freeze 均留在 ignored `.tmp/`。冻结前会逐题校验 repo、base commit、题面/gold/hidden patch 哈希和许可证；冻结内容排除 patch、hidden test 与 eval script。freeze 只允许首次创建；verify 不覆盖原记录。这个步骤不检出仓库、不运行测试或模型。详见 `docs/learning/stage-CP2-freeze.md`。

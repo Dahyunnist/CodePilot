@@ -40,19 +40,73 @@ def test_fetch_accepts_configured_mirror_only_for_pinned_revision(tmp_path, monk
     assert not (tmp_path/"mirror.parquet").exists()
 
 def test_canonicalize_twenty_ids_and_freeze_separate_hashes(tmp_path):
-    ids=[f"repo__p-{n}" for n in range(20)]
-    payload=canonicalize_rows([{"instance_id":i,"repo":"repo"} for i in reversed(ids)],ids)
+    selection, candidates, rows = _valid_fixture()
+    payload=canonicalize_rows(list(reversed(rows)), selection, candidates)
     rec=freeze_manifest(SOURCE_SHA256,payload,tmp_path/"freeze.json")
     assert rec["task_count"]==20 and rec["source_parquet_sha256"]==SOURCE_SHA256
     assert rec["subset_json_sha256"]==sha256(payload).hexdigest()
     assert rec["source_parquet_sha256"] != rec["subset_json_sha256"]
     assert rec["revision"] == REVISION
     assert rec["source_url"] == URL
+    tasks=json.loads(payload)
+    assert len(tasks) == 20
+    assert all(not ({"patch", "test_patch", "eval_script"} & task.keys()) for task in tasks)
+
+def _valid_fixture():
+    selection, candidates, rows = [], [], []
+    for number in range(20):
+        task_id=f"django__django-{10000+number}"
+        problem, patch, test_patch=f"problem-{number}", f"gold-{number}", f"test-{number}"
+        gold_sha=sha256(patch.encode()).hexdigest()
+        test_sha=sha256(test_patch.encode()).hexdigest()
+        selection.append({
+            "task_id":task_id,"repo":"django/django","license":"BSD-3-Clause",
+            "base_commit":f"commit-{number}",
+            "problem_statement_sha256":sha256(problem.encode()).hexdigest(),
+            "gold_patch_sha256":gold_sha,"hidden_test_patch_sha256":test_sha,
+        })
+        candidates.append({
+            "instance_id":task_id,"repo":"django/django","license":"BSD-3-Clause",
+            "base_commit":f"commit-{number}","gold_patch_sha256":gold_sha,
+            "test_patch_sha256":test_sha,
+        })
+        rows.append({
+            "instance_id":task_id,"repo":"django/django","base_commit":f"commit-{number}",
+            "problem_statement":problem,"patch":patch,"test_patch":test_patch,
+            "eval_script":"private-eval",
+        })
+    return selection,candidates,rows
+
+@pytest.mark.parametrize("tamper", ["repo","base_commit","problem","gold","hidden","license","duplicate"])
+def test_canonicalize_rejects_tampering_before_freeze_file(tamper,tmp_path):
+    selection,candidates,rows=_valid_fixture()
+    if tamper == "repo": rows[0]["repo"]="attacker/repo"
+    elif tamper == "base_commit": rows[0]["base_commit"]="other"
+    elif tamper == "problem": rows[0]["problem_statement"] += " changed"
+    elif tamper == "gold": rows[0]["patch"] += " changed"
+    elif tamper == "hidden": rows[0]["test_patch"] += " changed"
+    elif tamper == "license": candidates[0]["license"]="Unknown"
+    elif tamper == "duplicate": rows.append(dict(rows[0]))
+    with pytest.raises(ValueError):
+        subset=canonicalize_rows(rows,selection,candidates)
+        freeze_manifest(SOURCE_SHA256,subset,tmp_path/"freeze.json")
+    assert not (tmp_path/"freeze.json").exists()
+
+def test_canonicalize_rejects_duplicate_manifests_and_missing_patches():
+    selection,candidates,rows=_valid_fixture()
+    with pytest.raises(ValueError,match="duplicate selection"):
+        canonicalize_rows(rows,selection+[selection[0]],candidates)
+    selection,candidates,rows=_valid_fixture()
+    rows[0]["test_patch"]=""
+    with pytest.raises(ValueError,match="patch missing"):
+        canonicalize_rows(rows,selection,candidates)
 
 def test_freeze_is_create_once_and_verify_rejects_changes(tmp_path):
     from scripts.fetch_cp2_dataset import freeze_manifest, verify_manifest
     from hashlib import sha256
-    dest=tmp_path/"freeze.json"; subset=b"[]"
+    dest=tmp_path/"freeze.json"
+    selection,candidates,rows=_valid_fixture()
+    subset=canonicalize_rows(rows,selection,candidates)
     freeze_manifest(SOURCE_SHA256, subset, dest)
     assert verify_manifest(SOURCE_SHA256, subset, dest)["task_count"] == 20
     with pytest.raises(ValueError, match="never overwrite"):
@@ -66,7 +120,8 @@ def test_freeze_is_create_once_and_verify_rejects_changes(tmp_path):
 
 def test_frozen_record_pins_source_hash_revision_and_is_not_legacy_selection_metadata(tmp_path):
     from scripts.fetch_cp2_dataset import verify_manifest
-    subset = b"[]"
+    selection,candidates,rows=_valid_fixture()
+    subset = canonicalize_rows(rows,selection,candidates)
     path = tmp_path / "freeze.json"
     record = freeze_manifest(SOURCE_SHA256, subset, path)
     loaded = verify_manifest(SOURCE_SHA256, subset, path)

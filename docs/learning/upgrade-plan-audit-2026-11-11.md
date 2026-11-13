@@ -40,14 +40,14 @@ CP-1 新增 deterministic fixture 定向测试 3 passed。该结果是机制测�
 | 阶段 | 当前状态 | 已有离线证据 | 未完成验收 |
 |---|---|---|---|
 | CP-1 | 部分完成 | 确定性上下文机制、重复证据与同任务配对 fixture；见 `docs/learning/cp1-*.md`。 | 未在真实任务上比较修复质量、上下文效果或成本；fixture 不代表模型效果。 |
-| CP-2 | 部分完成 | 候选清单审计、固定 HF revision 与 LFS SHA、独立 freeze/verify 脚本及离线测试；见 `docs/learning/cp2-*.md` 和 README 的“CP-2 SWE-bench Lite 数据冻结（手动）”。 | 数据尚未下载或冻结；未完成 base/fix 可见测试、隐藏测试、Docker 和真实仓库复现。 |
+| CP-2 | 部分完成 | 候选清单审计、固定 HF revision 与 LFS SHA、20 题本地 freeze/verify；见 `docs/learning/stage-CP2-freeze.md`。 | 尚未完成逐 base commit 许可文件审计、仓库复现、可见/隐藏测试和真实模型评测。 |
 | CP-3 | 部分完成 | 静态安全负例、命令策略、trace 与 checkpoint 恢复的定向验证；见 `docs/learning/cp3-*.md`。 | 未完成普通 Windows 宿主上的完整集成验收；多仓库真实任务和外部仓库完整回写仍缺本轮证据。 |
 | CP-4 | 部分完成 | 离线技能消融与 schema 边界回归；见 `docs/learning/cp4-*.md`。 | 三仓六次真实模型配对实验未运行；没有成功率、费用或耗时结论。 |
 
-当前 HEAD 为 `49c2dfe928da0c6d982f2e17677600dfae5100d3`，其前一份 CP-2 操作文档提交为 `9bacb83fb5c318640458fba67f0d314b1164ff29`。CP-2 历史清单的 `dataset_source_sha256=5cb74f...` 未被重写；它不是已验证的当前 Parquet 字节哈希。待用户下载后，当前冻结流程要求源文件 SHA 为 `438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3`，并写入独立 `freeze.json`。因此现在不能声称数据已冻结。
+CP-2 历史清单的 `dataset_source_sha256=5cb74f...` 未被重写；它不是当前 Parquet 字节哈希。2026-11-13 用户宿主已提供官方 Parquet，当前本地 freeze 的源 SHA 为 `438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3`，20 题子集 SHA 为 `8fb7c6b9a93a3eaef1d0c55839e8d5420ad222447cac7b247735faf23927941d`。完整边界见 `docs/learning/stage-CP2-freeze.md`。
 
 相关可离线校验：`python -m pytest tests/test_cp2_dataset_fetch.py tests/test_benchmark_manifest_integrity.py tests/test_lite_candidate_audit.py -q`。2026-11-13 执行结果为 8 passed；此测试只验证清单结构、来源固定值和冻结脚本行为，不下载数据、不运行 Agent 或模型。README 中 HF 文件页链接固定到同一完整 revision；真实网络可达性与下载完整性仍需用户执行下载和 SHA 命令后确认。未推送分支。
 
 ## CP-2 离线进展补充（2026-11-13）
 
-仅检查三个项目约定缓存目录，均不存在；未全盘扫描。官方镜像尚未核实，不能推荐具体镜像。公开 Parquet 下载仍受本机 socket 权限拒绝；20 题与 gold/holdout 哈希尚未从下载数据重新物化。上下文预算机制已有 `tests/test_agent.py` 的仓库规模缩窗、额度与上下文窗口分离、工具观察截断测试；这些只验证确定性预算/截断行为，不代表 SWE-bench 修复能力或模型效果。未调用模型、未运行修复实验、未推送。
+早期 socket 权限错误和缓存目录未找到记录保留为历史。后续用户在宿主成功下载数据并完成本地 freeze/verify。上下文预算机制已有 `tests/test_agent.py` 的仓库规模缩窗、额度与上下文窗口分离、工具观察截断测试；这些只验证确定性预算/截断行为，不代表 SWE-bench 修复能力或模型效果。模型评测、真实仓库修复实验仍未运行。
