@@ -131,3 +131,22 @@ def test_skill_loader_rejects_boolean_schema_version(monkeypatch):
     )
     with pytest.raises(ValueError, match="不支持的修复 Skill schema_version"):
         get_skill("pytest-failure-triage")
+
+
+def test_skill_budget_exhaustion_fails_closed_before_model_call(tmp_path):
+    (tmp_path / ".git").mkdir()
+    model = SkillModel()
+    task = Task(repo_path=tmp_path, instruction="修复测试失败", test_command=["python", "-m", "pytest"], skill_id="pytest-failure-triage", max_total_tokens=1)
+    result = Agent(model, SkillTools()).run(task)
+    assert result.status == "budget_exceeded"
+    assert result.failure_type == "budget"
+    assert model.tools_by_request == []
+
+
+def test_skill_exit_condition_cannot_report_success_without_verification(tmp_path):
+    (tmp_path / ".git").mkdir()
+    model = SkillModel()
+    model.replies = [ModelReply(text="已修复，测试全部通过。")]
+    result = Agent(model, SkillTools()).run(Task(repo_path=tmp_path, instruction="修复测试失败", test_command=["python", "-m", "pytest"], skill_id="pytest-failure-triage"))
+    assert result.status != "success"
+    assert result.error == "model finished before running the full test suite"
