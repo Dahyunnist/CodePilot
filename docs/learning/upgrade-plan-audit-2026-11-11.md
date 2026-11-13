@@ -47,3 +47,7 @@ CP-1 新增 deterministic fixture 定向测试 3 passed。该结果是机制测�
 当前 HEAD 为 `49c2dfe928da0c6d982f2e17677600dfae5100d3`，其前一份 CP-2 操作文档提交为 `9bacb83fb5c318640458fba67f0d314b1164ff29`。CP-2 历史清单的 `dataset_source_sha256=5cb74f...` 未被重写；它不是已验证的当前 Parquet 字节哈希。待用户下载后，当前冻结流程要求源文件 SHA 为 `438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3`，并写入独立 `freeze.json`。因此现在不能声称数据已冻结。
 
 相关可离线校验：`python -m pytest tests/test_cp2_dataset_fetch.py tests/test_benchmark_manifest_integrity.py tests/test_lite_candidate_audit.py -q`。2026-11-13 执行结果为 8 passed；此测试只验证清单结构、来源固定值和冻结脚本行为，不下载数据、不运行 Agent 或模型。README 中 HF 文件页链接固定到同一完整 revision；真实网络可达性与下载完整性仍需用户执行下载和 SHA 命令后确认。未推送分支。
+
+## CP-2 离线进展补充（2026-11-13）
+
+仅检查三个项目约定缓存目录，均不存在；未全盘扫描。官方镜像尚未核实，不能推荐具体镜像。公开 Parquet 下载仍受本机 socket 权限拒绝；20 题与 gold/holdout 哈希尚未从下载数据重新物化。上下文预算机制已有 `tests/test_agent.py` 的仓库规模缩窗、额度与上下文窗口分离、工具观察截断测试；这些只验证确定性预算/截断行为，不代表 SWE-bench 修复能力或模型效果。未调用模型、未运行修复实验、未推送。

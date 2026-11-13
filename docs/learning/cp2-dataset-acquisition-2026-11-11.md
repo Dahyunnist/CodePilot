@@ -6,6 +6,8 @@
 
 ## 下载与冻结操作记录（2026-11-13）
 
+仅检查项目约定缓存目录 `E:\job\codepilot-lite\.tmp\cp2-swebench-lite-v1`、`E:\job\codepilot-lite\cp2-download`、`E:\job\codepilot-lite\cp2-freeze`；均不存在，未扫描其他用户目录或全盘。官方镜像未核实，本记录不提供猜测的镜像地址。已支持 `--mirror-url`，但使用者须提供可信镜像且内容必须通过官方 SHA 校验。
+
 固定官方 revision：`b0dde1093fe417d83b7184254edf8199c1f0dff5`。Parquet SHA-256：`438e281d80587aa7be470896ce410557002fde02d2ceee3e099331d308f62dd3`。官方文件页：`https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite/blob/b0dde1093fe417d83b7184254edf8199c1f0dff5/data/test-00000-of-00001.parquet`。
 
 尝试下载至 `E:\job\codepilot-lite\cp2-download\test-00000-of-00001.parquet` 被 Windows 网络权限拒绝：`以一种访问权限不允许的方式做了一个访问套接字的尝试。` 文件未生成。因此当前无实际文件 SHA、20 题 freeze manifest 或子集哈希；不宣称数据冻结完成。未调用模型，未运行修复实验。
