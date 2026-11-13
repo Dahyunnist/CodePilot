@@ -24,11 +24,11 @@
 ## 独立修复实验
 
 - 补丁文件：[candidate.patch](../../evals/public_cases/cp2/reproductions/seaborn_3010/candidate.patch)
-- 补丁 SHA-256：`0ea4fdc52c1eb6d8278de6843f3d79751b681518c46fb2fb74bb74e52915ee73`
+- 补丁 SHA-256：`41df778ae5f5633ccf3343e83e328af55796995220be31f9e5b40a8dadda0bd9`
 - 独立改动：在 `PolyFit._fit_predict` 中对 `x`、`y` 两列成对 `dropna()`，再拟合，避免错位或 NaN 进入 `numpy.polyfit`。
 - 新增可见回归覆盖：x 缺失、y 缺失、x/y 缺失行不同、全部缺失，以及 issue 输入的统计阶段。
 - 命令：`python -m pytest -v -p no:cacheprovider tests/_stats/test_polyfit_missing_data.py tests/_stats/test_regression.py`
-- 结果：`7 passed in 0.90s`。新增 5 项通过；冻结基线原有 `TestPolyFit::test_no_grouper` 和 `TestPolyFit::test_one_grouper` 通过。官方隐藏测试补丁未应用，未运行。
+- 结果：`7 passed in 0.87s`。新增 5 项通过；冻结基线原有 `TestPolyFit::test_no_grouper` 和 `TestPolyFit::test_one_grouper` 通过。官方隐藏测试补丁未应用，未运行。
 - issue 输入通过 Plot 统计阶段。为隔离后续渲染，回归测试临时 stub `Plotter._plot_layer`；完整绘图调用在统计通过后触发环境错误 `OptionError: No such keys(s): 'mode.use_inf_as_null'`。这是 Seaborn 0.12.1.dev0 与镜像 Pandas 2.0.0 的兼容问题，不能据此宣称完整绘图通过。
 - 首轮自写用例有一项期望网格错误，测试指出该断言问题；修正样例后最终 7 项全通过。源码补丁未因此改变。
 - 本次没有查看或套用 PR diff、gold patch，也没有提交 Seaborn 上游仓库。
