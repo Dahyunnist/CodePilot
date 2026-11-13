@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from evals.runner import build_run_manifest, validate_run_manifest, write_run_manifest
+from evals.runner import build_run_manifest, dataset_manifest_sha, validate_run_manifest, write_run_manifest
 
 
 def sample_manifest():
@@ -36,3 +36,18 @@ def test_invalid_manifest_fails_before_report_file_creation(tmp_path, mutation):
         write_run_manifest(output, manifest)
     assert not output.exists()
     assert not output.parent.exists()
+
+
+def test_dataset_sha_covers_canonical_case_content_and_ids_are_shared(tmp_path):
+    case_dir = tmp_path / "one"
+    case_dir.mkdir()
+    metadata = case_dir / "case.json"
+    metadata.write_text('{"case_id":"one","instruction":"fix A"}', encoding="utf-8")
+    before = dataset_manifest_sha(tmp_path)
+    metadata.write_text('{"case_id":"one","instruction":"fix B"}', encoding="utf-8")
+    assert dataset_manifest_sha(tmp_path) != before
+    run = build_run_manifest(run_id="batch-1", trace_id="batch-1", git_sha="a"*40,
+        dataset_sha256=dataset_manifest_sha(tmp_path), started_at=datetime.now(timezone.utc).isoformat(),
+        ended_at=datetime.now(timezone.utc).isoformat(), status="success")
+    row = {"evaluation_run_id": "batch-1", "trace_id": "batch-1"}
+    assert row["evaluation_run_id"] == run["run_id"] == run["trace_id"]

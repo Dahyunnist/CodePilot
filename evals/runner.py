@@ -65,6 +65,13 @@ def write_run_manifest(path: Path, manifest: dict[str, object]) -> None:
     path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def dataset_manifest_sha(cases_root: Path) -> str:
+    cases = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(cases_root.glob("*/case.json"))]
+    cases.sort(key=lambda item: item["case_id"])
+    canonical = json.dumps(cases, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
 def build_run_manifest(*, run_id: str, trace_id: str, git_sha: str, dataset_sha256: str | None, started_at: str, ended_at: str, status: str) -> dict[str, object]:
     prompt_sha = hashlib.sha256(PROMPT_VERSION.encode()).hexdigest()
     manifest = {"schema_version": 1, "project": "codepilot-lite", "git_sha": git_sha, "dataset_id": "evals/cases", "dataset_sha256": dataset_sha256, "split": "fixed-cases", "model_id": MODEL_NAME, "prompt_sha": prompt_sha, "tool_schema_sha": None, "runtime_digest": None, "max_steps": 8, "max_tokens": None, "scorer_sha": None, "gold_source": "case.json patch plan; scripted oracle", "cost_usd_estimate": 0, "run_id": run_id, "trace_id": trace_id, "started_at": started_at, "ended_at": ended_at, "status": status}
@@ -218,7 +225,7 @@ def run_evaluation(
 
         run_id = f"{eval_run_id}-{case.case_id}"
         workspace = WorkspaceManager(run_root / "workspaces").prepare(base, run_id)
-        trace = TraceLogger(reports_root / "traces" / f"{run_id}.jsonl", run_id)
+        trace = TraceLogger(reports_root / "traces" / f"{run_id}.jsonl", run_id, trace_id=eval_run_id)
         if case.case_id == "parse-config":
             demo_trace = trace.path
         task = Task(
@@ -268,6 +275,8 @@ def run_evaluation(
         rows.append(
             {
                 "case_id": case.case_id,
+                "evaluation_run_id": eval_run_id,
+                "trace_id": eval_run_id,
                 "category": case.category,
                 "status": "success" if success else "failed",
                 "agent_status": result.status,
@@ -292,7 +301,7 @@ def run_evaluation(
         git_sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
     except (subprocess.CalledProcessError, OSError):
         git_sha = "0" * 40
-    dataset_sha = hashlib.sha256("".join(sorted(case.case_id for case in load_cases(cases_root))).encode()).hexdigest()
+    dataset_sha = dataset_manifest_sha(cases_root)
     manifest = build_run_manifest(run_id=eval_run_id, trace_id=eval_run_id, git_sha=git_sha,
                                   dataset_sha256=dataset_sha, started_at=started_at,
                                   ended_at=ended_at,
