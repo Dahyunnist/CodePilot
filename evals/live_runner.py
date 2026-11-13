@@ -591,25 +591,21 @@ def _write_run_manifest(
                 ),
             }
         )
-    working_diff = subprocess.run(
-        ["git", "diff", "HEAD", "--binary"],
-        capture_output=True,
-        check=True,
-        shell=False,
-    ).stdout
-    status = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=all"],
-        capture_output=True,
-        check=True,
-        shell=False,
-    ).stdout
-    git_sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=True,
-        shell=False,
-    ).stdout.strip()
+    repository_root = Path(__file__).resolve().parents[1]
+
+    def read_git_output(arguments: list[str], *, text_output: bool = False) -> str | bytes:
+        return subprocess.run(
+            ["git", "-c", f"safe.directory={repository_root}", *arguments],
+            cwd=repository_root,
+            capture_output=True,
+            text=text_output,
+            check=True,
+            shell=False,
+        ).stdout
+
+    working_diff = read_git_output(["diff", "HEAD", "--binary"])
+    status = read_git_output(["status", "--porcelain", "--untracked-files=all"])
+    git_sha = read_git_output(["rev-parse", "HEAD"], text_output=True).strip()
     manifest = {
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "agent_git_sha": git_sha,

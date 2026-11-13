@@ -1,5 +1,7 @@
+import errno
 import hashlib
 import io
+import os
 import subprocess
 import tarfile
 
@@ -53,7 +55,14 @@ def test_safe_archive_extraction_rejects_path_traversal(tmp_path):
     assert not (tmp_path / "outside.txt").exists()
 
 
-def test_safe_archive_materializes_in_tree_file_symlinks_as_hard_links(tmp_path):
+def test_safe_archive_materializes_in_tree_file_symlinks_as_regular_files(tmp_path):
+    probe = tmp_path / "probe"
+    probe.write_bytes(b"probe")
+    try:
+        os.link(probe, tmp_path / "probe-link")
+    except OSError as exc:
+        pytest.skip(f"host does not permit hard links: {exc}")
+
     destination = tmp_path / "repo"
     _safe_extract_tar(
         _tar_with_symlink("docs/theme/icon.png", "../target.png"), destination
@@ -64,6 +73,21 @@ def test_safe_archive_materializes_in_tree_file_symlinks_as_hard_links(tmp_path)
     assert not link.is_symlink()
     link.write_bytes(b"new")
     assert target.read_bytes() == b"new"
+
+
+def test_safe_archive_fails_closed_when_hard_links_are_unavailable(
+    tmp_path, monkeypatch
+):
+    destination = tmp_path / "repo"
+
+    def deny_hard_link(*_args, **_kwargs):
+        raise PermissionError(errno.EPERM, "hard links unavailable")
+
+    monkeypatch.setattr("evals.public_cases.prepare_swebench_lite.os.link", deny_hard_link)
+    with pytest.raises(RuntimeError, match="cannot materialize safe source symlink"):
+        _safe_extract_tar(
+            _tar_with_symlink("docs/theme/icon.png", "../target.png"), destination
+        )
 
 
 def test_safe_archive_refuses_to_overwrite_existing_source(tmp_path):
