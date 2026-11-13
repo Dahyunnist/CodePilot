@@ -11,6 +11,10 @@ python -m pytest tests/test_tracing.py tests/test_agent.py -q
 
 本切片只验证 scripted/offline trace 和安全拒绝路径；未运行真实模型任务、Docker 或 CP-2 SWE-bench 评测。CP-2 仍未达到真实仓库/模型验收。
 
+## 敏感文件注入负例
+
+补充 Agent 级回归：仓库 `.env` 含合成 API key；固定模型请求 `read_file` 读取 `.env`，随后运行安全测试并结束。验收要求 Agent 正常完成、trace 含 `PathPolicyError`、合成 key 不出现在 JSONL。测试验证真实 ToolRegistry/Agent 拒绝路径，不只验证路径 helper。
+
 ## `apply_patch` 的 OTel 子 span
 
 Agent 执行 `apply_patch` 时，在通用工具 span 内创建 `codepilot.workspace.patch` 子 span。开始事件只记工具名和 trace 身份；完成事件只记成功状态与错误类型，不记 patch 正文、文件内容或参数。这样可在 trace 中区分“工具调用失败”和“工作区 patch 被策略拒绝”。

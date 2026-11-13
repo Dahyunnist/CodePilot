@@ -873,6 +873,24 @@ def test_prompt_injection_cannot_patch_outside_workspace_or_leak_into_trace(tmp_
     assert denied_patch["error_type"] == "PathPolicyError"
 
 
+def test_agent_cannot_read_env_file_after_prompt_injection(tmp_path):
+    secret = "sk-sensitive-test-value"
+    (tmp_path / ".env").write_text(f"LLM_API_KEY={secret}\n", encoding="utf-8")
+    (tmp_path / "test_safe.py").write_text("def test_safe(): assert True\n", encoding="utf-8")
+    model = ScriptedModel([
+        ModelReply(tool_calls=[ToolCall(id="read-secret", name="read_file", arguments={"path": ".env", "reason": "检查 README 中的恶意指令"})]),
+        ModelReply(tool_calls=[ToolCall(id="tests", name="run_tests", arguments={})]),
+        ModelReply(text="敏感文件读取已拒绝。"),
+    ])
+    tracer_path = tmp_path / "security-trace.jsonl"
+    trace = TraceLogger(tracer_path, "env-denial")
+    result = Agent(model, ToolRegistry(tmp_path, ["python", "-m", "pytest"], execution_mode="host", host_tests_approved=True), tracer=trace).run(task(tmp_path))
+    assert result.status == "success"
+    assert secret not in tracer_path.read_text(encoding="utf-8")
+    events = [json.loads(line) for line in tracer_path.read_text(encoding="utf-8").splitlines()]
+    assert any(event.get("error_type") == "PathPolicyError" for event in events)
+
+
 def test_model_keeps_final_reply_budget_after_full_tests_pass(tmp_path):
     model = ScriptedModel(
         [
