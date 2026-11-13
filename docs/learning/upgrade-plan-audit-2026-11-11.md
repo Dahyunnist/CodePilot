@@ -65,3 +65,5 @@ CP-2 20 题公开数据冻结已完成，但独立仓库构建、baseline、visi
 新增回归固定重复 SHA 压缩行为：旧证据替换为 SHA 指针，最新证据原文保留。现有实现已满足，不需改生产代码。该切片不证明真实任务质量提升。
 
 CP-3 项目指令注入回归：AGENTS.md 要求读取 `.env` 时，真实 Agent/ToolRegistry 行为测试确认路径拒绝、key 不进 trace/模型消息，且合法补丁与可见测试仍成功。
+
+CP-2 候选集只读元数据审计：20/20 均 pending，缺 issue、fix SHA、可见/隐藏命令及 base 许可证证据；独立 validator 禁止被标 runnable。冻结不等于真实仓库可复现。

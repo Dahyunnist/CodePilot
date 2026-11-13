@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
-from evals.public_cases.audit_lite_candidates import build_candidates
+import pytest
+from evals.public_cases.audit_lite_candidates import build_candidates, validate_candidates
 
 def test_lite_candidate_audit_keeps_twenty_and_does_not_invent_issue_urls():
     source=json.loads(Path('evals/public_cases/cp2/frozen-selection.json').read_text(encoding='utf-8-sig'))
@@ -11,6 +12,21 @@ def test_lite_candidate_audit_keeps_twenty_and_does_not_invent_issue_urls():
     assert all(row['issue_url_status']=='unverified_missing' for row in rows)
     assert all(row['status']=='candidate_metadata_only' for row in rows)
     assert all(row['benchmark']=='SWE-bench Lite; not Verified; not blind' for row in rows)
+    assert validate_candidates(rows,source['tasks'])
+
+def test_all_candidates_fail_closed_if_marked_runnable_without_evidence():
+    source=json.loads(Path('evals/public_cases/cp2/frozen-selection.json').read_text(encoding='utf-8-sig'))
+    rows=build_candidates(source)
+    rows[0]['status']='runnable'
+    with pytest.raises(ValueError,match='metadata-only'):
+        validate_candidates(rows,source['tasks'])
+
+def test_candidate_license_must_match_source_and_independent_allowlist():
+    source=json.loads(Path('evals/public_cases/cp2/frozen-selection.json').read_text(encoding='utf-8-sig'))
+    rows=build_candidates(source)
+    rows[0]['license']='MIT'
+    with pytest.raises(ValueError,match='license mismatch'):
+        validate_candidates(rows,source['tasks'])
 
 def test_first_django_candidate_remains_pending_without_reproduction_evidence():
     source=json.loads(Path('evals/public_cases/cp2/frozen-selection.json').read_text(encoding='utf-8-sig'))

@@ -11,3 +11,17 @@
 选取 `django__django-10924`。候选与 frozen-selection 的 repo、BSD-3-Clause 声明、base commit、gold patch SHA 对齐；candidate `test_patch_sha256` 与 selection `hidden_test_patch_sha256` 对齐；PR 来源可追溯到 `https://github.com/django/django/pull/10924`。Issue URL 明确缺失并标 `unverified_missing`。清单没有 fix commit SHA、可见/隐藏测试命令或在 base commit 对应许可证文件的复核证据；`gold_patch_sha256` 只是补丁摘要，不是 fix commit。隐藏侧只有 patch SHA、路径列表和测试计数元数据；本次未读取 patch 内容。
 
 结论：候选元数据可审计，但此题仍不能标为可复现/可运行。20 题冻结集均不能仅凭 metadata 宣称通过真实仓库验收；待补 base 时点许可、可追溯 fix commit、明确测试命令及可隔离的 visible/hidden baseline。回归命令：`python -m pytest tests/test_lite_candidate_audit.py -q`。本次未下载、解包或执行任何上游代码。
+
+## 全部候选 fail-closed 复核（2026-11-13）
+
+逐条读取 candidates 与 frozen-selection 的元数据，未读取 patch 内容。20/20 均为 `candidate_metadata_only`，均有 PR URL、40 位 base commit、许可声明、64 位 gold/test patch SHA；这些字段与 selection 对齐。20/20 的 issue URL 缺失（`unverified_missing`）；也全部缺少 fix commit SHA、visible/hidden test command、base revision 许可证文件证据。因此本冻结清单中**可用于 metadata 审计的题：20；可据此标为可运行基准的题：0**。
+
+| 仓库 | 候选 ID | 声明许可 | 逐题共同缺口 |
+|---|---|---|---|
+| django/django | django__django-10924, django__django-11001, django__django-11099, django__django-11133 | BSD-3-Clause | issue URL、fix SHA、测试命令、base 许可证证据 |
+| pytest-dev/pytest | pytest-dev__pytest-5103, pytest-dev__pytest-5221, pytest-dev__pytest-5413, pytest-dev__pytest-5495 | MIT | 同上 |
+| pydata/xarray | pydata__xarray-3364, pydata__xarray-4094, pydata__xarray-4248, pydata__xarray-4493 | Apache-2.0 | 同上 |
+| mwaskom/seaborn | mwaskom__seaborn-2848, mwaskom__seaborn-3010, mwaskom__seaborn-3190, mwaskom__seaborn-3407 | BSD-3-Clause | 同上 |
+| scikit-learn/scikit-learn | scikit-learn__scikit-learn-10508, scikit-learn__scikit-learn-10949, scikit-learn__scikit-learn-11040, scikit-learn__scikit-learn-12471 | BSD-3-Clause | 同上 |
+
+`validate_candidates` 独立核对 selection 字段和 repo→license allowlist，并拒绝任何将候选改标为 runnable 的输入。验证命令：`python -m pytest tests/test_lite_candidate_audit.py -q`。不下载、不解包、不执行上游代码、不调用模型。
