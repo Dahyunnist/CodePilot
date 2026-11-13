@@ -16,6 +16,7 @@ import copy
 import statistics
 from codepilot.agent import _context_chars, _fit_context
 from codepilot.schemas import ChatMessage, ToolCall
+from codepilot.context_selector import ContextSelector
 
 
 def test_three_task_same_sha_pair_reduces_redundancy_and_keeps_cross_file_evidence():
@@ -54,4 +55,17 @@ def test_same_task_paired_clipping_keeps_cross_file_and_unfinished_test():
     assert all(row["cross_file_retained"] for row in report["runs"])
     assert all(row["unfinished_test_retained"] for row in report["runs"])
     assert all(row["within_budget"] for row in report["runs"])
+
+
+def test_duplicate_sha_compaction_keeps_latest_full_evidence_and_replaces_older():
+    content = "caller in service.py:42\n" + ("evidence " * 40)
+    messages = [
+        ChatMessage(role="tool", tool_call_id="old", content=content),
+        ChatMessage(role="tool", tool_call_id="new", content=content),
+    ]
+    replaced = ContextSelector.deduplicate_history(messages)
+    assert replaced == 1
+    assert "重复工具证据已去重" in messages[0].content
+    assert "caller in service.py:42" in messages[1].content
+    assert content not in messages[0].content
 
