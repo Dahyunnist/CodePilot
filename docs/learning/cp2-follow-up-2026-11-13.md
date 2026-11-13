@@ -4,8 +4,8 @@
 
 - `django__django-10924`：污染，永久排除本轮评测。此前本地产生过候选补丁和测试文件，也运行过对应基线/修复测试。它们不构成有效基准证据；不得提交、复用或宣称成功。
 - `django__django-11133`：排除。此前读取过该题 gold patch 正文。
-- `mwaskom__seaborn-3010`：唯一继续核验的候选，仍为 `candidate_metadata_only`。本地已知 CP-2 缓存目录的文件名扫描没有发现该题补丁或工作区；扫描范围有限，不能证明整台机器不存在其他副本。
-- 冻结基线上的许可证与公开 issue 复现已核验；本轮完成独立补丁和可见测试。未运行模型或隐藏测试，没有模型成功率、成本或耗时结果。
+- `mwaskom__seaborn-3010`、`pytest-dev__pytest-5495`：本地已知 CP-2 缓存目录未发现对应题目补丁/工作区；扫描范围有限，不能证明整台机器不存在其他副本。两题均未运行模型或官方隐藏测试。
+- 两题已在冻结基线上完成 issue 复现、许可证哈希和独立可见修复实验；两题仍为 `candidate_metadata_only`，未构成完整 SWE-bench 验收。没有模型成功率、成本或耗时结果。
 
 ## 来源核验
 
@@ -39,3 +39,24 @@
 下一步先处理绘图环境的 Pandas 兼容问题，或将验收限定为 Stat 输出并明确范围；再确认可见完整回归命令。隐藏测试继续隔离，不读取 gold patch。
 
 所有运行命令、镜像 ID、基线/修复测试结果、文件哈希和限制必须记录后，才能把候选从 `candidate_metadata_only` 升级。未完成这些步骤前，不得报告候选成功或真实模型表现。
+
+## 第二候选：pytest #5495
+
+- 候选：`pytest-dev__pytest-5495`，仓库 `pytest-dev/pytest`，本地已知 CP-2 缓存未见该题工作区或补丁。
+- 官方问题：[pytest #5260](https://github.com/pytest-dev/pytest/issues/5260)；[关联 PR #5495](https://github.com/pytest-dev/pytest/pull/5495)。问题复现为 `assert b"" == b"42"`，旧输出把 byte 值显示为 ASCII 整数 `52`。PR 页面 Codecov base 前缀 `1aefb24` 与清单完整 SHA 前缀一致。
+- 冻结 base：`1aefb24b37c30fba8fd79a744829ca16e252f340`。官方镜像 `swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5495:latest`，镜像 ID `sha256:86b356cf05ac9a623ba8943849e25ce2d0bcebc506753b1361595e5ad488a9b3`。容器 `linux/amd64`，工作目录 `/testbed`。
+- base 时点许可：清单声明 MIT；根目录 `LICENSE` 的 SHA-256 为 `4be38574daf05665b6194e4fd84c5ef6ce7c3a2810308a5222d5cdffc2d04d18`。
+- 使用 `/opt/miniconda3/envs/testbed/bin/python`，pytest `4.6.1.dev144+g1aefb24b3.d20260815`。容器禁网、限资源、无宿主目录挂载；补丁只读挂载，checkout 和应用改动只在销毁即清理的容器层。
+- 未修复 base 运行 `pytest -vv -p no:cacheprovider /tmp/test_byte_strings_issue.py`，临时测试内容为 issue 原例。结果 `1 failed`，输出 `Right contains 2 more items, first extra item: 52`，与 issue 一致。
+
+### 独立修复与可见验证
+
+- 补丁：[candidate.patch](../../evals/public_cases/cp2/reproductions/pytest_5495/candidate.patch)，SHA-256：`255f432389ea57193a713b937f30c0184f732ed99436ed30479ee186919fdc08`。
+- 根因：`istext()` 只把 `str` 视为文本，bytes 落入序列比较，被逐字节显示成整数。独立最小修复让 `istext()` 接受 `str` 与 `bytes`；现有 `_diff_text()` 已实现 bytes 的可读差异。
+- 新测试：`testing/test_bytes_comparison_issue.py::test_bytes_equality_uses_readable_byte_diff`。
+- 邻近非隐藏测试命令：`python -m pytest -v -p no:cacheprovider testing/test_bytes_comparison_issue.py testing/test_assertrewrite.py`。`testing/test_assertion.py`（清单中的隐藏测试文件）未读、未运行。
+- 补丁版结果：`59 passed, 4 failed, 2 error`。未修补 base 对 `testing/test_assertrewrite.py` 的对照为 `58 passed, 4 failed, 2 error`；失败/错误项完全相同。现有失败来自该镜像当前环境/平台兼容问题，不是补丁新增。新增回归通过。
+- issue 临时测试补丁后仍按预期以断言失败结束，但输出改为 `- '`、`+ '42`；不再出现整数 `52`。新回归测试验证该格式。
+- 未查看或套用 PR diff、gold/hidden patch；没有模型调用。候选仍是 `candidate_metadata_only`，隐藏验收未做，不能称完整基准通过。
+
+CP-2 当前已有两个独立候选实验，目标 3–5 题仍未完成。下一个阶段需再核验一题，并继续保持污染的 `django_10924` 目录不动、不提交。
