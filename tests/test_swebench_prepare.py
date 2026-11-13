@@ -12,6 +12,11 @@ from evals.public_cases.prepare_swebench_lite import (
     _scikit_learn_extensions_archive,
     _validate_record,
 )
+from evals.live_runner import _apply_hidden_test_patch, _prepare_independent_workspace
+from codepilot.tools.repo import PathPolicyError, list_files, read_file
+from types import SimpleNamespace
+from pathlib import Path
+import sys
 
 
 def _tar_bytes(name: str, data: bytes) -> bytes:
@@ -153,3 +158,37 @@ def test_issue_visible_test_is_derived_from_public_behavior_not_hidden_patch():
     assert "testdir.runpytest(\"--fixtures\")" in source
     assert "cp2_visible_fixture" in source
     assert "test_patch" not in source
+
+
+def test_hidden_patch_stays_outside_agent_workspace_and_runs_in_verifier(tmp_path):
+    case_dir = tmp_path / "case"
+    baseline = case_dir / "repo"
+    agent_repo = tmp_path / "agent"
+    verifier = tmp_path / "verification"
+    case_dir.mkdir()
+    baseline.mkdir()
+    (baseline / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    for args in (["init", "-q"], ["config", "user.email", "test@example.invalid"], ["config", "user.name", "test"], ["add", "module.py"], ["commit", "-qm", "base"]):
+        subprocess.run(["git", *args], cwd=baseline, check=True, capture_output=True)
+    import shutil
+    shutil.copytree(baseline, agent_repo, ignore=shutil.ignore_patterns(".git"))
+    subprocess.run(["git", "init", "-q"], cwd=agent_repo, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=agent_repo, check=True)
+    subprocess.run(["git", "config", "user.name", "test"], cwd=agent_repo, check=True)
+    subprocess.run(["git", "add", "."], cwd=agent_repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "base"], cwd=agent_repo, check=True)
+    (agent_repo / "module.py").write_text("VALUE = 2\n", encoding="utf-8")
+    patch = "diff --git a/tests/test_hidden.py b/tests/test_hidden.py\nnew file mode 100644\nindex 0000000..1111111\n--- /dev/null\n+++ b/tests/test_hidden.py\n@@ -0,0 +1,2 @@\n+from module import VALUE\n+def test_hidden(): assert VALUE == 2\n"
+    (case_dir / "hidden.patch").write_text(patch, encoding="utf-8")
+    hidden_path = case_dir / "hidden.patch"
+    before = (agent_repo / "module.py").read_bytes()
+    assert "hidden.patch" not in list_files(agent_repo)
+    with pytest.raises(PathPolicyError):
+        read_file(agent_repo, str(hidden_path))
+    _prepare_independent_workspace(baseline, agent_repo, verifier)
+    case = SimpleNamespace(case_dir=case_dir, hidden_test_patch="hidden.patch")
+    _apply_hidden_test_patch(case, verifier)
+    result = subprocess.run([sys.executable, "-m", "pytest", "tests/test_hidden.py", "-q"], cwd=verifier, capture_output=True, text=True)
+    assert result.returncode == 0, "hidden verifier pytest failed"
+    assert (agent_repo / "module.py").read_bytes() == before
+    assert not (agent_repo / "tests/test_hidden.py").exists()
