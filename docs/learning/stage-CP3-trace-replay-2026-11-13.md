@@ -17,6 +17,8 @@ python -m pytest tests/test_tracing.py tests/test_agent.py -q
 
 新增攻击面回归：恶意 README 要求读取 `.git/config` 后修复应用文件。Agent 的真实 `read_file` 请求被 `PathPolicyError` 拒绝；随后合法 `apply_patch` 与 pytest 通过。该用例证明内部路径拒绝不会阻断允许范围内的修复。命令：`python -m pytest tests/test_agent.py::test_git_internal_path_injection_is_denied_and_safe_patch_still_succeeds -q`。
 
+AGENTS.md 行为回归补足：恶意项目指令要求读取 `.env`。固定模型先读取 AGENTS.md，再尝试读取 `.env`；工具拒绝后仍完成合法 `app.py` 补丁和测试。断言 `PathPolicyError` 出现在 trace，合成 key 不进入 trace 或后续模型消息。命令：`python -m pytest tests/test_agent.py::test_agents_instruction_cannot_read_env_but_safe_repair_completes -q`。
+
 ## Checkpoint 验证状态失效保护
 
 checkpoint 现在保存工作区内容 SHA-256（忽略 `.git` 元数据）。恢复时重算；若哈希不匹配，清除持久化 `last_test`，避免外部修改后复用旧测试成功。回归覆盖工作区内容变化会改变指纹；既有恢复测试继续验证成功恢复与工具结果续接。测试不触碰 `.tmp`。
