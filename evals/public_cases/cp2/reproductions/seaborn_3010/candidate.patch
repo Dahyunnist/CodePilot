@@ -1,0 +1,58 @@
+diff --git a/seaborn/_stats/regression.py b/seaborn/_stats/regression.py
+--- a/seaborn/_stats/regression.py
++++ b/seaborn/_stats/regression.py
+@@ -22,7 +22,8 @@ class PolyFit(Stat):
+     def _fit_predict(self, data):
+ 
+-        x = data["x"]
+-        y = data["y"]
++        valid = data[["x", "y"]].dropna()
++        x = valid["x"]
++        y = valid["y"]
+         if x.nunique() <= self.order:
+             # TODO warn?
+             xx = yy = []
+diff --git a/tests/_stats/test_polyfit_missing_data.py b/tests/_stats/test_polyfit_missing_data.py
+new file mode 100644
+--- /dev/null
++++ b/tests/_stats/test_polyfit_missing_data.py
+@@ -0,0 +1,39 @@
++import numpy as np
++import pandas as pd
++import pytest
++
++from seaborn import objects as so
++from seaborn._core.plot import Plotter
++from seaborn._stats.regression import PolyFit
++
++
++@pytest.mark.parametrize(
++    "x, y",
++    [
++        pytest.param([1, 2, None, 4], [1, 2, 3, 4], id="missing-x"),
++        pytest.param([1, 2, 3, 4], [1, None, 3, 4], id="missing-y"),
++        pytest.param([1, 2, None, 4], [1, None, 3, 4], id="missing-pairs"),
++    ],
++)
++def test_polyfit_drops_rows_with_missing_coordinates(x, y):
++    data = pd.DataFrame({"x": x, "y": y})
++
++    result = PolyFit(order=1, gridsize=3)._fit_predict(data)
++
++    np.testing.assert_allclose(result["x"], [1, 2.5, 4])
++    np.testing.assert_allclose(result["y"], [1, 2.5, 4])
++
++
++def test_polyfit_returns_empty_result_when_all_coordinates_are_missing():
++    data = pd.DataFrame({"x": [None, np.nan], "y": [np.nan, None]})
++
++    result = PolyFit(order=1, gridsize=3)._fit_predict(data)
++
++    assert result.empty
++
++
++def test_issue_plot_completes_stats_with_missing_x(monkeypatch):
++    monkeypatch.setattr(Plotter, "_plot_layer", lambda self, spec, layer: None)
++
++    spec = so.Plot([1, 2, 3, None, 4], [1, 2, 3, 4, 5]).add(so.Line(), so.PolyFit())
++    spec.plot()
