@@ -31,6 +31,30 @@ def test_trace_ids_and_tool_spans_link_model_to_execution(tmp_path):
     assert tool_finished["call_id"] == "call-1"
 
 
+def test_trace_replay_preserves_timeout_retry_rejection_and_redaction_order(tmp_path):
+    path = tmp_path / "trace-replay.jsonl"
+    trace = TraceLogger(path, "run-replay")
+    trace.event("model_finished", 1, span_id="model-1")
+    timeout = ToolCall(id="timeout-1", name="run_tests", arguments={"command": "pytest"})
+    trace.tool_started(1, timeout)
+    trace.tool_finished(1, ToolResult(tool_name="run_tests", ok=False, error_type="timeout"), timeout.id)
+    trace.event("model_finished", 2, span_id="model-2", parent_span_id="")
+    rejected = ToolCall(id="denied-1", name="apply_patch", arguments={"path": "../secret.py"})
+    trace.tool_started(2, rejected)
+    trace.tool_finished(2, ToolResult(tool_name="apply_patch", ok=False, error_type="PathPolicyError", stderr="token=private"), rejected.id)
+    events = read_events(path)
+    names = [(item["event"], item.get("call_id")) for item in events]
+    assert names == [
+        ("model_finished", None), ("tool_started", "timeout-1"),
+        ("tool_finished", "timeout-1"), ("model_finished", None),
+        ("tool_started", "denied-1"), ("tool_finished", "denied-1"),
+    ]
+    assert events[2]["error_type"] == "timeout"
+    assert events[5]["error_type"] == "PathPolicyError"
+    serialized = path.read_text(encoding="utf-8")
+    assert "private" not in serialized
+
+
 def test_trace_redacts_secret_fields_before_jsonl_write(tmp_path):
     trace_path = tmp_path / "trace.jsonl"
     trace = TraceLogger(trace_path, "run-safe")
