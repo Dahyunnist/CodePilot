@@ -238,9 +238,13 @@ def _walk_reports(root: Path):
 
 
 def build_budget_ledger(reports_root: Path) -> dict[str, Any]:
-    unique: dict[str, tuple[Decimal, str]] = {}
+    unique: dict[tuple[str, str], Decimal] = {}
     file_fingerprints: list[tuple[str, str]] = []
     csv_count = 0
+    quarantined_missing_id = 0
+    quarantined_missing_id_cost = Decimal("0")
+    duplicate_rows = 0
+    conflicting_run_costs = 0
     for path in sorted(_walk_reports(reports_root)):
         relative = path.relative_to(reports_root).as_posix()
         file_fingerprints.append((relative, _file_hash(path)))
@@ -253,39 +257,61 @@ def build_budget_ledger(reports_root: Path) -> dict[str, Any]:
                     continue
                 if cost <= 0:
                     continue
-                run_id = (row.get("run_id") or "").strip() or f"{relative}:{row.get('case_id', '')}"
-                prior = unique.get(run_id)
-                if prior is None or cost > prior[0]:
-                    unique[run_id] = (cost, relative)
+                run_id = (row.get("run_id") or "").strip()
+                request_id = (row.get("request_id") or "").strip()
+                identity = ("run", run_id) if run_id else ("request", request_id)
+                if not identity[1]:
+                    quarantined_missing_id += 1
+                    quarantined_missing_id_cost += cost
+                    continue
+                prior = unique.get(identity)
+                if prior is not None:
+                    duplicate_rows += 1
+                    if prior != cost:
+                        conflicting_run_costs += 1
+                unique[identity] = max(prior or Decimal("0"), cost)
 
     partial_path = reports_root / "cp4-live-pilot-20261024" / "partial-django-none.json"
-    partial_cost = Decimal("0")
+    partial_cost = None
     partial_hash = None
     if partial_path.is_file():
         partial = json.loads(partial_path.read_text(encoding="utf-8"))
         partial_cost = Decimal(str(partial.get("cost_usd_estimate", "0")))
         partial_hash = _file_hash(partial_path)
 
-    csv_usage = sum((item[0] for item in unique.values()), Decimal("0"))
-    cumulative = csv_usage + partial_cost
-    remaining = AUTHORIZED_CAP_USD - cumulative
+    csv_usage = sum(unique.values(), Decimal("0"))
+    unique_runs = sum(scope == "run" for scope, _ in unique)
+    unique_requests = sum(scope == "request" for scope, _ in unique)
+    # Partial and unidentified rows may overlap other records. Quarantine them;
+    # do not convert a document estimate into spendable account balance.
     return {
-        "ledger_version": 1,
+        "ledger_version": 2,
         "authorized_project_cap_usd": str(AUTHORIZED_CAP_USD),
-        "usage_source": "local evaluation result CSVs; estimate, not provider billing export",
+        "usage_source": "local evaluation result CSVs; estimates, not provider billing export",
+        "usage_evidence_status": "missing_raw_csv" if csv_count == 0 else "local_estimate_unreconciled",
         "result_csv_count": csv_count,
-        "unique_positive_cost_runs": len(unique),
+        "unique_positive_cost_runs": unique_runs,
+        "unique_positive_cost_requests": unique_requests,
+        "duplicate_identity_rows": duplicate_rows,
+        "conflicting_duplicate_identity_rows": conflicting_run_costs,
         "result_csv_estimated_cost_usd": str(csv_usage.quantize(Decimal("0.000001"))),
-        "additional_partial_cost_usd": str(partial_cost.quantize(Decimal("0.000001"))),
+        "quarantined_missing_run_id_rows": quarantined_missing_id,
+        "quarantined_missing_run_id_cost_usd": str(quarantined_missing_id_cost.quantize(Decimal("0.000001"))),
+        "partial_record_status": "unknown_overlap_quarantined" if partial_cost is not None else "absent",
+        "partial_record_cost_usd": str(partial_cost.quantize(Decimal("0.000001"))) if partial_cost is not None else None,
         "additional_partial_record_sha256": partial_hash,
-        "known_cumulative_estimated_cost_usd": str(cumulative.quantize(Decimal("0.000001"))),
-        "estimated_remaining_usd": str(remaining.quantize(Decimal("0.000001"))),
+        "known_cumulative_estimated_cost_usd": str(csv_usage.quantize(Decimal("0.000001"))),
+        "estimated_remaining_usd": None,
+        "spendable_remaining_usd": None,
         "usage_files_sha256": _canonical_hash(file_fingerprints),
-        "provider_balance_available": True,
+        "provider_balance_status": "unknown",
         "provider_balance_amounts_persisted": False,
         "account_usage_reconciled": False,
         "model_calls_allowed": False,
-        "blocker": "remaining authorized budget is below the 15-task paired worst-case reserve; provider balance endpoint exposes availability/current balance, not cumulative usage",
+        "unknown_exposure": bool(
+            csv_count == 0 or quarantined_missing_id or partial_cost is not None
+        ),
+        "blocker": "raw report provenance and provider usage/balance are not reconciled; unidentified and partial records are quarantined",
     }
 
 
@@ -640,7 +666,14 @@ def plan(
     )
     if ledger.get("account_usage_reconciled") is not True:
         blockers.append("usage ledger is not provider-reconciled")
-    remaining = Decimal(str(ledger.get("estimated_remaining_usd", "0")))
+    spendable = ledger.get("spendable_remaining_usd")
+    if "spendable_remaining_usd" not in ledger and ledger.get("account_usage_reconciled") is True:
+        spendable = ledger.get("estimated_remaining_usd")
+    if spendable is None:
+        blockers.append("spendable budget is unknown; provider usage and balance are not reconciled")
+        remaining = Decimal("0")
+    else:
+        remaining = Decimal(str(spendable))
     task_count = int(manifest.get("task_count", 0))
     limits = manifest["limits"]
     one_run = _worst_case_usd(
@@ -770,14 +803,14 @@ def main() -> int:
         ledger = build_budget_ledger(args.reports)
         args.ledger.parent.mkdir(parents=True, exist_ok=True)
         args.ledger.write_text(json.dumps(ledger, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(f"已记账：usage=${ledger['known_cumulative_estimated_cost_usd']}；remaining=${ledger['estimated_remaining_usd']}")
+        print(f"已记账：usage estimate=${ledger['known_cumulative_estimated_cost_usd']}；可用预算={ledger['spendable_remaining_usd']}")
         return 0
 
     manifest = _load_json(args.manifest)
     ledger = _load_json(args.ledger)
     if args.action == "plan":
         blockers, reserve = plan(manifest, ledger, args.cases)
-        print(f"CP-2：{manifest['task_count']} 题，5 仓；双配置最坏费用预留=${reserve:.6f}；余额=${ledger['estimated_remaining_usd']}")
+        print(f"CP-2：{manifest['task_count']} 题，5 仓；双配置最坏费用预留=${reserve:.6f}；可用预算={ledger.get('spendable_remaining_usd', 'unknown')}")
         for blocker in blockers:
             print(f"阻断：{blocker}")
         return 2 if blockers else 0

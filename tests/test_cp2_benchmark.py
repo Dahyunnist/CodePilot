@@ -11,9 +11,92 @@ from evals.cp2_benchmark import (
     _canonical_hash,
     _case_materialization_blockers,
     _validate_runnable_contract,
+    build_budget_ledger,
     freeze_manifest,
     plan,
 )
+
+
+def test_budget_ledger_deduplicates_same_run_across_csvs(tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    header = "run_id,case_id,cost_usd_estimate\n"
+    (reports / "run-a").mkdir()
+    (reports / "run-b").mkdir()
+    (reports / "run-a" / "results.csv").write_text(header + "run-1,case-a,0.004\n", encoding="utf-8")
+    (reports / "run-b" / "results.csv").write_text(header + "run-1,case-a,0.004\n", encoding="utf-8")
+
+    ledger = build_budget_ledger(reports)
+
+    assert ledger["unique_positive_cost_runs"] == 1
+    assert ledger["duplicate_identity_rows"] == 1
+    assert ledger["known_cumulative_estimated_cost_usd"] == "0.004000"
+
+
+def test_budget_ledger_quarantines_rows_without_run_id(tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    (reports / "run").mkdir()
+    (reports / "run" / "results.csv").write_text(
+        "run_id,case_id,cost_usd_estimate\n,case-a,0.004\n",
+        encoding="utf-8",
+    )
+
+    ledger = build_budget_ledger(reports)
+
+    assert ledger["unique_positive_cost_runs"] == 0
+    assert ledger["quarantined_missing_run_id_rows"] == 1
+    assert ledger["quarantined_missing_run_id_cost_usd"] == "0.004000"
+    assert ledger["spendable_remaining_usd"] is None
+
+
+def test_budget_ledger_deduplicates_request_ids_when_run_id_is_absent(tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    header = "run_id,request_id,case_id,cost_usd_estimate\n"
+    for folder in ("run-a", "run-b"):
+        (reports / folder).mkdir()
+        (reports / folder / "results.csv").write_text(
+            header + ",request-1,case-a,0.002\n", encoding="utf-8"
+        )
+
+    ledger = build_budget_ledger(reports)
+
+    assert ledger["unique_positive_cost_runs"] == 0
+    assert ledger["unique_positive_cost_requests"] == 1
+    assert ledger["duplicate_identity_rows"] == 1
+    assert ledger["known_cumulative_estimated_cost_usd"] == "0.002000"
+
+
+def test_budget_ledger_quarantines_partial_even_if_run_is_in_csv(tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    partial_dir = reports / "cp4-live-pilot-20261024"
+    partial_dir.mkdir(parents=True)
+    (reports / "run").mkdir()
+    (reports / "run" / "results.csv").write_text(
+        "run_id,case_id,cost_usd_estimate\nrun-1,case-a,0.004\n",
+        encoding="utf-8",
+    )
+    (partial_dir / "partial-django-none.json").write_text(
+        json.dumps({"run_id": "run-1", "cost_usd_estimate": "0.004"}),
+        encoding="utf-8",
+    )
+
+    ledger = build_budget_ledger(reports)
+
+    assert ledger["known_cumulative_estimated_cost_usd"] == "0.004000"
+    assert ledger["partial_record_status"] == "unknown_overlap_quarantined"
+    assert ledger["partial_record_cost_usd"] == "0.004000"
+    assert ledger["spendable_remaining_usd"] is None
+
+
+def test_budget_ledger_without_raw_csv_or_balance_stays_unknown(tmp_path: Path) -> None:
+    ledger = build_budget_ledger(tmp_path / "missing-reports")
+
+    assert ledger["result_csv_count"] == 0
+    assert ledger["provider_balance_status"] == "unknown"
+    assert ledger["estimated_remaining_usd"] is None
+    assert ledger["spendable_remaining_usd"] is None
 
 
 def _materialized_case(tmp_path: Path) -> tuple[Path, dict[str, object]]:
@@ -149,6 +232,7 @@ def test_cp2_plan_blocks_unverified_budget_and_missing_runtime(tmp_path: Path):
 
     assert reserve > 0
     assert any("not provider-reconciled" in item for item in blockers)
+    assert any("spendable budget is unknown" in item for item in blockers)
     assert any("worst-case reserve" in item for item in blockers)
     assert any("runtime image digest missing" in item for item in blockers)
     assert any("visible test baseline is not verified" in item for item in blockers)
