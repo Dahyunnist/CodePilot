@@ -7,9 +7,11 @@ import csv
 import hashlib
 import json
 import os
+import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from codepilot.security import redact_sensitive_text
 
@@ -17,6 +19,9 @@ from codepilot.security import redact_sensitive_text
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SELECTION = ROOT / "evals/public_cases/cp2/frozen-selection.json"
 DEFAULT_MANIFEST = ROOT / "evals/public_cases/cp2/benchmark-v1.json"
+DEFAULT_SOURCE_PROVENANCE = ROOT / "evals/public_cases/cp2/source-provenance-v1.json"
+RUNNABLE_TASK_SCHEMA = ROOT / "evals/public_cases/cp2/runnable-task.schema.json"
+SOURCE_PROVENANCE_SCHEMA = ROOT / "evals/public_cases/cp2/source-provenance.schema.json"
 DEFAULT_LEDGER = ROOT / "evals/public_cases/cp2/budget-ledger-v1.json"
 REPORTS_ROOT = ROOT / "reports"
 AUTHORIZED_CAP_USD = Decimal("0.50")
@@ -221,13 +226,7 @@ def freeze_manifest(selection_path: Path) -> dict[str, Any]:
     if len(tasks) != 15 or len({task["repo"] for task in tasks}) != 5:
         raise ValueError("CP-2 freeze must contain 15 tasks across 5 repositories")
 
-    scorer_files = [ROOT / "evals/live_runner.py", ROOT / "evals/compare_live_runs.py"]
-    artifacts = {
-        "agent_python_tree_sha256": _tree_hash(ROOT / "codepilot"),
-        "live_runner_sha256": _file_hash(scorer_files[0]),
-        "pair_scorer_sha256": _file_hash(scorer_files[1]),
-        "paired_driver_sha256": _file_hash(ROOT / "evals/cp2_benchmark.py"),
-    }
+    artifacts = _current_artifact_hashes()
     scorer_hash = _canonical_hash({"files": artifacts, "policy": "agent_success_and_agent_tests_and_independent_public_visible_tests; no private oracle"})
     runtime_descriptor = {task["task_id"]: {"ref": task["docker_image_ref"], "config_digest": task["docker_image_config_digest"]} for task in tasks}
     runtime_hash = _canonical_hash({"platform": "linux/amd64", "images": runtime_descriptor})
@@ -276,6 +275,197 @@ def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _is_sha256(value: Any, *, prefixed: bool = False) -> bool:
+    pattern = r"sha256:[a-f0-9]{64}" if prefixed else r"[a-f0-9]{64}"
+    return isinstance(value, str) and re.fullmatch(pattern, value) is not None
+
+
+def _current_artifact_hashes() -> dict[str, str]:
+    return {
+        "agent_python_tree_sha256": _tree_hash(ROOT / "codepilot"),
+        "live_runner_sha256": _file_hash(ROOT / "evals/live_runner.py"),
+        "pair_scorer_sha256": _file_hash(ROOT / "evals/compare_live_runs.py"),
+        "paired_driver_sha256": _file_hash(ROOT / "evals/cp2_benchmark.py"),
+        "source_provenance_sha256": _file_hash(DEFAULT_SOURCE_PROVENANCE),
+        "runnable_task_schema_sha256": _file_hash(RUNNABLE_TASK_SCHEMA),
+        "source_provenance_schema_sha256": _file_hash(SOURCE_PROVENANCE_SCHEMA),
+    }
+
+
+def _validate_runnable_contract(
+    manifest: dict[str, Any],
+    *,
+    source_provenance_path: Path = DEFAULT_SOURCE_PROVENANCE,
+) -> list[str]:
+    """Validate source, license, image, test, and executable artifact pins.
+
+    The checked-in JSON schemas describe the same fail-closed contract. This
+    validator uses only stdlib checks so planning does not add a dependency.
+    """
+    blockers: list[str] = []
+    try:
+        task_schema = _load_json(RUNNABLE_TASK_SCHEMA)
+        provenance_schema = _load_json(SOURCE_PROVENANCE_SCHEMA)
+    except (OSError, json.JSONDecodeError):
+        return ["runnable contract schema missing or invalid"]
+    required_fields = task_schema.get("required", [])
+    source_required = provenance_schema["$defs"]["task"].get("required", [])
+    issue_required = provenance_schema["$defs"]["issue"].get("required", [])
+
+    try:
+        provenance = _load_json(source_provenance_path)
+    except (OSError, json.JSONDecodeError):
+        provenance = {}
+        blockers.append("source provenance manifest missing or invalid")
+    provenance_rows = provenance.get("tasks", [])
+    provenance_by_id = {
+        item.get("task_id"): item for item in provenance_rows
+        if isinstance(item, dict)
+    } if isinstance(provenance_rows, list) else {}
+    manifest_tasks = manifest.get("tasks", [])
+    if not isinstance(manifest_tasks, list):
+        blockers.append("manifest tasks must be an array")
+        manifest_tasks = []
+    manifest_task_ids = {
+        item.get("task_id") for item in manifest_tasks if isinstance(item, dict)
+    }
+    if len(provenance_by_id) != len(provenance_rows) or set(provenance_by_id) != manifest_task_ids:
+        blockers.append("source provenance task set differs from benchmark task set")
+    if provenance.get("schema_version") != provenance_schema["properties"]["schema_version"]["const"]:
+        blockers.append("source provenance schema version invalid")
+
+    record_hashes: list[str] = []
+    gold_hashes: dict[str, str] = {}
+    for item in manifest_tasks:
+        if not isinstance(item, dict):
+            blockers.append("manifest task entry must be an object")
+            continue
+        record = dict(item)
+        expected_record_hash = record.pop("task_record_sha256", None)
+        actual_record_hash = _canonical_hash(record)
+        if not _is_sha256(expected_record_hash) or expected_record_hash != actual_record_hash:
+            blockers.append(f"{item.get('task_id', '<missing-task-id>')}: task record hash missing or mismatched")
+        else:
+            record_hashes.append(expected_record_hash)
+        task_id = item.get("task_id")
+        patch_hash = item.get("gold_patch_sha256")
+        if isinstance(task_id, str) and isinstance(patch_hash, str):
+            gold_hashes[task_id] = patch_hash
+    if _canonical_hash(record_hashes) != manifest.get("task_record_sha256"):
+        blockers.append("task record aggregate hash mismatch")
+    if _canonical_hash(gold_hashes) != manifest.get("gold_sha256"):
+        blockers.append("gold patch hash aggregate mismatch")
+    if (
+        manifest.get("dataset", {}).get("selection_manifest_sha256")
+        != _file_hash(DEFAULT_SELECTION)
+    ):
+        blockers.append("frozen selection manifest hash mismatch")
+
+    runtime_descriptor = {
+        item["task_id"]: {
+            "ref": item.get("docker_image_ref"),
+            "config_digest": item.get("docker_image_config_digest"),
+        }
+        for item in manifest_tasks
+        if isinstance(item, dict) and isinstance(item.get("task_id"), str)
+    }
+    expected_runtime_hash = _canonical_hash(
+        {"platform": manifest.get("runtime_platform"), "images": runtime_descriptor}
+    )
+    if expected_runtime_hash != manifest.get("runtime_sha256"):
+        blockers.append("runtime manifest hash mismatch")
+
+    for task in manifest.get("tasks", []):
+        task_id = str(task.get("task_id", "<missing-task-id>"))
+        for field in required_fields:
+            if field not in task or task[field] is None or task[field] == "":
+                blockers.append(f"{task_id}: required runnable field missing: {field}")
+
+        source = provenance_by_id.get(task.get("task_id"))
+        if source is None:
+            blockers.append(f"{task_id}: first-party source provenance missing")
+        else:
+            for field in source_required:
+                if field not in source or source[field] is None or source[field] == "":
+                    blockers.append(f"{task_id}: source provenance field missing: {field}")
+            repo = task.get("repo")
+            if source.get("repo") != repo or source.get("pr_status") != "merged":
+                blockers.append(f"{task_id}: source repository or PR status mismatch")
+            source_url = source.get("source_pr_url")
+            parsed = urlparse(source_url) if isinstance(source_url, str) else None
+            valid_pr = bool(
+                parsed
+                and parsed.scheme == "https"
+                and parsed.netloc == "github.com"
+                and parsed.path.startswith(f"/{repo}/pull/")
+                and re.fullmatch(rf"/{re.escape(str(repo))}/pull/[0-9]+", parsed.path)
+            )
+            if not valid_pr or source_url != task.get("public_reference"):
+                blockers.append(f"{task_id}: source PR link missing, invalid, or inconsistent")
+            linked_issues = source.get("linked_issues")
+            if not isinstance(linked_issues, list) or not linked_issues:
+                blockers.append(f"{task_id}: linked issue provenance missing")
+            else:
+                for issue in linked_issues:
+                    if not isinstance(issue, dict) or any(
+                        field not in issue or issue[field] in (None, "")
+                        for field in issue_required
+                    ):
+                        blockers.append(f"{task_id}: linked issue provenance incomplete")
+                        break
+                    issue_url = issue.get("url") if isinstance(issue, dict) else None
+                    issue_parsed = urlparse(issue_url) if isinstance(issue_url, str) else None
+                    issue_host = issue_parsed.netloc if issue_parsed else ""
+                    relationship = issue.get("relationship") if isinstance(issue, dict) else None
+                    if (
+                        issue_parsed is None
+                        or issue_parsed.scheme != "https"
+                        or issue_host not in {"github.com", "code.djangoproject.com"}
+                        or relationship not in {"fixes", "closes", "supersedes", "possible_closes"}
+                    ):
+                        blockers.append(f"{task_id}: linked issue URL is not first-party")
+                        break
+
+        if not re.fullmatch(r"[a-f0-9]{40}", str(task.get("base_commit", ""))):
+            blockers.append(f"{task_id}: base commit hash missing or invalid")
+        if task.get("base_commit_verified_in_image") is not True:
+            blockers.append(f"{task_id}: base commit not verified in pinned image")
+        if (
+            not isinstance(task.get("license"), str)
+            or task.get("license") not in {"MIT", "BSD-3-Clause", "Apache-2.0"}
+            or not task.get("license_file_at_base")
+            or not _is_sha256(task.get("license_file_sha256"))
+            or task.get("license_evidence") != "verified_at_exact_base"
+        ):
+            blockers.append(f"{task_id}: license metadata or exact-base evidence missing")
+        if not task.get("docker_image_ref") or not _is_sha256(
+            task.get("docker_image_config_digest"), prefixed=True
+        ):
+            blockers.append(f"{task_id}: runtime image reference or config digest missing/invalid")
+        spec_hash = hashlib.sha256(
+            str(task.get("visible_test_spec", "")).encode("utf-8")
+        ).hexdigest()
+        if not _is_sha256(task.get("visible_test_spec_sha256")) or task.get("visible_test_spec_sha256") != spec_hash:
+            blockers.append(f"{task_id}: visible test specification hash missing or mismatched")
+        if task.get("visible_test_status") != "ready_and_baseline_verified":
+            blockers.append(f"{task_id}: visible test baseline is not verified")
+        if not _is_sha256(task.get("visible_test_sha256")):
+            blockers.append(f"{task_id}: materialized visible test hash missing or invalid")
+
+    artifacts = manifest.get("artifacts", {})
+    if not isinstance(artifacts, dict):
+        blockers.append("frozen artifacts must be an object")
+        artifacts = {}
+    for name, actual in _current_artifact_hashes().items():
+        frozen = artifacts.get(name)
+        if not _is_sha256(frozen):
+            blockers.append(f"frozen artifact hash missing or invalid: {name}")
+        elif frozen != actual:
+            blockers.append(f"frozen artifact hash differs from current source: {name}")
+
+    return blockers
+
+
 def _worst_case_usd(input_tokens: int, output_tokens: int, steps: int) -> Decimal:
     return Decimal(steps) * (
         Decimal(input_tokens) * Decimal("0.30")
@@ -283,8 +473,19 @@ def _worst_case_usd(input_tokens: int, output_tokens: int, steps: int) -> Decima
     ) / Decimal(1_000_000)
 
 
-def plan(manifest: dict[str, Any], ledger: dict[str, Any], cases_root: Path) -> tuple[list[str], Decimal]:
+def plan(
+    manifest: dict[str, Any],
+    ledger: dict[str, Any],
+    cases_root: Path,
+    *,
+    source_provenance_path: Path = DEFAULT_SOURCE_PROVENANCE,
+) -> tuple[list[str], Decimal]:
     blockers = []
+    blockers.extend(
+        _validate_runnable_contract(
+            manifest, source_provenance_path=source_provenance_path
+        )
+    )
     if ledger.get("account_usage_reconciled") is not True:
         blockers.append("usage ledger is not provider-reconciled")
     remaining = Decimal(str(ledger.get("estimated_remaining_usd", "0")))

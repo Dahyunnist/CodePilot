@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "evidence_policy": "issue relationships transcribed only from the linked first-party pull request pages; a possible reference remains explicitly possible",
+  "tasks": [
+    {"task_id":"django__django-10924","repo":"django/django","source_pr_url":"https://github.com/django/django/pull/10924","pr_status":"merged","linked_issues":[{"url":"https://code.djangoproject.com/ticket/29529","relationship":"fixes"}]},
+    {"task_id":"django__django-11001","repo":"django/django","source_pr_url":"https://github.com/django/django/pull/11001","pr_status":"merged","linked_issues":[{"url":"https://code.djangoproject.com/ticket/29692","relationship":"fixes"}]},
+    {"task_id":"django__django-11099","repo":"django/django","source_pr_url":"https://github.com/django/django/pull/11099","pr_status":"merged","linked_issues":[{"url":"https://code.djangoproject.com/ticket/30257","relationship":"fixes"}]},
+    {"task_id":"django__django-11133","repo":"django/django","source_pr_url":"https://github.com/django/django/pull/11133","pr_status":"merged","linked_issues":[{"url":"https://code.djangoproject.com/ticket/30294","relationship":"fixes"}]},
+    {"task_id":"pytest-dev__pytest-5103","repo":"pytest-dev/pytest","source_pr_url":"https://github.com/pytest-dev/pytest/pull/5103","pr_status":"merged","linked_issues":[{"url":"https://github.com/pytest-dev/pytest/issues/5062","relationship":"closes"}]},
+    {"task_id":"pytest-dev__pytest-5221","repo":"pytest-dev/pytest","source_pr_url":"https://github.com/pytest-dev/pytest/pull/5221","pr_status":"merged","linked_issues":[{"url":"https://github.com/pytest-dev/pytest/issues/5220","relationship":"fixes"}]},
+    {"task_id":"pytest-dev__pytest-5413","repo":"pytest-dev/pytest","source_pr_url":"https://github.com/pytest-dev/pytest/pull/5413","pr_status":"merged","linked_issues":[{"url":"https://github.com/pytest-dev/pytest/issues/5412","relationship":"fixes"}]},
+    {"task_id":"pytest-dev__pytest-5495","repo":"pytest-dev/pytest","source_pr_url":"https://github.com/pytest-dev/pytest/pull/5495","pr_status":"merged","linked_issues":[{"url":"https://github.com/pytest-dev/pytest/issues/5260","relationship":"fixes"},{"url":"https://github.com/pytest-dev/pytest/issues/5267","relationship":"supersedes"}]},
+    {"task_id":"pydata__xarray-3364","repo":"pydata/xarray","source_pr_url":"https://github.com/pydata/xarray/pull/3364","pr_status":"merged","linked_issues":[{"url":"https://github.com/pydata/xarray/issues/508","relationship":"closes"}]},
+    {"task_id":"pydata__xarray-4094","repo":"pydata/xarray","source_pr_url":"https://github.com/pydata/xarray/pull/4094","pr_status":"merged","linked_issues":[{"url":"https://github.com/pydata/xarray/issues/4049","relationship":"closes"}]},
+    {"task_id":"pydata__xarray-4248","repo":"pydata/xarray","source_pr_url":"https://github.com/pydata/xarray/pull/4248","pr_status":"merged","linked_issues":[{"url":"https://github.com/pydata/xarray/issues/2773","relationship":"possible_closes"}]},
+    {"task_id":"pydata__xarray-4493","repo":"pydata/xarray","source_pr_url":"https://github.com/pydata/xarray/pull/4493","pr_status":"merged","linked_issues":[{"url":"https://github.com/pydata/xarray/issues/4483","relationship":"closes"},{"url":"https://github.com/pydata/xarray/issues/4529","relationship":"closes"}]},
+    {"task_id":"mwaskom__seaborn-2848","repo":"mwaskom/seaborn","source_pr_url":"https://github.com/mwaskom/seaborn/pull/2848","pr_status":"merged","linked_issues":[{"url":"https://github.com/mwaskom/seaborn/issues/2419","relationship":"fixes"},{"url":"https://github.com/mwaskom/seaborn/issues/2590","relationship":"fixes"}]},
+    {"task_id":"mwaskom__seaborn-3010","repo":"mwaskom/seaborn","source_pr_url":"https://github.com/mwaskom/seaborn/pull/3010","pr_status":"merged","linked_issues":[{"url":"https://github.com/mwaskom/seaborn/issues/2992","relationship":"fixes"}]},
+    {"task_id":"scikit-learn__scikit-learn-10508","repo":"scikit-learn/scikit-learn","source_pr_url":"https://github.com/scikit-learn/scikit-learn/pull/10508","pr_status":"merged","linked_issues":[{"url":"https://github.com/scikit-learn/scikit-learn/issues/10458","relationship":"fixes"}]}
+  ]
+}
