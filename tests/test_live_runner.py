@@ -364,7 +364,6 @@ def test_paired_comparison_requires_same_cases_and_reports_exact_test(tmp_path):
         "agent_git_sha": "a" * 40,
         "agent_worktree_diff_sha256": "b" * 64,
         "execution": "docker",
-        "verification_mode": "full",
         "docker_image": "runner:test",
         "max_total_tokens": 20_000,
         "max_elapsed_seconds": 120,
@@ -384,9 +383,6 @@ def test_paired_comparison_requires_same_cases_and_reports_exact_test(tmp_path):
             json.dumps({
                 **shared_manifest,
                 "context_selector_enabled": enabled_selector,
-                "context_selector_version": (
-                    "layered-context-v1" if enabled_selector else "baseline"
-                ),
             }),
             encoding="utf-8",
         )
@@ -420,6 +416,8 @@ def test_paired_comparison_requires_same_cases_and_reports_exact_test(tmp_path):
     result = compare_runs(enabled / "results.csv", baseline / "results.csv")
 
     assert result["paired_cases"] == 1
+    assert result["context_selector_version_pinned"] is False
+    assert result["paired_configuration_complete"] is True
     assert result["selector_wins"] == 1
     assert result["baseline_wins"] == 0
     assert result["mcnemar_exact_p"] == 1.0

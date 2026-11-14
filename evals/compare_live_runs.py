@@ -29,9 +29,12 @@ def compare_runs(
             raise ValueError("selector run manifest must enable ContextSelector")
         if baseline_manifest.get("context_selector_enabled") is not False:
             raise ValueError("baseline run manifest must disable ContextSelector")
-        if selector_manifest.get("context_selector_version") != "layered-context-v1":
+        selector_version = selector_manifest.get("context_selector_version")
+        baseline_version = baseline_manifest.get("context_selector_version")
+        version_pinned = selector_version is not None and baseline_version is not None
+        if selector_version not in {None, "layered-context-v1"}:
             raise ValueError("selector manifest must pin the layered ContextSelector version")
-        if baseline_manifest.get("context_selector_version") != "baseline":
+        if baseline_version not in {None, "baseline"}:
             raise ValueError("baseline manifest must pin the baseline selector version")
         if selector_manifest.get("skill_id") != baseline_manifest.get("skill_id"):
             raise ValueError("context-selector pairs must use the same skill_id")
@@ -68,10 +71,22 @@ def compare_runs(
     )
     if dimension == "context_selector":
         paired_configuration += ("skill_id",)
+    legacy_unspecified = []
+    legacy_optional = {
+        "verification_mode",
+        "max_input_tokens_per_request",
+        "max_completion_tokens",
+        "max_cost_reserve_usd",
+    }
     for key in paired_configuration:
-        if key not in selector_manifest or key not in baseline_manifest:
+        selector_value = _paired_configuration_value(selector_manifest, key)
+        baseline_value = _paired_configuration_value(baseline_manifest, key)
+        if key in legacy_optional and selector_value is None and baseline_value is None:
+            legacy_unspecified.append(key)
+            continue
+        if selector_value is None or baseline_value is None:
             raise ValueError(f"paired manifests are missing required setting: {key}")
-        if selector_manifest[key] != baseline_manifest[key]:
+        if selector_value != baseline_value:
             raise ValueError(f"paired runs must use the same {key}")
     selector_cases = _case_hashes(selector_manifest)
     baseline_cases = _case_hashes(baseline_manifest)
@@ -161,6 +176,9 @@ def compare_runs(
         "dimension": dimension,
         "selector_variant": selector_label,
         "baseline_variant": baseline_label,
+        "context_selector_version_pinned": version_pinned if dimension == "context_selector" else None,
+        "paired_configuration_complete": not legacy_unspecified,
+        "legacy_unspecified_settings": legacy_unspecified,
         "model": selector_manifest["model"],
         "paired_cases": len(common),
         "selector_wins": wins,
@@ -172,6 +190,13 @@ def compare_runs(
         "median_elapsed_delta_ms": median(elapsed_deltas),
         "details": details,
     }
+
+
+def _paired_configuration_value(manifest: dict[str, object], key: str) -> object | None:
+    """Treat pre-visible-only manifests as full verification for replay compatibility."""
+    if key == "verification_mode" and key not in manifest:
+        return "full"
+    return manifest.get(key)
 
 
 def _failure_label(row: dict[str, str]) -> str:
