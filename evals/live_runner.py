@@ -52,10 +52,13 @@ def run_live_evaluation(
     max_cost_reserve_usd: float = LIVE_EVAL_HARD_COST_CEILING_USD,
     context_selector: bool = True,
     skill_id: str | None = None,
+    verification_mode: str = "full",
 ) -> list[dict[str, object]]:
     """Run clean, isolated copies and independently verify every repair."""
     if execution == "host" and not approve_host_tests:
         raise ValueError("主机测试必须显式使用 --approve-host-tests 批准")
+    if verification_mode not in {"full", "visible_only"}:
+        raise ValueError("verification_mode must be full or visible_only")
 
     config = ModelConfig.from_env()
     run_group = uuid.uuid4().hex[:12]
@@ -102,6 +105,7 @@ def run_live_evaluation(
         worst_case_total_budget_usd=worst_case_total,
         context_selector=context_selector,
         skill_id=skill_id,
+        verification_mode=verification_mode,
     )
 
     for case in cases:
@@ -130,7 +134,9 @@ def run_live_evaluation(
             docker_image=case_docker_image,
             docker_python=case.docker_python,
         )
-        environment_issue = _benchmark_environment_issue(case, baseline)
+        environment_issue = _benchmark_environment_issue(
+            case, baseline, verification_mode=verification_mode
+        )
         baseline_failed = (
             baseline.error_type == "test_failure"
             and not baseline.ok
@@ -292,26 +298,27 @@ def run_live_evaluation(
                 docker_image=case_docker_image,
                 docker_python=case.docker_python,
             )
-            if case.hidden_test_patch:
-                _apply_hidden_test_patch(case, verification_workspace)
-            hidden_command = case.hidden_test_command or [
-                "python", "-m", "pytest",
-                "/hidden" if execution == "docker" else str(case.case_dir / "hidden_tests"),
-                "-q",
-            ]
-            hidden = run_tests(
-                verification_workspace,
-                hidden_command,
-                timeout_seconds=case.test_timeout_seconds,
-                execution_mode=execution,
-                docker_image=case_docker_image,
-                docker_python=case.docker_python,
-                additional_mounts=(
-                    ((case.case_dir / "hidden_tests", "/hidden"),)
-                    if execution == "docker" and not case.hidden_test_patch
-                    else ()
-                ),
-            )
+            if verification_mode == "full":
+                if case.hidden_test_patch:
+                    _apply_hidden_test_patch(case, verification_workspace)
+                hidden_command = case.hidden_test_command or [
+                    "python", "-m", "pytest",
+                    "/hidden" if execution == "docker" else str(case.case_dir / "hidden_tests"),
+                    "-q",
+                ]
+                hidden = run_tests(
+                    verification_workspace,
+                    hidden_command,
+                    timeout_seconds=case.test_timeout_seconds,
+                    execution_mode=execution,
+                    docker_image=case_docker_image,
+                    docker_python=case.docker_python,
+                    additional_mounts=(
+                        ((case.case_dir / "hidden_tests", "/hidden"),)
+                        if execution == "docker" and not case.hidden_test_patch
+                        else ()
+                    ),
+                )
 
         accepted = _accepted_for_benchmark(
             baseline_failed=baseline_failed,
@@ -320,6 +327,7 @@ def run_live_evaluation(
             agent_test_ok=bool(result.test_result and result.test_result.ok),
             visible_ok=bool(visible and visible.ok),
             hidden_ok=bool(hidden and hidden.ok),
+            require_hidden=verification_mode == "full",
         )
         post_budget_verification = _post_budget_verification_status(
             failure_type=result.failure_type,
@@ -346,6 +354,7 @@ def run_live_evaluation(
             "temperature": "provider_default_unspecified",
             "execution": execution,
             "status": result.status,
+            "verification_mode": verification_mode,
             "accepted": accepted,
             "failure_type": result.failure_type or "",
             "error": result.error or "",
@@ -353,7 +362,7 @@ def run_live_evaluation(
             "baseline_expected_failure": case.baseline_expected_failure,
             "agent_test_ok": bool(result.test_result and result.test_result.ok),
             "independent_visible_ok": bool(visible and visible.ok),
-            "hidden_ok": bool(hidden and hidden.ok),
+            "hidden_ok": bool(hidden.ok) if hidden is not None else None,
             "post_budget_verification": post_budget_verification,
             "verification_workspace": (
                 str(verification_workspace) if verification_workspace else ""
@@ -565,6 +574,7 @@ def _write_run_manifest(
     max_completion_tokens: int = 512,
     max_cost_reserve_usd: float = LIVE_EVAL_HARD_COST_CEILING_USD,
     worst_case_total_budget_usd: float = 0.0,
+    verification_mode: str = "full",
 ) -> None:
     case_records = []
     for case in cases:
@@ -584,10 +594,15 @@ def _write_run_manifest(
                 "compiled_extensions_sha256": getattr(case, "compiled_extensions_sha256", None),
                 "repo_tree_sha256": _directory_sha256(case.case_dir / "repo"),
                 "visible_tests_sha256": _directory_sha256(case.case_dir / "visible_tests"),
+                "verification_mode": verification_mode,
                 "hidden_tests_sha256": (
-                    hashlib.sha256((case.case_dir / case.hidden_test_patch).read_bytes()).hexdigest()
-                    if case.hidden_test_patch
-                    else _directory_sha256(case.case_dir / "hidden_tests")
+                    (
+                        hashlib.sha256((case.case_dir / case.hidden_test_patch).read_bytes()).hexdigest()
+                        if case.hidden_test_patch
+                        else _directory_sha256(case.case_dir / "hidden_tests")
+                    )
+                    if verification_mode == "full"
+                    else None
                 ),
             }
         )
@@ -615,6 +630,7 @@ def _write_run_manifest(
         "api_endpoint": _safe_endpoint(config.base_url or "https://api.openai.com/v1"),
         "temperature": "provider_default_unspecified",
         "execution": execution,
+        "verification_mode": verification_mode,
         "docker_image": docker_image,
         "max_total_tokens": max_total_tokens,
         "max_elapsed_seconds": max_elapsed,
@@ -697,7 +713,12 @@ def _baseline_test_observation(result: ToolResult, limit: int = 1_200) -> str:
     return "\n".join(details)
 
 
-def _benchmark_environment_issue(case: object, baseline: ToolResult) -> str | None:
+def _benchmark_environment_issue(
+    case: object,
+    baseline: ToolResult,
+    *,
+    verification_mode: str = "full",
+) -> str | None:
     """Reject missing test runtimes and impossible Windows CLI payloads pre-LLM."""
     output = f"{baseline.stdout}\n{baseline.stderr}".casefold()
     if any(
@@ -710,6 +731,8 @@ def _benchmark_environment_issue(case: object, baseline: ToolResult) -> str | No
     ):
         return "基准镜像未提供 pytest；该任务环境不兼容"
 
+    if verification_mode == "visible_only":
+        return None
     hidden_command = getattr(case, "hidden_test_command", None)
     if hidden_command:
         command_line = subprocess.list2cmdline(hidden_command)
@@ -901,15 +924,16 @@ def _accepted_for_benchmark(
     agent_status: str,
     agent_test_ok: bool,
     visible_ok: bool,
-    hidden_ok: bool,
+    hidden_ok: bool | None,
+    require_hidden: bool = True,
 ) -> bool:
-    """Accept a complete repair when baseline behavior matches its case type."""
+    """Accept a repair only against the oracle checks selected for this run."""
     return (
         (baseline_failed or not baseline_expected_failure)
         and agent_status == "success"
         and agent_test_ok
         and visible_ok
-        and hidden_ok
+        and (not require_hidden or hidden_ok is True)
     )
 
 
@@ -935,6 +959,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-input-tokens-per-request", type=int, default=22_000)
     parser.add_argument("--max-completion-tokens", type=int, default=512)
     parser.add_argument("--max-cost-reserve-usd", type=float, default=0.06)
+    parser.add_argument(
+        "--verification-mode",
+        choices=("full", "visible_only"),
+        default="full",
+        help="visible_only 不读取或运行隐藏测试；结果只代表公开可见验收",
+    )
     parser.add_argument("--skill", choices=("pytest-failure-triage", "api-contract-check"))
     parser.add_argument(
         "--context-selector",
@@ -964,6 +994,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_cost_reserve_usd=args.max_cost_reserve_usd,
         context_selector=args.context_selector,
         skill_id=args.skill,
+        verification_mode=args.verification_mode,
     )
     accepted = sum(row["accepted"] is True for row in rows)
     print(f"真实模型评测：{accepted}/{len(rows)} 项通过验收")

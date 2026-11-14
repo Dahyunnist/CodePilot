@@ -34,7 +34,7 @@ Gold patch 和隐藏测试 patch 只在本地内存中计算 SHA；冻结 JSON �
 
 ## 复现与结果
 
-源文件：`E:\job\codepilot-lite\.tmp\release-safe\.tmp\cp2-swebench-lite-v1\test.parquet`
+源文件：`.\.tmp\cp2-swebench-lite-v1\test.parquet`
 
 源 revision：`b0dde1093fe417d83b7184254edf8199c1f0dff5`
 
@@ -42,7 +42,7 @@ Gold patch 和隐藏测试 patch 只在本地内存中计算 SHA；冻结 JSON �
 
 冻结题数：20；subset SHA-256：`8fb7c6b9a93a3eaef1d0c55839e8d5420ad222447cac7b247735faf23927941d`。
 
-定向测试：`D:\Anaconda3\envs\NN\python.exe -m pytest tests/test_cp2_dataset_fetch.py -q --basetemp=.tmp/pytest-cp2-integrity`，15 passed。真实 `freeze` 与 `verify` 命令使用 `D:\Anaconda3\python.exe`，均完成；`git check-ignore` 确认冻结文件被忽略。
+定向测试：`python -m pytest tests/test_cp2_dataset_fetch.py -q --basetemp=.tmp/pytest-cp2-integrity`，15 passed。真实 `freeze` 与 `verify` 命令使用 `python`，均完成；`git check-ignore` 确认冻结文件被忽略。
 
 ## 亲手实验
 

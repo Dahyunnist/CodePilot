@@ -56,6 +56,7 @@ def compare_runs(
         "agent_git_sha",
         "agent_worktree_diff_sha256",
         "execution",
+        "verification_mode",
         "docker_image",
         "max_total_tokens",
         "max_elapsed_seconds",

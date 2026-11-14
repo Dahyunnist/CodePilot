@@ -13,7 +13,7 @@
 
 ## 全套测试结果
 
-2026-11-11 使用 D:\Anaconda3\envs\NN\python.exe -m pytest -q：59 passed，143 errors，148.32 秒。错误集中在 Windows 沙箱文件创建/路径权限（OSError），需查看 pytest 完整日志逐类区分环境错误与代码失败；不得将整套测试记为通过。定向 validator 测试此前 4 passed，CLI python -m codepilot --help 通过。
+2026-11-11 使用 python -m pytest -q：59 passed，143 errors，148.32 秒。错误集中在 Windows 沙箱文件创建/路径权限（OSError），需查看 pytest 完整日志逐类区分环境错误与代码失败；不得将整套测试记为通过。定向 validator 测试此前 4 passed，CLI python -m codepilot --help 通过。
 
 ## Windows 沙箱测试边界（2026-11-11）
 

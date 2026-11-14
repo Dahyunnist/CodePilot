@@ -11,7 +11,7 @@ Agent 只接收 `case_dir/repo` 的工作副本；仓库工具 `list_files` 与 
 验证命令：
 
 ```powershell
-D:\Anaconda3\envs\NN\python.exe -m pytest tests/test_swebench_prepare.py::test_hidden_patch_stays_outside_agent_workspace_and_runs_in_verifier -q --basetemp=.tmp\pytest-isolation
+python -m pytest tests/test_swebench_prepare.py::test_hidden_patch_stays_outside_agent_workspace_and_runs_in_verifier -q --basetemp=.tmp\pytest-isolation
 ```
 
 结果：专项用例 `1 passed`。整份 `tests/test_swebench_prepare.py` 在本机执行 `12 passed`。准备、runner、manifest、候选集及 benchmark integrity 相关套件合计 `40 passed`。后两项需为当前临时工作树的 Git 子进程设置一次性 `safe.directory`；未改全局 Git 配置。
@@ -26,8 +26,8 @@ D:\Anaconda3\envs\NN\python.exe -m pytest tests/test_swebench_prepare.py::test_h
 $env:GIT_CONFIG_COUNT='1'
 $env:GIT_CONFIG_KEY_0='safe.directory'
 $env:GIT_CONFIG_VALUE_0='E:/job/codepilot-lite/.tmp/release-safe'
-D:\Anaconda3\envs\NN\python.exe -m pytest tests/test_swebench_prepare.py::test_safe_archive_fails_closed_when_hard_links_are_unavailable tests/test_live_runner.py::test_run_manifest_pins_model_agent_and_case_hashes tests/test_swebench_prepare.py::test_hidden_patch_stays_outside_agent_workspace_and_runs_in_verifier -q --basetemp=.tmp/pytest-cp2-crossplatform
-D:\Anaconda3\envs\NN\python.exe -m pytest tests/test_swebench_prepare.py tests/test_live_runner.py -q --basetemp=.tmp/pytest-cp2-related
+python -m pytest tests/test_swebench_prepare.py::test_safe_archive_fails_closed_when_hard_links_are_unavailable tests/test_live_runner.py::test_run_manifest_pins_model_agent_and_case_hashes tests/test_swebench_prepare.py::test_hidden_patch_stays_outside_agent_workspace_and_runs_in_verifier -q --basetemp=.tmp/pytest-cp2-crossplatform
+python -m pytest tests/test_swebench_prepare.py tests/test_live_runner.py -q --basetemp=.tmp/pytest-cp2-related
 ```
 
 结果：定向 `3 passed`；两个相关测试文件 `34 passed, 1 skipped`。硬链接语义正例在当前受限宿主标记 skip；Linux 或有权限的 Windows 会执行。仍只用合成夹具；真实 SWE-bench 任务、Docker 预检和模型评测均未运行。

@@ -45,7 +45,7 @@ run span
 复现：
 
 ```powershell
-D:\Anaconda3\envs\NN\python.exe -m pytest tests/test_tracing.py tests/test_agent.py -q -p no:cacheprovider --basetemp=.tmp\pytest-cp-patchspan-final
+python -m pytest tests/test_tracing.py tests/test_agent.py -q -p no:cacheprovider --basetemp=.tmp\pytest-cp-patchspan-final
 ```
 
 结果：**64 passed**；`git diff --check` 通过。新增集成回归同时覆盖成功与路径拒绝，并核对子 span 父链和 patch 正文脱敏。此为 FakeTracer 离线验证，不等同于连接真实 OTLP Collector 的端到端验收。

@@ -41,6 +41,68 @@ def test_live_budget_worst_case_fits_six_cent_reserve():
     assert worst_case <= 0.06
 
 
+def test_visible_only_acceptance_does_not_require_hidden_oracle():
+    assert _accepted_for_benchmark(
+        baseline_failed=True,
+        agent_status="success",
+        agent_test_ok=True,
+        visible_ok=True,
+        hidden_ok=None,
+        require_hidden=False,
+    )
+
+
+def test_visible_only_preflight_does_not_inspect_hidden_command():
+    case = SimpleNamespace(hidden_test_command=["x" * 40_000])
+    result = ToolResult(tool_name="run_tests", ok=True, exit_code=0)
+
+    assert _benchmark_environment_issue(
+        case, result, verification_mode="visible_only"
+    ) is None
+
+
+def test_visible_only_manifest_does_not_read_hidden_artifacts(tmp_path):
+    case_dir = tmp_path / "case"
+    (case_dir / "repo").mkdir(parents=True)
+    (case_dir / "visible_tests").mkdir()
+    (case_dir / "case.json").write_text(
+        json.dumps({"case_id": "visible-case", "hidden_test_patch": "absent.patch"}),
+        encoding="utf-8",
+    )
+    case = SimpleNamespace(
+        case_id="visible-case",
+        case_dir=case_dir,
+        source_commit="a" * 40,
+        source_tree_sha="b" * 64,
+        archive_sha256=None,
+        docker_image="pinned-image",
+        docker_python="python",
+        baseline_expected_failure=True,
+        test_timeout_seconds=30,
+        compiled_extensions_sha256=None,
+        hidden_test_patch="absent.patch",
+    )
+    output = tmp_path / "run_manifest.json"
+
+    _write_run_manifest(
+        output,
+        [case],
+        ModelConfig(model="deepseek-v4-flash", api_key="test"),
+        execution="docker",
+        docker_image="pinned-image",
+        max_total_tokens=20_000,
+        max_elapsed=120,
+        context_budget_chars=8_000,
+        max_steps=4,
+        context_selector=True,
+        verification_mode="visible_only",
+    )
+
+    record = json.loads(output.read_text(encoding="utf-8"))["cases"][0]
+    assert record["verification_mode"] == "visible_only"
+    assert record["hidden_tests_sha256"] is None
+
+
 def test_live_runner_rejects_multi_case_reserve_before_model(
     monkeypatch, tmp_path
 ):
@@ -302,6 +364,7 @@ def test_paired_comparison_requires_same_cases_and_reports_exact_test(tmp_path):
         "agent_git_sha": "a" * 40,
         "agent_worktree_diff_sha256": "b" * 64,
         "execution": "docker",
+        "verification_mode": "full",
         "docker_image": "runner:test",
         "max_total_tokens": 20_000,
         "max_elapsed_seconds": 120,
@@ -380,6 +443,7 @@ def test_paired_comparison_rejects_mismatched_selector_mode_or_budget(tmp_path):
         "agent_git_sha": "a" * 40,
         "agent_worktree_diff_sha256": "b" * 64,
         "execution": "docker",
+        "verification_mode": "full",
         "docker_image": "runner:test",
         "max_elapsed_seconds": 120,
         "context_budget_chars": 8_000,
@@ -427,6 +491,7 @@ def test_paired_comparison_rejects_missing_cost_or_latency(tmp_path):
         "agent_git_sha": "a" * 40,
         "agent_worktree_diff_sha256": "b" * 64,
         "execution": "docker",
+        "verification_mode": "full",
         "docker_image": "runner:test",
         "max_total_tokens": 20_000,
         "max_elapsed_seconds": 120,
@@ -472,6 +537,7 @@ def test_paired_comparison_supports_skill_enabled_vs_disabled_offline_harness(tm
         "agent_git_sha": "a" * 40,
         "agent_worktree_diff_sha256": "b" * 64,
         "execution": "docker",
+        "verification_mode": "full",
         "docker_image": "runner:test",
         "max_total_tokens": 20_000,
         "max_elapsed_seconds": 120,
@@ -547,6 +613,7 @@ def test_skill_pair_rejects_context_selector_mismatch(tmp_path):
         "agent_git_sha": "a" * 40,
         "agent_worktree_diff_sha256": "b" * 64,
         "execution": "docker",
+        "verification_mode": "full",
         "docker_image": "runner:test",
         "max_total_tokens": 20_000,
         "max_elapsed_seconds": 120,
