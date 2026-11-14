@@ -17,7 +17,7 @@ D:\Anaconda3\envs\NN\python.exe -m pytest -p no:cacheprovider tests/test_reposit
 ## 结果
 
 - 普通 Windows 宿主运行：**3 passed, 8.78s**，退出码 0。命令使用 NN 环境与短 basetemp `E:\job\cp3-host-validation-native`。
-- 用户补充宿主结果：`D:\Anaconda3\envs\NN\python.exe -m pytest -p no:cacheprovider --basetemp <E:\job 下本次唯一临时目录> tests/test_repository_tools.py -q`，**10 passed**；用户确认该临时目录已清理。此结果是用户提供的宿主证据，本轮未重跑。
+- 主对话通过 `require_escalated` 在普通 Windows 宿主执行：`D:\Anaconda3\envs\NN\python.exe -m pytest -p no:cacheprovider --basetemp <本次唯一的 E:\job 子目录> tests/test_repository_tools.py -q`，**10 passed**。执行命令创建并使用该专用临时目录，验证路径后清理；本轮未重跑。
 - Codex 沙箱对照：长 pytest 临时路径先触发 Windows `Filename too long`；改短路径后，repo 边界测试通过，但两项 CLI 子进程因 Git for Windows/MSYS `NtCreateDirectoryObject(...): 0xC0000022` 失败。普通宿主复测后通过，表明该次失败属于沙箱子进程限制；不据此修改产品代码。
 - 样例由假模型驱动，模型请求数为 0。未运行 Docker 或真实模型。
 
