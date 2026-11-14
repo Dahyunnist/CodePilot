@@ -2,7 +2,7 @@
 
 | 阶段 | 状态 | 仓库证据 | 缺口 |
 |---|---|---|---|
-| CP-1 | 部分 | `README.md`、`docs/DEMO_5MIN_CN.md`；现有测试含 `tests/test_agent.py`、`tests/test_execute.py` | 未逐项对照原方案验收标准；无本轮完整测试证据。 |
+| CP-1 | 部分 | `codepilot/agent.py`、`codepilot/context_selector.py`；预算预留、超长输出截断、SHA 去重的组合回归；适用测试 86 passed，见 `docs/learning/cp1-context-budget-2026-11-11.md` | 仅离线字符计数与假模型；历史两组 live pair 均 budget_exceeded，没有真实修复成功率或 selector 收益结论。 |
 | CP-2 | 部分 | `evals/public_cases/` 已有冻结脚本；新增 `evals/public_issues/candidates.json` 与 schema | 3 条外部候选均 pending；许可证、base/fix SHA、可见/隐藏测试命令、容器复现、哈希均未核实。 |
 | CP-3 | 未完成 | `docs/architecture.md`、`tests/test_repository_index.py`、`tests/test_context_selector_offline.py` | 未按方案核对完整验收与多仓库证据。 |
 | CP-4 | 部分 | `codepilot/`、`tests/test_tracing.py`、`tests/test_live_runner.py` | 未逐字段核对 `run_manifest`/trace 规范；未验证远端证据及完整回放。 |

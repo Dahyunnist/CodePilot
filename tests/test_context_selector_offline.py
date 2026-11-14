@@ -69,3 +69,47 @@ def test_duplicate_sha_compaction_keeps_latest_full_evidence_and_replaces_older(
     assert "caller in service.py:42" in messages[1].content
     assert content not in messages[0].content
 
+
+def test_cp1_budget_truncation_and_duplicate_sha_contract():
+    import hashlib
+
+    from codepilot.agent import (
+        _bounded_tool_result,
+        _context_chars,
+        _fit_context,
+        _future_output_reservations,
+        _protected_future_tokens,
+        _tool_observation,
+    )
+    from codepilot.schemas import ChatMessage, ToolResult
+
+    assert _future_output_reservations() == (512, 1_024, 512)
+    assert _protected_future_tokens(9_000, (), needs_test=True) == 2_048
+    assert _protected_future_tokens(9_000, (), needs_test=False) == 0
+
+    raw_output = "BEGIN_SOURCE\n" + ("payload " * 600) + "\nEND_SOURCE"
+    original = ToolResult(tool_name="read_file", ok=True, stdout=raw_output)
+    bounded = _bounded_tool_result(original, 512)
+    assert original.stdout == raw_output
+    assert len(bounded.stdout) + len(bounded.stderr) <= 512
+    assert bounded.truncation_reason == "agent_context_observation_limit"
+    assert bounded.original_chars == len(raw_output)
+    assert bounded.retained_chars == len(bounded.stdout) + len(bounded.stderr)
+    assert "已截断" in bounded.stdout
+    assert f"原文共 {len(raw_output)} 字符" in bounded.stdout
+    assert "BEGIN_SOURCE" in bounded.stdout and "END_SOURCE" in bounded.stdout
+
+    observation = _tool_observation("read_file", bounded, ())
+    repeated = [
+        ChatMessage(role="tool", tool_call_id=call_id, content=observation)
+        for call_id in ("source-a", "source-b")
+    ]
+    expected_sha = hashlib.sha256(observation.encode("utf-8")).hexdigest()
+
+    _fit_context(repeated, 4_000)
+
+    assert _context_chars(repeated) <= 4_000
+    assert "重复工具证据已去重" in (repeated[0].content or "")
+    assert f"SHA-256: {expected_sha}" in (repeated[0].content or "")
+    assert repeated[1].content == observation
+

@@ -4,7 +4,7 @@
 
 | 阶段 | 代码/评测入口 | 可复核证据 | 尚缺验收 |
 |---|---|---|---|
-| CP-1 上下文预算 | `codepilot/agent.py`、`codepilot/context_selector.py`；`evals/context_selector_offline.py` | 机制 fixture 比较同一字符计数器；历史 `reports/cp1-selector-pair/` 有 2 个同任务双配置结果。定向机制测试 8 passed。 | 两份历史 pair 都未通过任务验收；token 上限及 selector 版本未完整冻结。尚无可支持普遍效果结论的配对样本。 |
+| CP-1 上下文预算 | `codepilot/agent.py`、`codepilot/context_selector.py`；`evals/context_selector_offline.py` | 预算预留、超长工具输出截断/原因、同 SHA 去重组合回归；适用 Agent/selector/CP1/runner 测试 **86 passed**。学习记录见 `docs/learning/cp1-context-budget-2026-11-11.md`。 | 机制测试使用字符上限与假模型；两份历史 live pair 均 `budget_exceeded`。没有真实任务成功率或 token/cost 收益结论。 |
 | CP-2 真实仓库 benchmark | `evals/cp2_benchmark.py`、`benchmark-v1.json` | 15 题元数据；seaborn-3010 镜像/base/许可证已核验，base 触发预期缺陷，官方 PR patch 后新增可见测试 1 passed、相关回归文件 3 passed；详见 `docs/learning/cp2-seaborn-3010-baseline-preflight-2026-11-14.md`。 | 冻结 v1 状态/hash 不变；原选择器在 base 退出 5，因测试未物化。15 题完整 visible baseline、账本余额和 CodePilot Agent 修复验收仍缺。 |
 | CP-3 安全与 trace | `codepilot/security.py`、`codepilot/tracing.py`、Agent/CLI/registry 测试 | 安全负例、trace/checkpoint；Agent 并行调用与顺序结果；双仓 registry 隔离及新增并发隔离回归。此前宿主 CLI 外部仓库流程 3/3、registry 测试 10 passed。 | 本轮组合宿主复核 5 passed、2 failed；两项失败在 Git 读取 `.git/config` 时遇权限拒绝，不能归因产品。重跑遭自动审批器拒绝。尚无生产 OTLP、真实模型攻击或真实公司多仓任务。 |
 | CP-4 Skill | `codepilot/skills.py`、`evals/skills/ablation.py` | schema/allowlist 的离线测试；消融脚本固定输出 `model_calls=0`。历史模型报告留有若干尝试记录。 | 真实尝试均因预算停止，未得到接受修复；没有可用于比较两个 Skill 成效的成功率结论。 |
