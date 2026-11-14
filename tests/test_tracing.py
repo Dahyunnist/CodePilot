@@ -57,6 +57,54 @@ def test_trace_replay_preserves_timeout_retry_rejection_and_redaction_order(tmp_
     assert "private" not in serialized
 
 
+def test_multitool_failure_replay_keeps_jsonl_when_otel_exporter_fails(tmp_path):
+    class BrokenExporter:
+        def start_span(self, *_args, **_kwargs):
+            raise RuntimeError("collector unavailable; api_key=should-not-leak")
+
+    path = tmp_path / "replay-with-broken-exporter.jsonl"
+    trace = TraceLogger(path, "run-multitool", trace_id="trace-multitool", otel_tracer=BrokenExporter())
+    trace.event("run_started", 0)
+
+    # Deterministic replay: inspect, encounter a test timeout, patch is rejected,
+    # then a later test attempt succeeds. JSONL remains the authoritative record.
+    sequence = [
+        ("model-read", ToolCall(id="read-1", name="read_file", arguments={"path": "src/app.py"}),
+         ToolResult(tool_name="read_file", ok=True)),
+        ("model-tests-1", ToolCall(id="test-1", name="run_tests", arguments={}),
+         ToolResult(tool_name="run_tests", ok=False, error_type="timeout")),
+        ("model-patch", ToolCall(id="patch-1", name="apply_patch", arguments={"path": "../outside.py", "patch": "secret patch"}),
+         ToolResult(tool_name="apply_patch", ok=False, error_type="PathPolicyError")),
+        ("model-tests-2", ToolCall(id="test-2", name="run_tests", arguments={}),
+         ToolResult(tool_name="run_tests", ok=True, exit_code=0)),
+    ]
+    for step, (model_span, call, result) in enumerate(sequence, 1):
+        trace.event("model_finished", step, span_id=model_span)
+        trace.tool_started(step, call)
+        if call.name == "apply_patch":
+            trace.patch_started(call)
+            trace.patch_finished(call, result)
+        trace.tool_finished(step, result, call.id)
+    trace.event("run_finished", 4, status="success")
+
+    events = read_events(path)
+    assert {event["run_id"] for event in events} == {"run-multitool"}
+    assert {event["trace_id"] for event in events} == {"trace-multitool"}
+    starts = [event for event in events if event["event"] == "tool_started"]
+    finishes = [event for event in events if event["event"] == "tool_finished"]
+    assert [event["tool"] for event in starts] == ["read_file", "run_tests", "apply_patch", "run_tests"]
+    assert [event.get("error_type") for event in finishes] == [None, "timeout", "PathPolicyError", None]
+    assert all(start["parent_span_id"].startswith("model-") for start in starts)
+    patch_start = next(event for event in events if event["event"] == "patch_started")
+    patch_finish = next(event for event in events if event["event"] == "patch_finished")
+    patch_tool = next(event for event in starts if event["call_id"] == "patch-1")
+    assert patch_start["parent_span_id"] == patch_tool["span_id"]
+    assert patch_finish["parent_span_id"] == patch_tool["span_id"]
+    serialized = path.read_text(encoding="utf-8")
+    assert "secret patch" not in serialized
+    assert "should-not-leak" not in serialized
+
+
 def test_trace_redacts_secret_fields_before_jsonl_write(tmp_path):
     trace_path = tmp_path / "trace.jsonl"
     trace = TraceLogger(trace_path, "run-safe")

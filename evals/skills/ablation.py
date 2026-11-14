@@ -15,12 +15,36 @@ def run():
     cases = []
     for entry in frozen["cases"]:
         case_id = entry["case_id"]
-        skill_id = "pytest-failure-triage" if "pytest" in case_id else "api-contract-check"
+        case_data = json.loads(
+            (ROOT / "evals" / "skills" / "cases" / case_id / "case.json").read_text(encoding="utf-8")
+        )
+        skill_id = {
+            "pytest-failure-triage": "pytest-failure-triage",
+            "api-contract-cross-file": "api-contract-check",
+        }[case_data["category"]]
         skill = get_skill(skill_id)
         selected = list(CHOICES[case_id])
         restricted = [tool for tool in selected if tool in skill.allowed_tools]
+        case_root = ROOT / "evals" / "skills" / "cases" / case_id
         cases.append({
             "case_id": case_id,
+            "skill": {
+                "skill_id": skill.skill_id,
+                "title": skill.title,
+                "objective": skill.objective,
+                "allowed_tools": sorted(skill.allowed_tools),
+                "exit_conditions": list(skill.exit_conditions),
+                "limits": {
+                    "max_steps": skill.max_steps,
+                    "max_test_attempts": skill.max_test_attempts,
+                    "max_total_tokens": skill.max_total_tokens,
+                },
+            },
+            "inputs": {
+                "instruction": case_data["instruction"],
+                "test_command": case_data["test_command"],
+                "repository": str((case_root / "repo").relative_to(ROOT)),
+            },
             "no_skill_fixture_tools": selected,
             "skill_fixture_tools": restricted,
             "constraints_satisfied": len(restricted) == len(selected),

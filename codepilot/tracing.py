@@ -81,7 +81,13 @@ class TraceLogger:
         }
         with self.path.open("a", encoding="utf-8", newline="\n") as stream:
             stream.write(json.dumps(record, ensure_ascii=False) + "\n")
-        self._record_otel_span(record)
+        # JSONL is the durable local trace. An optional telemetry exporter must
+        # never turn a completed JSONL write into an agent/tool failure.
+        try:
+            self._record_otel_span(record)
+        except Exception:
+            # Keep tracing best-effort when an SDK/exporter is unavailable.
+            pass
         if event == "model_finished":
             self._last_model_span_id = span_id
 
