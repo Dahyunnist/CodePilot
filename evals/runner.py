@@ -74,7 +74,7 @@ def dataset_manifest_sha(cases_root: Path) -> str:
 
 def build_run_manifest(*, run_id: str, trace_id: str, git_sha: str, dataset_sha256: str | None, started_at: str, ended_at: str, status: str) -> dict[str, object]:
     prompt_sha = hashlib.sha256(PROMPT_VERSION.encode()).hexdigest()
-    manifest = {"schema_version": 1, "project": "codepilot-lite", "git_sha": git_sha, "dataset_id": "evals/cases", "dataset_sha256": dataset_sha256, "split": "fixed-cases", "model_id": MODEL_NAME, "prompt_sha": prompt_sha, "tool_schema_sha": None, "runtime_digest": None, "max_steps": 8, "max_tokens": None, "scorer_sha": None, "gold_source": "case.json patch plan; scripted oracle", "cost_usd_estimate": 0, "run_id": run_id, "trace_id": trace_id, "started_at": started_at, "ended_at": ended_at, "status": status}
+    manifest = {"schema_version": 1, "project": "CodePilot", "git_sha": git_sha, "dataset_id": "evals/cases", "dataset_sha256": dataset_sha256, "split": "fixed-cases", "model_id": MODEL_NAME, "prompt_sha": prompt_sha, "tool_schema_sha": None, "runtime_digest": None, "max_steps": 8, "max_tokens": None, "scorer_sha": None, "gold_source": "case.json patch plan; scripted oracle", "cost_usd_estimate": 0, "run_id": run_id, "trace_id": trace_id, "started_at": started_at, "ended_at": ended_at, "status": status}
     return manifest
 
 

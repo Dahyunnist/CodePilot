@@ -1,1 +1,22 @@
-{"schema_version":1,"run_id":"cp1-fixture-2026-11-12","git_sha":"1111111111111111111111111111111111111111111111111111111111111111","dataset_id":"cp1-context-fixture-v1","dataset_sha256":"2222222222222222222222222222222222222222222222222222222222222222","split":"offline-fixture","model_id":"none","prompt_sha256":"3333333333333333333333333333333333333333333333333333333333333333","tool_schema_sha256":"4444444444444444444444444444444444444444444444444444444444444444","scorer_sha256":"5555555555555555555555555555555555555555555555555555555555555555","runtime":"python-3.11; deterministic-fixture","budget":{"max_cost_usd":0,"max_tokens":1},"gold_source":"none; mechanism fixture only","cost_usd":0,"started_at":"2026-11-12T00:00:00Z","finished_at":"2026-11-12T00:00:01Z","status":"fixture"}
+{
+  "schema_version": 1,
+  "project": "CodePilot",
+  "git_sha": "1111111111111111111111111111111111111111",
+  "dataset_id": "cp1-context-fixture-v1",
+  "dataset_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "split": "offline-fixture",
+  "model_id": "scripted-oracle",
+  "prompt_sha": "3333333333333333333333333333333333333333333333333333333333333333",
+  "tool_schema_sha": null,
+  "runtime_digest": null,
+  "max_steps": 8,
+  "max_tokens": null,
+  "scorer_sha": null,
+  "gold_source": "deterministic fixture only",
+  "cost_usd_estimate": 0,
+  "run_id": "cp1-fixture-2026-11-12",
+  "trace_id": "cp1-fixture-2026-11-12",
+  "started_at": "2026-11-12T00:00:00Z",
+  "ended_at": "2026-11-12T00:00:01Z",
+  "status": "fixture"
+}
