@@ -77,6 +77,46 @@ def test_cp2_case_materialization_rejects_oracle_metadata(tmp_path: Path):
     assert "case contains forbidden oracle field: patches" in blockers
 
 
+def test_cp2_case_materialization_allows_hashed_pytest_runtime_version(tmp_path: Path):
+    case_dir, case = _materialized_case(tmp_path)
+    generated_path = "src/_pytest/_version.py"
+    generated_file = case_dir / "repo" / generated_path
+    generated_file.parent.mkdir(parents=True)
+    generated_file.write_text("__version__ = '4.5.1.dev40'\n", encoding="utf-8")
+    inventory_path = case_dir / "source-files.json"
+    inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+    generated_sha256 = hashlib.sha256(generated_file.read_bytes()).hexdigest()
+    inventory["generated_files"] = {generated_path: generated_sha256}
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    case["generated_version_sha256"] = generated_sha256
+    case["source_file_manifest_sha256"] = hashlib.sha256(
+        inventory_path.read_bytes()
+    ).hexdigest()
+
+    assert _case_materialization_blockers(case_dir, case) == []
+
+
+def test_cp2_case_materialization_rejects_drifted_pytest_runtime_version(tmp_path: Path):
+    case_dir, case = _materialized_case(tmp_path)
+    generated_path = "src/_pytest/_version.py"
+    generated_file = case_dir / "repo" / generated_path
+    generated_file.parent.mkdir(parents=True)
+    generated_file.write_text("__version__ = '4.5.1.dev40'\n", encoding="utf-8")
+    inventory_path = case_dir / "source-files.json"
+    inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+    generated_sha256 = hashlib.sha256(generated_file.read_bytes()).hexdigest()
+    inventory["generated_files"] = {generated_path: generated_sha256}
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    case["generated_version_sha256"] = "0" * 64
+    case["source_file_manifest_sha256"] = hashlib.sha256(
+        inventory_path.read_bytes()
+    ).hexdigest()
+
+    blockers = _case_materialization_blockers(case_dir, case)
+
+    assert "generated file inventory differs from approved version metadata" in blockers
+
+
 def test_cp2_manifest_freezes_selected_scope_and_artifacts():
     manifest = freeze_manifest(DEFAULT_SELECTION)
 

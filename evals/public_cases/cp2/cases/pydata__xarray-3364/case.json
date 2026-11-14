@@ -1,0 +1,32 @@
+{
+  "case_id": "pydata__xarray-3364",
+  "category": "xarray-concat-missing-variables",
+  "instruction": "使 concat 在部分数据集中缺少待合并变量时仍能保留变量并生成一致结果。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "xarray/tests/test_concat.py",
+    "-p",
+    "no:cacheprovider",
+    "-k",
+    "merge_variables_present_in_some_datasets",
+    "-q"
+  ],
+  "source_url": "https://github.com/pydata/xarray",
+  "source_release": "863e49066ca4d61c9adfe62aca3bf21b90e1af8c",
+  "source_commit": "863e49066ca4d61c9adfe62aca3bf21b90e1af8c",
+  "source_tree_sha": "39ca20ba2fab753b757741686104dad9ff73ac7b",
+  "issue_url": "https://github.com/pydata/xarray/issues/508",
+  "pull_request_url": "https://github.com/pydata/xarray/pull/3364",
+  "archive_sha256": "b9f476a07cd04f1ef413d6074db1f1134e328140f9312a456f6c9c7a05ec974d",
+  "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-3364:latest",
+  "baseline_expected_failure": true,
+  "test_timeout_seconds": 120,
+  "docker_python": "/opt/miniconda3/envs/testbed/bin/python",
+  "visible_test_sha256": "5a08f516cd30928411e68d8261e7a27245502d84d2d90eeae3b9651542ffca05",
+  "visible_test_files": [
+    "xarray/tests/test_concat.py"
+  ],
+  "source_file_manifest_sha256": "dface19dbbc32d4fcbfae9192c94f8f4244808ec2c8314d7a56e40dd7ab69e7a"
+}

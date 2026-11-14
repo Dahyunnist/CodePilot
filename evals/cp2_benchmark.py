@@ -149,9 +149,23 @@ def _case_materialization_blockers(case_dir: Path, case: dict[str, Any]) -> list
     if inventory.get("source_tree_sha") != case.get("source_tree_sha"):
         blockers.append("source file manifest tree mismatch")
     base_files = inventory.get("files")
+    manifest_generated = inventory.get("generated_files", {})
     visible_files = case.get("visible_test_files")
-    if not isinstance(base_files, dict) or not isinstance(visible_files, list):
+    if (
+        not isinstance(base_files, dict)
+        or not isinstance(manifest_generated, dict)
+        or not isinstance(visible_files, list)
+    ):
         return blockers + ["source inventory or visible test path list is invalid"]
+    generated_version_sha256 = case.get("generated_version_sha256")
+    generated_files: dict[str, str] = {}
+    if generated_version_sha256 is not None:
+        if not _is_sha256(generated_version_sha256):
+            blockers.append("generated version metadata hash is invalid")
+        else:
+            generated_files["src/_pytest/_version.py"] = generated_version_sha256
+    if manifest_generated != generated_files:
+        blockers.append("generated file inventory differs from approved version metadata")
     visible_paths: set[str] = set()
     for relative in visible_files:
         if not isinstance(relative, str):
@@ -163,7 +177,7 @@ def _case_materialization_blockers(case_dir: Path, case: dict[str, Any]) -> list
             continue
         visible_paths.add(path.as_posix())
 
-    expected_paths = set(base_files) | visible_paths
+    expected_paths = set(base_files) | visible_paths | set(generated_files)
     actual_paths: set[str] = set()
     for path in repo.rglob("*"):
         if path.is_symlink():
@@ -183,6 +197,10 @@ def _case_materialization_blockers(case_dir: Path, case: dict[str, Any]) -> list
         source_file = repo.joinpath(*path.parts)
         if not source_file.is_file() or _file_hash(source_file) != expected_hash:
             blockers.append(f"base source file differs from inventory: {relative}")
+    for relative, expected_hash in generated_files.items():
+        generated_file = repo / relative
+        if not generated_file.is_file() or _file_hash(generated_file) != expected_hash:
+            blockers.append(f"generated version file differs from recorded hash: {relative}")
     for relative in visible_paths:
         path = PurePosixPath(relative)
         visible_file = visible_root.joinpath(*path.parts)
