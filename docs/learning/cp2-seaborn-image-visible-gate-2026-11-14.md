@@ -20,3 +20,7 @@ CP-2 15 题中，xarray-4493 的镜像 digest 仍缺；15 题可见测试均未�
 ## seaborn-3010 宿主预检补充（2026-11-14）
 
 Docker daemon 已可用。seaborn-3010 镜像 digest、base 父提交和 `LICENSE.md` 哈希与冻结 sidecar 一致。base 中没有 `test_missing_data`，所以 manifest 声明的选择器得到 `2 deselected`、pytest 退出 5；不能据此算 baseline 失败。随后在只读、无网络容器的 tmpfs 中运行了公开 PR #3010 的新增测试逻辑，base 因 `LinAlgError: SVD did not converge in Linear Least Squares` 失败，确认单题 base 缺陷。完整记录见 [单题预检](cp2-seaborn-3010-baseline-preflight-2026-11-14.md)。未跑 fix、Agent 或模型。
+
+## 官方 fix 复测补充（2026-11-14）
+
+原始两提交 PR patch SHA-256 为 `5d77572ab3082e5cde74d4564a1bb2f507fdfea29b22744fd771d561bce28ddf`。在一次性容器工作树应用后，新增测试 **1 passed**，`tests/_stats/test_regression.py` 全文件 **3 passed**。未写宿主仓库；详细命令和哈希见[单题预检记录](cp2-seaborn-3010-baseline-preflight-2026-11-14.md)。

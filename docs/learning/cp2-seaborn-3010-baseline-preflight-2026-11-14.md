@@ -77,8 +77,28 @@ class TestPolyFit:
 /opt/miniconda3/envs/testbed/bin/python -m pytest /tmp/test_visible_seaborn_3010.py -p no:cacheprovider -k test_missing_data -q
 ```
 
+## 官方 PR 补丁复测（2026-11-14）
+
+从 GitHub 下载原始 [PR #3010 patch](https://github.com/mwaskom/seaborn/pull/3010.patch)，包含提交 `0144d18d09001396443bdcd860c6d08edb3d2c37`（修复与新增测试）和 `f191292f5554eb7908a07b849094c1d78adcf8bb`（release note）。原始 patch 文件 SHA-256：`5d77572ab3082e5cde74d4564a1bb2f507fdfea29b22744fd771d561bce28ddf`。
+
+将 patch 只读挂入以固定 image digest 创建的一次性容器，在容器 `/testbed` 执行 `git apply --check`、`git apply`。Docker 命令使用 `--rm --network none`，不挂载宿主源仓库；容器退出后工作树销毁。Git 提示两个文件镜像模式为 `100755`、PR 补丁预期 `100644`；这是基线镜像合成提交的执行位差异，文本补丁已应用，随后测试均通过。
+
+容器内可见测试结果：
+
+```text
+tests/_stats/test_regression.py -p no:cacheprovider -k test_missing_data -q
+1 passed, 2 deselected in 0.49s
+VISIBLE_EXIT=0
+
+tests/_stats/test_regression.py -p no:cacheprovider -q
+3 passed in 0.36s
+REGRESSION_EXIT=0
+```
+
+应用 patch 后测试文件 SHA-256 为 `f9cb28c201c96931f63e917e0ee7652a77af8d14964e602c7a2a7d41015ec0ca`。冻结 case 的 `visible_test_sha256` 为 `c68053590168ce35c79d499e2b33e0e7ca3aff7319b0feb09770065c9bb66ad9`；字段与完整测试文件哈希的对应规则未确认，因此保留两项实测记录，不改冻结 manifest 的 hash/status 字段。
+
 ## 状态边界
 
-- 该任务已有镜像、base、许可证和公开测试逻辑的单题证据，可标为 `baseline_reproduced`。
-- `benchmark-v1.json` 是冻结输入，本轮不改它；其历史 `visible_test_status` 不应被覆盖。后续应在新版 manifest 中引用本记录，并固定物化测试的内容哈希。
-- 尚未在 fix commit 运行测试，也未评估 Agent 或模型；不能将任务记为 solved、Agent accepted 或 CP-2 完成。
+- 该任务已有镜像、base、许可证、baseline 缺陷复现和官方 PR fix 的可见测试证据；本单题 `baseline -> 官方修复` 可复现。
+- `benchmark-v1.json` 是冻结输入，本轮不改它；后续新版 manifest 应引用本记录并固定可见测试物化规则。
+- 未运行 CodePilot Agent 或模型，未运行隐藏测试；不能将任务记为 Agent accepted 或 CP-2 完成。
