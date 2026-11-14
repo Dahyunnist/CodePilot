@@ -28,10 +28,13 @@ SWE-bench [官方数据说明](https://github.com/SWE-bench/SWE-bench/blob/main/
 
 - 15/15 base commit 均为完整 40 位 SHA，并与本地冻结选择、候选元数据一致。这是本地交叉核对；本轮未能从每个上游 repo 的 commit 页面独立校验 Git 对象/tree SHA。冻结清单没有逐题 tree SHA，不能补写推测值。
 - 五个项目的仓库主页/许可证页面当前分别声明 BSD-3-Clause、MIT、Apache-2.0、BSD-3-Clause、BSD-3-Clause。可查 [Django LICENSE](https://github.com/django/django/blob/main/LICENSE)、[pytest LICENSE](https://github.com/pytest-dev/pytest/blob/main/LICENSE)、[xarray LICENSE](https://github.com/pydata/xarray/blob/main/LICENSE)、[seaborn 仓库许可证标识](https://github.com/mwaskom/seaborn) 和 [scikit-learn COPYING](https://github.com/scikit-learn/scikit-learn/blob/main/COPYING)。这些 `main` 页面不证明历史 base commit 上 license 文件字节相同。
-- manifest 有 14 个 image config digest，xarray-4493 为 null；本轮按要求未运行 Docker。缺 digest 的 task schema 校验失败。
+- manifest 有 14 个 image config digest，xarray-4493 为 null；本轮按要求未运行 Docker。缺 digest 的 task schema 校验失败。标签/摘要仍须由宿主 `docker image inspect` 核对。
 - 15 个 `visible_test_spec_sha256` 都匹配规格文字本身；它不是测试脚本哈希。候选元数据有 test patch SHA，但没有实际 visible test 文件。`visible_test_status` 仍是 `spec_frozen_test_not_materialized_or_run`，15 题没有 baseline 证据。
 - 旧冻结 `artifacts` 的 4 个哈希中，`live_runner.py` 匹配当前源代码，`codepilot/`、`compare_live_runs.py`、`cp2_benchmark.py` 三个不匹配；旧文件也没有新加的 provenance sidecar 与两个 schema 哈希。新 freeze 会同时固定这 7 项，旧 manifest 因漂移/缺项不能复用；生成新 freeze 后也仍会被未物化测试与 xarray 镜像缺项阻断。
-- seaborn 当前官方仓库主页将许可证文件列为 `LICENSE.md`；旧 manifest 记录 `LICENSE`，而历史 base 的文件名/内容本轮无法从一手页面确认。此项不以当前 main 猜测历史值，必须在后续 exact-base 仓库或其固定镜像中核实。运行闸门还要求许可证路径、SHA 和 `verified_at_exact_base` 证据完整。
+- seaborn 当前官方仓库主页将许可证文件列为 `LICENSE.md`；旧 manifest 记录 `LICENSE`，而历史 base 的文件名/内容本轮无法从一手页面确认。此项不以当前 main 猜测历史值，必须在后续 exact-base 仓库或其固定镜像中核实。
+- 更正旧冻结器的证据边界：旧 `benchmark-v1.json` 中 `base_commit_verified_in_image=true` 和 `license_evidence=verified_at_exact_base` 是静态冻结字段，当前没有可随记录复核的宿主命令输出，故本轮不将它们当作实证。新生成的 manifest 会把这些字段设为未验证；来源 sidecar 为每题记 `exact_base_verification.status=pending`。运行闸门只有在证据文件落盘、文件 SHA 匹配、证据中的 image digest/base commit/许可证路径和 SHA 又逐项匹配任务字段时才接受。
+- 一手 PR 的 Files 页直接确认了部分公开测试入口：Django #10924/#11001/#11099/#11133、pytest #5103/#5221、xarray #4094、seaborn #2848/#3010、scikit-learn #10508。另五个 PR 页的 changed-file 列表在本轮无法读取；冻结数据里的 `hidden_test_files` 是隐藏 oracle 元数据，不能算成独立公开测试入口。详见[宿主验收清单](cp2-host-acceptance-checklist-2026-11-14.md)。
+- CP-2 `cases/`、预算账本当前均不存在。更重要的是，`live_runner.py` 只记录 `visible_tests/` 的目录哈希，未将目录内容接入被测 repo；所以尚无有效的测试物化和基线入口。官方 `test_patch` 不能作为替代，因为它是 benchmark oracle 材料。
 
 ## Schema 与 validator
 
@@ -39,7 +42,7 @@ SWE-bench [官方数据说明](https://github.com/SWE-bench/SWE-bench/blob/main/
 
 1. 每题必须有匹配仓库的 HTTPS GitHub PR 来源、已合并状态和至少一个带关系类型的一手 issue/ticket 引用；缺失或 PR 不一致则阻断。
 2. 必须有许可证标识、base 路径、64 位许可证文件 SHA 和 `verified_at_exact_base`；任一缺失即阻断。
-3. 必须有 40 位 base commit、image 中已核验标志、镜像 tag 和格式正确的 `sha256:<64位>` config digest。
+3. 必须有 40 位 base commit、镜像 tag 和格式正确的 `sha256:<64位>` config digest；另须有可复核的 exact-base 证据文件，证明该镜像内 HEAD 与 base SHA 相同、许可证文件路径和内容摘要匹配任务声明。
 4. 必须有规格文本哈希、已物化测试文件哈希，以及 `ready_and_baseline_verified` 状态。
 5. 必须校验 task 记录汇总、gold 哈希汇总、selection 哈希、runtime hash、model hash 和当前 agent/scorer/runner/driver 工件哈希。
 
@@ -51,6 +54,6 @@ SWE-bench [官方数据说明](https://github.com/SWE-bench/SWE-bench/blob/main/
 python -m pytest tests/test_cp2_benchmark.py tests/test_benchmark_manifest_integrity.py -q --basetemp=.tmp\pytest-cp2-gates
 ```
 
-结果 **17 passed**。对当前冻结 manifest 单独调用只读 runnable-contract validator，得到 **57 个阻断项**：15 题均缺物化测试文件 hash 和已核验 baseline；xarray-4493 另缺 base-image 核验、许可证文件路径/hash 和 image digest；旧冻结有三项代码哈希漂移，并缺 provenance 与两个 schema 的三项哈希。该检查未运行评测。
+本轮回归 **19 passed**。对旧冻结 manifest 单独调用只读 runnable-contract validator，当前得到 **72 个阻断项**：15 项缺 exact-base 镜像/许可证原始输出文件；15 项缺测试 baseline、15 项缺物化测试 SHA；xarray-4493 另外有 6 项镜像/base/许可声明缺失；旧冻结有三项代码哈希漂移、三项新 schema/provenance 工件哈希缺失。部分阻断项是同一根因在 schema 与语义检查上的重复报错，不能把 72 误读成 72 个独立工作项。检查未运行评测。
 
 本轮未运行 Docker、benchmark、API 或模型。旧 manifest 及 selection 未改写；`django_10924/` 未跟踪目录未读取、修改或纳入提交。

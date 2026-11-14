@@ -8,6 +8,7 @@ from evals.cp2_benchmark import (
     DEFAULT_SOURCE_PROVENANCE,
     _current_artifact_hashes,
     _canonical_hash,
+    _validate_runnable_contract,
     freeze_manifest,
     plan,
 )
@@ -154,3 +155,55 @@ def test_cp2_visible_test_and_runtime_status_remain_fail_closed():
         if task["docker_image_config_digest"] is None
     ]
     assert missing_images == ["pydata__xarray-4493"]
+
+
+def test_freeze_does_not_claim_exact_base_license_or_commit_verification():
+    manifest = freeze_manifest(DEFAULT_SELECTION)
+    provenance = json.loads(DEFAULT_SOURCE_PROVENANCE.read_text(encoding="utf-8"))
+
+    assert all(task["base_commit_verified_in_image"] is False for task in manifest["tasks"])
+    assert all(task["license_file_at_base"] is None for task in manifest["tasks"])
+    assert all(task["license_file_sha256"] is None for task in manifest["tasks"])
+    assert all(task["license_evidence"] == "pending_exact_base_verification" for task in manifest["tasks"])
+    assert all(item["exact_base_verification"] == {"status": "pending"} for item in provenance["tasks"])
+
+    blockers = _validate_runnable_contract(manifest)
+    assert sum("exact-base image/license evidence is pending" in item for item in blockers) == 15
+
+
+def test_cp2_plan_rejects_exact_base_evidence_path_escape(tmp_path: Path):
+    manifest = freeze_manifest(DEFAULT_SELECTION)
+    task = manifest["tasks"][0]
+    task["base_commit_verified_in_image"] = True
+    task["license_file_at_base"] = "LICENSE"
+    task["license_file_sha256"] = "a" * 64
+    task["license_evidence"] = "verified_at_exact_base"
+    record = dict(task)
+    record.pop("task_record_sha256")
+    task["task_record_sha256"] = _canonical_hash(record)
+    manifest["task_record_sha256"] = _canonical_hash(
+        [item["task_record_sha256"] for item in manifest["tasks"]]
+    )
+
+    provenance = json.loads(DEFAULT_SOURCE_PROVENANCE.read_text(encoding="utf-8"))
+    evidence = provenance["tasks"][0]["exact_base_verification"]
+    evidence.update(
+        {
+            "status": "verified",
+            "image_config_digest": task["docker_image_config_digest"],
+            "observed_base_commit": task["base_commit"],
+            "license_file_at_base": task["license_file_at_base"],
+            "license_file_sha256": task["license_file_sha256"],
+            "license": task["license"],
+            "evidence_path": "../outside.json",
+            "evidence_sha256": "0" * 64,
+        }
+    )
+    provenance_path = tmp_path / "source-provenance.json"
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+
+    blockers = _validate_runnable_contract(
+        manifest, source_provenance_path=provenance_path
+    )
+
+    assert f"{task['task_id']}: exact-base evidence file missing, unsafe, or mismatched" in blockers

@@ -57,11 +57,13 @@ RUNTIME = {
 }
 
 LICENSES = {
-    "django/django": ("BSD-3-Clause", "LICENSE", "b846415d1b514e9c1dff14a22deb906d794bc546ca6129f950a18cd091e2a669"),
-    "pytest-dev/pytest": ("MIT", "LICENSE", "4be38574daf05665b6194e4fd84c5ef6ce7c3a2810308a5222d5cdffc2d04d18"),
-    "pydata/xarray": ("Apache-2.0", "LICENSE", "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68"),
-    "mwaskom/seaborn": ("BSD-3-Clause", "LICENSE", "0874bfc01308833385b2f5ca62205525739f6a57b8688afea1b078d0f845d6d4"),
-    "scikit-learn/scikit-learn": ("BSD-3-Clause", "COPYING", "3f046f2b5eea2c3b852dae4feea90f92a64ced2a6ac23ea137db2a5ac347ce22"),
+    # SPDX identifiers are repository-level public metadata. Paths and hashes
+    # must come from the exact task base, not from a current branch assumption.
+    "django/django": "BSD-3-Clause",
+    "pytest-dev/pytest": "MIT",
+    "pydata/xarray": "Apache-2.0",
+    "mwaskom/seaborn": "BSD-3-Clause",
+    "scikit-learn/scikit-learn": "BSD-3-Clause",
 }
 
 VISIBLE_SPECS = {
@@ -195,19 +197,20 @@ def freeze_manifest(selection_path: Path) -> dict[str, Any]:
     for task_id in TASK_IDS:
         source = by_id[task_id]
         if source["repo"] not in LICENSES:
-            raise ValueError(f"no license evidence for {task_id}")
-        license_name, license_file, license_hash = LICENSES[source["repo"]]
+            raise ValueError(f"no repository SPDX license identifier for {task_id}")
+        license_name = LICENSES[source["repo"]]
         image_digest = RUNTIME[task_id]
         spec = VISIBLE_SPECS[task_id]
         task = {
             "task_id": task_id,
             "repo": source["repo"],
             "license": license_name,
-            "license_file_at_base": license_file if image_digest else None,
-            "license_file_sha256": license_hash if image_digest else None,
-            "license_evidence": "verified_at_exact_base" if image_digest else "pending_missing_image",
+            "license_file_at_base": None,
+            "license_file_sha256": None,
+            "license_evidence": "pending_exact_base_verification",
             "base_commit": source["base_commit"],
-            "base_commit_verified_in_image": image_digest is not None,
+            # A known image digest alone does not prove its checked-out HEAD.
+            "base_commit_verified_in_image": False,
             "public_reference": source["pull_request_url"],
             "problem_statement": source["problem_statement"],
             "problem_statement_sha256": source["problem_statement_sha256"],
@@ -425,6 +428,52 @@ def _validate_runnable_contract(
                     ):
                         blockers.append(f"{task_id}: linked issue URL is not first-party")
                         break
+
+            exact_base = source.get("exact_base_verification")
+            if not isinstance(exact_base, dict) or exact_base.get("status") != "verified":
+                blockers.append(f"{task_id}: exact-base image/license evidence is pending")
+            else:
+                evidence_matches = (
+                    exact_base.get("image_config_digest")
+                    == task.get("docker_image_config_digest")
+                    and exact_base.get("observed_base_commit") == task.get("base_commit")
+                    and exact_base.get("license_file_at_base")
+                    == task.get("license_file_at_base")
+                    and exact_base.get("license_file_sha256")
+                    == task.get("license_file_sha256")
+                    and exact_base.get("license") == task.get("license")
+                    and isinstance(exact_base.get("evidence_path"), str)
+                    and _is_sha256(exact_base.get("evidence_sha256"))
+                )
+                if not evidence_matches:
+                    blockers.append(f"{task_id}: exact-base image/license evidence does not match task pins")
+                else:
+                    evidence_path = Path(exact_base["evidence_path"])
+                    evidence_abs = (ROOT / evidence_path).resolve()
+                    try:
+                        evidence_abs.relative_to(ROOT.resolve())
+                        evidence_valid = (
+                            not evidence_path.is_absolute()
+                            and ".." not in evidence_path.parts
+                            and evidence_abs.is_file()
+                            and _file_hash(evidence_abs) == exact_base["evidence_sha256"]
+                        )
+                        if evidence_valid:
+                            evidence_data = _load_json(evidence_abs)
+                            evidence_valid = isinstance(evidence_data, dict) and all(
+                                evidence_data.get(key) == exact_base.get(key)
+                                for key in (
+                                    "image_config_digest",
+                                    "observed_base_commit",
+                                    "license_file_at_base",
+                                    "license_file_sha256",
+                                    "license",
+                                )
+                            )
+                    except (OSError, ValueError, json.JSONDecodeError):
+                        evidence_valid = False
+                    if not evidence_valid:
+                        blockers.append(f"{task_id}: exact-base evidence file missing, unsafe, or mismatched")
 
         if not re.fullmatch(r"[a-f0-9]{40}", str(task.get("base_commit", ""))):
             blockers.append(f"{task_id}: base commit hash missing or invalid")
