@@ -56,3 +56,18 @@ def test_cp2_plan_rejects_model_manifest_tampering(tmp_path: Path):
     blockers, _ = plan(manifest, ledger, tmp_path / "cases")
 
     assert "model manifest hash mismatch" in blockers
+
+
+def test_cp2_visible_test_and_runtime_status_remain_fail_closed():
+    manifest = freeze_manifest(DEFAULT_SELECTION)
+
+    assert len(manifest["tasks"]) == 15
+    assert all(
+        task["visible_test_status"] == "spec_frozen_test_not_materialized_or_run"
+        for task in manifest["tasks"]
+    )
+    missing_images = [
+        task["task_id"] for task in manifest["tasks"]
+        if task["docker_image_config_digest"] is None
+    ]
+    assert missing_images == ["pydata__xarray-4493"]
