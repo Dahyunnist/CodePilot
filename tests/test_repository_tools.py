@@ -69,6 +69,39 @@ def test_read_file_requires_reason_and_deduplicates_reads(tmp_path) -> None:
     assert not outside.ok and outside.error_type == "PathPolicyError"
 
 
+def test_tool_registries_keep_two_repository_roots_isolated(tmp_path) -> None:
+    from codepilot.schemas import ToolCall
+    from codepilot.tools.registry import ToolRegistry
+
+    first_repo = tmp_path / "repo-a"
+    second_repo = tmp_path / "repo-b"
+    first_repo.mkdir()
+    second_repo.mkdir()
+    (first_repo / "app.py").write_text("repo_a = True\n", encoding="utf-8")
+    (second_repo / "secret.py").write_text("repo_b_only = 'sentinel'\n", encoding="utf-8")
+    first_tools = ToolRegistry(first_repo, ["python", "-m", "pytest"])
+    second_tools = ToolRegistry(second_repo, ["python", "-m", "pytest"])
+
+    cross_read = first_tools.execute(
+        ToolCall(
+            id="cross-read",
+            name="read_file",
+            arguments={"path": "../repo-b/secret.py", "reason": "Check repository boundary."},
+        )
+    )
+    local_read = second_tools.execute(
+        ToolCall(
+            id="local-read",
+            name="read_file",
+            arguments={"path": "secret.py", "reason": "Read this repository's file."},
+        )
+    )
+
+    assert not cross_read.ok and cross_read.error_type == "PathPolicyError"
+    assert "sentinel" not in cross_read.stdout
+    assert local_read.ok and "sentinel" in local_read.stdout
+
+
 def test_duplicate_search_reemits_cached_evidence(tmp_path) -> None:
     from codepilot.tools.registry import ToolRegistry
     from codepilot.schemas import ToolCall
