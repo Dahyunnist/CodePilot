@@ -1,5 +1,7 @@
 import os
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import pytest
 
@@ -100,6 +102,40 @@ def test_tool_registries_keep_two_repository_roots_isolated(tmp_path) -> None:
     assert not cross_read.ok and cross_read.error_type == "PathPolicyError"
     assert "sentinel" not in cross_read.stdout
     assert local_read.ok and "sentinel" in local_read.stdout
+
+
+def test_concurrent_tool_registries_do_not_mix_repository_results(tmp_path) -> None:
+    from codepilot.schemas import ToolCall
+    from codepilot.tools.registry import ToolRegistry
+
+    repo_a = tmp_path / "parallel-a"
+    repo_b = tmp_path / "parallel-b"
+    repo_a.mkdir()
+    repo_b.mkdir()
+    (repo_a / "identity.py").write_text("repository = 'alpha'\n", encoding="utf-8")
+    (repo_b / "identity.py").write_text("repository = 'beta'\n", encoding="utf-8")
+    tools_a = ToolRegistry(repo_a, ["python", "-m", "pytest"])
+    tools_b = ToolRegistry(repo_b, ["python", "-m", "pytest"])
+    start_together = Barrier(2)
+
+    def read_identity(registry: ToolRegistry, call_id: str):
+        start_together.wait(timeout=5)
+        return registry.execute(
+            ToolCall(
+                id=call_id,
+                name="read_file",
+                arguments={"path": "identity.py", "reason": "Verify isolated repository context."},
+            )
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        future_a = pool.submit(read_identity, tools_a, "parallel-a")
+        future_b = pool.submit(read_identity, tools_b, "parallel-b")
+        result_a = future_a.result()
+        result_b = future_b.result()
+
+    assert result_a.ok and "alpha" in result_a.stdout and "beta" not in result_a.stdout
+    assert result_b.ok and "beta" in result_b.stdout and "alpha" not in result_b.stdout
 
 
 def test_duplicate_search_reemits_cached_evidence(tmp_path) -> None:

@@ -5,8 +5,8 @@
 | 阶段 | 代码/评测入口 | 可复核证据 | 尚缺验收 |
 |---|---|---|---|
 | CP-1 上下文预算 | `codepilot/agent.py`、`codepilot/context_selector.py`；`evals/context_selector_offline.py` | 机制 fixture 比较同一字符计数器；历史 `reports/cp1-selector-pair/` 有 2 个同任务双配置结果。定向机制测试 8 passed。 | 两份历史 pair 都未通过任务验收；token 上限及 selector 版本未完整冻结。尚无可支持普遍效果结论的配对样本。 |
-| CP-2 真实仓库 benchmark | `evals/cp2_benchmark.py`、`benchmark-v1.json` | 15 个开发集任务、5 个仓库；gold 仅留 SHA；visible-only runner 和预算 gate 有契约测试。 | 15/15 可见测试未物化/基线验证；xarray-4493 缺本机镜像 digest；预算账本未与供应商累计用量对账。整个集合 fail closed。 |
-| CP-3 安全与 trace | `codepilot/security.py`、`codepilot/tracing.py`、Agent 负例测试 | 2026-11-13 定向安全组 43 passed；覆盖注入、路径拒绝、凭证脱敏、trace 与安全修复续行。 | 这是确定性/假模型验证；未完成生产 OTLP collector 或真实模型攻击评测。 |
+| CP-2 真实仓库 benchmark | `evals/cp2_benchmark.py`、`benchmark-v1.json` | 15 题元数据；当前有 5 个公开切片的 base/fix 证据，Django 10924、pytest 5103、xarray 3364、seaborn 2848/3010；2848/3010 已宿主 Docker 复核。 | 冻结 15 题清单与本地状态/hash 漂移；源仓库未随安全分支提供；账本余额未知。无 CodePilot Agent 修复验收，runner 继续 fail closed。 |
+| CP-3 安全与 trace | `codepilot/security.py`、`codepilot/tracing.py`、Agent/CLI/registry 测试 | 安全负例、trace/checkpoint；Agent 并行调用与顺序结果；双仓 registry 隔离及新增并发隔离回归。此前宿主 CLI 外部仓库流程 3/3、registry 测试 10 passed。 | 本轮组合宿主复核 5 passed、2 failed；两项失败在 Git 读取 `.git/config` 时遇权限拒绝，不能归因产品。重跑遭自动审批器拒绝。尚无生产 OTLP、真实模型攻击或真实公司多仓任务。 |
 | CP-4 Skill | `codepilot/skills.py`、`evals/skills/ablation.py` | schema/allowlist 的离线测试；消融脚本固定输出 `model_calls=0`。历史模型报告留有若干尝试记录。 | 真实尝试均因预算停止，未得到接受修复；没有可用于比较两个 Skill 成效的成功率结论。 |
 
 ## CP-1 两组历史 live pair
@@ -27,3 +27,9 @@ python -m pytest -p no:cacheprovider tests/test_live_runner.py::test_paired_comp
 ```
 
 CP-1 离线机制测试：**8 passed**。没有新的模型请求。CP-2 仍 fail closed；未读取、修改或提交 `django_10924/`。
+
+## CP-3 并行多仓库与宿主复核更新（2026-11-14）
+
+新增 `tests/test_repository_tools.py::test_concurrent_tool_registries_do_not_mix_repository_results`：两个独立 `ToolRegistry` 通过线程屏障同时读取不同仓库的同名文件，断言结果不串仓。新测与相关工具、Agent 并行顺序及 checkpoint 用例定向组 **4 passed**；扩大组 **12 passed、1 skipped**（Windows junction 创建权限不足）。既有测试还覆盖 CLI 审批后回写、暂停后补丁变化作废、批准后重新验证测试。
+
+本轮宿主组合复核为 **5 passed、2 failed**。两项失败均在临时 Git 仓库 `.git/config` 读取时遇 `Permission denied`，不是 Agent 断言失败。单项复核随后被自动审批器拒绝，未重试。此前宿主原生 CLI 回写组 **3/3 passed**，仓库工具组 **10 passed**；后者由本代理运行并清理临时仓库，不是用户运行。证据均为合成仓库/假模型，不代表真实模型成功率、生产 OTLP 或公司多仓库验收。

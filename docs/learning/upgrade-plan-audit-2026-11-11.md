@@ -67,3 +67,9 @@ CP-2 20 题公开数据冻结已完成，但独立仓库构建、baseline、visi
 CP-3 项目指令注入回归：AGENTS.md 要求读取 `.env` 时，真实 Agent/ToolRegistry 行为测试确认路径拒绝、key 不进 trace/模型消息，且合法补丁与可见测试仍成功。
 
 CP-2 候选集只读元数据审计：20/20 均 pending，缺 issue、fix SHA、可见/隐藏命令及 base 许可证证据；独立 validator 禁止被标 runnable。冻结不等于真实仓库可复现。
+
+## CP-3 验收关口更新（2026-11-14）
+
+补充双仓并行隔离回归：两个 registry 并发读取不同仓库同名文件，沙箱定向组 4 passed。已有 Agent 并行工具顺序、CLI 审批回写、checkpoint 恢复、补丁变更后审批失效和批准后重测用例。
+
+宿主组合复核 5 passed、2 failed；失败均为临时 Git 仓库读取 `.git/config` 的权限拒绝。此前宿主 CLI 回写组 3/3 passed、registry 工具组 10 passed。本轮未取得两项失败用例的单项宿主复核，后续执行被自动审批器拒绝。故 CP-3 仍部分完成：没有生产 OTLP、真实模型攻击测试或真实企业多仓库修复证据。详细记录见 `docs/learning/cp1-cp4-evidence-status-2026-11-14.md`。
