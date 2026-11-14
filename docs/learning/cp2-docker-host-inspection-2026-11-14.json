@@ -1,0 +1,231 @@
+{
+  "observed_at": "2026-11-14T14:01:57.3893471+08:00",
+  "docker_version": "Client:\r\n Version:           29.1.3\r\n API version:       1.52\r\n Go version:        go1.25.5\r\n Git commit:        f52814d\r\n Built:             Fri Dec 12 14:51:52 2025\r\n OS/Arch:           windows/amd64\r\n Context:           desktop-linux\r\n\r\nServer: Docker Desktop 4.55.0 (213807)\r\n Engine:\r\n  Version:          29.1.3\r\n  API version:      1.52 (minimum version 1.44)\r\n  Go version:       go1.25.5\r\n  Git commit:       fbf3ed2\r\n  Built:            Fri Dec 12 14:49:51 2025\r\n  OS/Arch:          linux/amd64\r\n  Experimental:     false\r\n containerd:\r\n  Version:          v2.2.0\r\n  GitCommit:        1c4457e00facac03ce1d75f7b6777a7a851e5c41\r\n runc:\r\n  Version:          1.3.4\r\n  GitCommit:        v1.3.4-0-gd6d73eb8\r\n docker-init:\r\n  Version:          0.19.0\r\n  GitCommit:        de40ad0",
+  "tasks": [
+    {
+      "task_id": "django__django-10924",
+      "image_ref": "swebench/sweb.eval.x86_64.django_1776_django-10924:latest",
+      "expected_image_config_digest": "sha256:d41b289ea27a92ef6346702388e5ea0b8c8f48c41d83466a72c2dffb934007a1",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:d41b289ea27a92ef6346702388e5ea0b8c8f48c41d83466a72c2dffb934007a1 linux/amd64 [\"swebench/sweb.eval.x86_64.django_1776_django-10924@sha256:d41b289ea27a92ef6346702388e5ea0b8c8f48c41d83466a72c2dffb934007a1\"]",
+      "expected_base_commit": "bceadd2788dc2dad53eba0caae172bd8522fd483",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "b846415d1b514e9c1dff14a22deb906d794bc546ca6129f950a18cd091e2a669",
+      "container_exit_code": 0,
+      "container_output": [
+        "a84760f61639d2d3954344001aa58401083f0177",
+        "b846415d1b514e9c1dff14a22deb906d794bc546ca6129f950a18cd091e2a669  LICENSE"
+      ]
+    },
+    {
+      "task_id": "django__django-11001",
+      "image_ref": "swebench/sweb.eval.x86_64.django_1776_django-11001:latest",
+      "expected_image_config_digest": "sha256:68c61032db48a5eef2175532d3555e20acdd426aa5b426ba3acfe34a0ddd83b7",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:68c61032db48a5eef2175532d3555e20acdd426aa5b426ba3acfe34a0ddd83b7 linux/amd64 [\"swebench/sweb.eval.x86_64.django_1776_django-11001@sha256:68c61032db48a5eef2175532d3555e20acdd426aa5b426ba3acfe34a0ddd83b7\"]",
+      "expected_base_commit": "ef082ebb84f00e38af4e8880d04e8365c2766d34",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "b846415d1b514e9c1dff14a22deb906d794bc546ca6129f950a18cd091e2a669",
+      "container_exit_code": 0,
+      "container_output": [
+        "31c695dce67e3c7ddd60ac898bd4e62ff0c23daa",
+        "b846415d1b514e9c1dff14a22deb906d794bc546ca6129f950a18cd091e2a669  LICENSE"
+      ]
+    },
+    {
+      "task_id": "django__django-11099",
+      "image_ref": "swebench/sweb.eval.x86_64.django_1776_django-11099:latest",
+      "expected_image_config_digest": "sha256:cca302934edd881cc4f1e4647a389a25cdaa3c02bfa33667a4204934a09c4fb1",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:cca302934edd881cc4f1e4647a389a25cdaa3c02bfa33667a4204934a09c4fb1 linux/amd64 [\"swebench/sweb.eval.x86_64.django_1776_django-11099@sha256:cca302934edd881cc4f1e4647a389a25cdaa3c02bfa33667a4204934a09c4fb1\"]",
+      "expected_base_commit": "d26b2424437dabeeca94d7900b37d2df4410da0c",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "b846415d1b514e9c1dff14a22deb906d794bc546ca6129f950a18cd091e2a669",
+      "container_exit_code": 0,
+      "container_output": [
+        "04df050ee958b843111c32aaaa362eda26b25bda",
+        "b846415d1b514e9c1dff14a22deb906d794bc546ca6129f950a18cd091e2a669  LICENSE"
+      ]
+    },
+    {
+      "task_id": "django__django-11133",
+      "image_ref": "swebench/sweb.eval.x86_64.django_1776_django-11133:latest",
+      "expected_image_config_digest": "sha256:914093363dbe12def92c5d36e9bdc5270cce5ed0aa6f3daad8bc4ef0389c29bf",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:914093363dbe12def92c5d36e9bdc5270cce5ed0aa6f3daad8bc4ef0389c29bf linux/amd64 [\"swebench/sweb.eval.x86_64.django_1776_django-11133@sha256:914093363dbe12def92c5d36e9bdc5270cce5ed0aa6f3daad8bc4ef0389c29bf\"]",
+      "expected_base_commit": "879cc3da6249e920b8d54518a0ae06de835d7373",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "b846415d1b514e9c1dff14a22deb906d794bc546ca6129f950a18cd091e2a669",
+      "container_exit_code": 0,
+      "container_output": [
+        "95d0ab8311f8180cdd9c02006be1dc16cc706548",
+        "b846415d1b514e9c1dff14a22deb906d794bc546ca6129f950a18cd091e2a669  LICENSE"
+      ]
+    },
+    {
+      "task_id": "pytest-dev__pytest-5103",
+      "image_ref": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5103:latest",
+      "expected_image_config_digest": "sha256:1648c614485c81d9e08bcf9ec8014fb38cd2f20fad6bea782552d923a35ce714",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:1648c614485c81d9e08bcf9ec8014fb38cd2f20fad6bea782552d923a35ce714 linux/amd64 [\"swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5103@sha256:1648c614485c81d9e08bcf9ec8014fb38cd2f20fad6bea782552d923a35ce714\"]",
+      "expected_base_commit": "10ca84ffc56c2dd2d9dc4bd71b7b898e083500cd",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "4be38574daf05665b6194e4fd84c5ef6ce7c3a2810308a5222d5cdffc2d04d18",
+      "container_exit_code": 0,
+      "container_output": [
+        "5df4d131d551b79b9fcf258482eaa4f59bf238b8",
+        "4be38574daf05665b6194e4fd84c5ef6ce7c3a2810308a5222d5cdffc2d04d18  LICENSE"
+      ]
+    },
+    {
+      "task_id": "pytest-dev__pytest-5221",
+      "image_ref": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5221:latest",
+      "expected_image_config_digest": "sha256:547472f1933751a67623599dae697188232c9712a46ab66fb69330f88b911e5a",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:547472f1933751a67623599dae697188232c9712a46ab66fb69330f88b911e5a linux/amd64 [\"swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5221@sha256:547472f1933751a67623599dae697188232c9712a46ab66fb69330f88b911e5a\"]",
+      "expected_base_commit": "4a2fdce62b73944030cff9b3e52862868ca9584d",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "4be38574daf05665b6194e4fd84c5ef6ce7c3a2810308a5222d5cdffc2d04d18",
+      "container_exit_code": 0,
+      "container_output": [
+        "c0698ad6368fb4dfda4e3d2b8dab498874793848",
+        "4be38574daf05665b6194e4fd84c5ef6ce7c3a2810308a5222d5cdffc2d04d18  LICENSE"
+      ]
+    },
+    {
+      "task_id": "pytest-dev__pytest-5413",
+      "image_ref": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5413:latest",
+      "expected_image_config_digest": "sha256:75700210c9eb925d1abde2cb95b7dfffc2c409376ae434854375bacaa193864f",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:75700210c9eb925d1abde2cb95b7dfffc2c409376ae434854375bacaa193864f linux/amd64 [\"swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5413@sha256:75700210c9eb925d1abde2cb95b7dfffc2c409376ae434854375bacaa193864f\"]",
+      "expected_base_commit": "450d2646233c670654744d3d24330b69895bb9d2",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "4be38574daf05665b6194e4fd84c5ef6ce7c3a2810308a5222d5cdffc2d04d18",
+      "container_exit_code": 0,
+      "container_output": [
+        "c08daa5908fdcedc912b07801adc12c428f352d7",
+        "4be38574daf05665b6194e4fd84c5ef6ce7c3a2810308a5222d5cdffc2d04d18  LICENSE"
+      ]
+    },
+    {
+      "task_id": "pytest-dev__pytest-5495",
+      "image_ref": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5495:latest",
+      "expected_image_config_digest": "sha256:86b356cf05ac9a623ba8943849e25ce2d0bcebc506753b1361595e5ad488a9b3",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:86b356cf05ac9a623ba8943849e25ce2d0bcebc506753b1361595e5ad488a9b3 linux/amd64 [\"swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5495@sha256:86b356cf05ac9a623ba8943849e25ce2d0bcebc506753b1361595e5ad488a9b3\"]",
+      "expected_base_commit": "1aefb24b37c30fba8fd79a744829ca16e252f340",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "4be38574daf05665b6194e4fd84c5ef6ce7c3a2810308a5222d5cdffc2d04d18",
+      "container_exit_code": 0,
+      "container_output": [
+        "f2f74c379db180f695e2cc06ed8e86f906e2dcef",
+        "4be38574daf05665b6194e4fd84c5ef6ce7c3a2810308a5222d5cdffc2d04d18  LICENSE"
+      ]
+    },
+    {
+      "task_id": "pydata__xarray-3364",
+      "image_ref": "swebench/sweb.eval.x86_64.pydata_1776_xarray-3364:latest",
+      "expected_image_config_digest": "sha256:8591047f512d8d26b4d0e121d2d04eb6b95fa6ad41e13d92fe64f5ef66244c27",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:8591047f512d8d26b4d0e121d2d04eb6b95fa6ad41e13d92fe64f5ef66244c27 linux/amd64 [\"swebench/sweb.eval.x86_64.pydata_1776_xarray-3364@sha256:8591047f512d8d26b4d0e121d2d04eb6b95fa6ad41e13d92fe64f5ef66244c27\"]",
+      "expected_base_commit": "863e49066ca4d61c9adfe62aca3bf21b90e1af8c",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68",
+      "container_exit_code": 0,
+      "container_output": [
+        "3c2a10d9bbf2bf86b74762c5e62b2f7ef33127b6",
+        "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68  LICENSE"
+      ]
+    },
+    {
+      "task_id": "pydata__xarray-4094",
+      "image_ref": "swebench/sweb.eval.x86_64.pydata_1776_xarray-4094:latest",
+      "expected_image_config_digest": "sha256:6bcd1fe581af0796691ac3527b940d43e5e1bfd6539adeecebb12f3e4b25dc2c",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:6bcd1fe581af0796691ac3527b940d43e5e1bfd6539adeecebb12f3e4b25dc2c linux/amd64 [\"swebench/sweb.eval.x86_64.pydata_1776_xarray-4094@sha256:6bcd1fe581af0796691ac3527b940d43e5e1bfd6539adeecebb12f3e4b25dc2c\"]",
+      "expected_base_commit": "a64cf2d5476e7bbda099b34c40b7be1880dbd39a",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68",
+      "container_exit_code": 0,
+      "container_output": [
+        "58761b01d75edf12556fbc9d0056af31e38c86b2",
+        "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68  LICENSE"
+      ]
+    },
+    {
+      "task_id": "pydata__xarray-4248",
+      "image_ref": "swebench/sweb.eval.x86_64.pydata_1776_xarray-4248:latest",
+      "expected_image_config_digest": "sha256:d16aca15c86b2ef8a698600711bfde3559f794154a0edd4ac4213edf6b6fdf73",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:d16aca15c86b2ef8a698600711bfde3559f794154a0edd4ac4213edf6b6fdf73 linux/amd64 [\"swebench/sweb.eval.x86_64.pydata_1776_xarray-4248@sha256:d16aca15c86b2ef8a698600711bfde3559f794154a0edd4ac4213edf6b6fdf73\"]",
+      "expected_base_commit": "98dc1f4ea18738492e074e9e51ddfed5cd30ab94",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68",
+      "container_exit_code": 0,
+      "container_output": [
+        "56c06a44f43b5aa56b426e82b6159f7217e97e8a",
+        "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68  LICENSE"
+      ]
+    },
+    {
+      "task_id": "pydata__xarray-4493",
+      "image_ref": "swebench/sweb.eval.x86_64.pydata_1776_xarray-4493:latest",
+      "expected_image_config_digest": null,
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:5c94544db403737d9f88cfb75afeb9444226072860af86e830ebbc7478287c20 linux/amd64 [\"swebench/sweb.eval.x86_64.pydata_1776_xarray-4493@sha256:5c94544db403737d9f88cfb75afeb9444226072860af86e830ebbc7478287c20\"]",
+      "expected_base_commit": "a5f53e203c52a7605d5db799864046471115d04f",
+      "expected_license_file": null,
+      "expected_license_sha256": null,
+      "container_exit_code": 0,
+      "container_output": [
+        "e8815311e4681461882133e650391caf0d1ae868",
+        "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68  LICENSE"
+      ]
+    },
+    {
+      "task_id": "mwaskom__seaborn-2848",
+      "image_ref": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-2848:latest",
+      "expected_image_config_digest": "sha256:d719470351e66623e532a4f23cdedfe8fb737147fe108e4b5829aa273528389d",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:d719470351e66623e532a4f23cdedfe8fb737147fe108e4b5829aa273528389d linux/amd64 [\"swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-2848@sha256:d719470351e66623e532a4f23cdedfe8fb737147fe108e4b5829aa273528389d\"]",
+      "expected_base_commit": "94621cef29f80282436d73e8d2c0aa76dab81273",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "0874bfc01308833385b2f5ca62205525739f6a57b8688afea1b078d0f845d6d4",
+      "container_exit_code": 0,
+      "container_output": [
+        "a110ef5b2bca99904daf60a6e10e7e5bda8d98d6",
+        "0874bfc01308833385b2f5ca62205525739f6a57b8688afea1b078d0f845d6d4  LICENSE"
+      ]
+    },
+    {
+      "task_id": "mwaskom__seaborn-3010",
+      "image_ref": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-3010:latest",
+      "expected_image_config_digest": "sha256:22fef36e8b9655fb1642d976de669e3f2426df0186a09d6d788fc6215cfa1bc0",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:22fef36e8b9655fb1642d976de669e3f2426df0186a09d6d788fc6215cfa1bc0 linux/amd64 [\"swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-3010@sha256:22fef36e8b9655fb1642d976de669e3f2426df0186a09d6d788fc6215cfa1bc0\"]",
+      "expected_base_commit": "0f5a013e2cf43562deec3b879458e59a73853813",
+      "expected_license_file": "LICENSE",
+      "expected_license_sha256": "0874bfc01308833385b2f5ca62205525739f6a57b8688afea1b078d0f845d6d4",
+      "container_exit_code": 0,
+      "container_output": [
+        "191ec3379337aea8e27e61f8fd3dd11411a8654f",
+        "0874bfc01308833385b2f5ca62205525739f6a57b8688afea1b078d0f845d6d4  LICENSE.md"
+      ]
+    },
+    {
+      "task_id": "scikit-learn__scikit-learn-10508",
+      "image_ref": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-10508:latest",
+      "expected_image_config_digest": "sha256:4c25a7511f252ed93ce8555f6bb84ffb8d56baa46151e3df5b4338cb2f228677",
+      "inspect_exit_code": 0,
+      "inspect_output": "sha256:4c25a7511f252ed93ce8555f6bb84ffb8d56baa46151e3df5b4338cb2f228677 linux/amd64 [\"swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-10508@sha256:4c25a7511f252ed93ce8555f6bb84ffb8d56baa46151e3df5b4338cb2f228677\"]",
+      "expected_base_commit": "c753b77ac49e72ebc0fe5e3c2369fe628f975017",
+      "expected_license_file": "COPYING",
+      "expected_license_sha256": "3f046f2b5eea2c3b852dae4feea90f92a64ced2a6ac23ea137db2a5ac347ce22",
+      "container_exit_code": 0,
+      "container_output": [
+        "fd90cef8a6ab1b1eb5b96e092ba7984e8461e124",
+        "3f046f2b5eea2c3b852dae4feea90f92a64ced2a6ac23ea137db2a5ac347ce22  COPYING"
+      ]
+    }
+  ]
+}
