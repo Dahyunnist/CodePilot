@@ -1,5 +1,7 @@
 # CP-2 Docker 宿主预检（2026-11-14）
 
+> 勘误：本记录最初把合成 `HEAD` SHA 当作 base SHA，故“15/15 不一致”的结论错误。正确核验见[父提交审计与更正](cp2-docker-parent-audit-2026-11-14.md)。
+
 ## 结果
 
 Docker Desktop 可用：Client 29.1.3，Server 29.1.3，linux/amd64。15 个冻结镜像 tag 均可读取；14 个已有 config digest 与冻结值一致。xarray-4493 的冻结 digest 原先为空，本次读到 `sha256:5c94544db403737d9f88cfb75afeb9444226072860af86e830ebbc7478287c20`。
