@@ -116,6 +116,8 @@ class CaseSpec(BaseModel):
     generated_version_sha256: str | None = None
     compiled_extensions_sha256: str | None = None
     visible_test_sha256: str | None = None
+    visible_test_files: list[str] = Field(default_factory=list)
+    source_file_manifest_sha256: str | None = None
     case_dir: Path | None = None
 
 

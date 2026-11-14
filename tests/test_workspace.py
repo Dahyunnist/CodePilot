@@ -33,6 +33,26 @@ def test_workspace_is_a_clean_clone_of_committed_state(tmp_path) -> None:
     assert file.read_text(encoding="utf-8") == "value = 2\n"
 
 
+def test_workspace_excludes_untracked_private_oracle_sentinels(tmp_path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    init_repo(source)
+    (source / "app.py").write_text("value = 1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "baseline"], cwd=source, check=True)
+    (source / "gold.patch").write_text("SENTINEL ONLY\n", encoding="utf-8")
+    hidden = source / "hidden_tests"
+    hidden.mkdir()
+    (hidden / "test_private.py").write_text("SENTINEL ONLY\n", encoding="utf-8")
+
+    workspace = WorkspaceManager(tmp_path / "workspaces").prepare(source, "run-private")
+
+    assert (workspace.path / "app.py").is_file()
+    assert not (workspace.path / "gold.patch").exists()
+    assert not (workspace.path / "hidden_tests").exists()
+    assert (source / "gold.patch").is_file()
+
+
 def test_workspace_rejects_duplicate_run_id(tmp_path) -> None:
     source = tmp_path / "source"
     source.mkdir()

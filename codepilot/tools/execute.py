@@ -241,6 +241,8 @@ def build_docker_command(
         )
     if (root / "src").is_dir():
         command.extend(["--env", "PYTHONPATH=/workspace/src"])
+    elif (root / "django" / "__init__.py").is_file():
+        command.extend(["--env", "PYTHONPATH=/workspace"])
     command.extend(["--workdir", "/workspace", image, docker_python])
     if runner == "pytest":
         command.extend(

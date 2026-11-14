@@ -24,6 +24,7 @@ reports/**/*.jsonl
 reports/**/*.log
 reports/**/*.txt
 evals/public_cases/*/*/repo/
+evals/public_cases/cp2/cases/*/repo/
 
 # Generated evaluation artifacts and local run logs.
 reports/

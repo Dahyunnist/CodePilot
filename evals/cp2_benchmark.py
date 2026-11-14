@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+from pathlib import PurePosixPath
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -112,6 +113,90 @@ def _canonical_hash(value: Any) -> str:
 
 def _file_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _case_materialization_blockers(case_dir: Path, case: dict[str, Any]) -> list[str]:
+    """Reject cases whose visible workspace differs from its public base inventory."""
+    blockers: list[str] = []
+    forbidden = {
+        "patches", "gold_patch", "gold_patch_sha256", "test_patch",
+        "test_patch_sha256", "gold_source", "hidden_test_patch",
+        "hidden_test_command", "hidden_test_files",
+    }
+    for key in forbidden:
+        value = case.get(key)
+        if value not in (None, [], ""):
+            blockers.append(f"case contains forbidden oracle field: {key}")
+
+    repo = case_dir / "repo"
+    inventory_path = case_dir / "source-files.json"
+    visible_root = case_dir / "visible_tests"
+    if repo.is_symlink() or inventory_path.is_symlink() or visible_root.is_symlink():
+        return blockers + ["case materialization contains a symlink root"]
+    if not repo.is_dir() or not inventory_path.is_file() or not visible_root.is_dir():
+        return blockers + ["case source inventory, repo, or visible tests missing"]
+    expected_manifest_hash = case.get("source_file_manifest_sha256")
+    if not _is_sha256(expected_manifest_hash) or _file_hash(inventory_path) != expected_manifest_hash:
+        blockers.append("source file manifest hash mismatch")
+    try:
+        inventory = _load_json(inventory_path)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return blockers + ["source file manifest is unreadable"]
+    if inventory.get("case_id") != case.get("case_id"):
+        blockers.append("source file manifest case id mismatch")
+    if inventory.get("source_commit") != case.get("source_commit"):
+        blockers.append("source file manifest commit mismatch")
+    if inventory.get("source_tree_sha") != case.get("source_tree_sha"):
+        blockers.append("source file manifest tree mismatch")
+    base_files = inventory.get("files")
+    visible_files = case.get("visible_test_files")
+    if not isinstance(base_files, dict) or not isinstance(visible_files, list):
+        return blockers + ["source inventory or visible test path list is invalid"]
+    visible_paths: set[str] = set()
+    for relative in visible_files:
+        if not isinstance(relative, str):
+            blockers.append("visible test path is invalid")
+            continue
+        path = PurePosixPath(relative)
+        if path.is_absolute() or ".." in path.parts or not path.parts:
+            blockers.append(f"unsafe visible test path: {relative}")
+            continue
+        visible_paths.add(path.as_posix())
+
+    expected_paths = set(base_files) | visible_paths
+    actual_paths: set[str] = set()
+    for path in repo.rglob("*"):
+        if path.is_symlink():
+            blockers.append(f"case repo contains symlink: {path.relative_to(repo).as_posix()}")
+            continue
+        if path.is_file():
+            actual_paths.add(path.relative_to(repo).as_posix())
+    if actual_paths != expected_paths:
+        blockers.append("case repo file inventory differs from public base plus visible tests")
+    for relative, expected_hash in base_files.items():
+        path = PurePosixPath(relative)
+        if path.is_absolute() or ".." in path.parts or not path.parts:
+            blockers.append(f"unsafe source inventory path: {relative}")
+            continue
+        if relative in visible_paths:
+            continue
+        source_file = repo.joinpath(*path.parts)
+        if not source_file.is_file() or _file_hash(source_file) != expected_hash:
+            blockers.append(f"base source file differs from inventory: {relative}")
+    for relative in visible_paths:
+        path = PurePosixPath(relative)
+        visible_file = visible_root.joinpath(*path.parts)
+        repo_file = repo.joinpath(*path.parts)
+        if not visible_file.is_file() or not repo_file.is_file():
+            blockers.append(f"visible test missing from materialized repo: {relative}")
+        elif _file_hash(visible_file) != _file_hash(repo_file):
+            blockers.append(f"visible test differs from materialized repo: {relative}")
+    if len(visible_paths) == 1:
+        only_path = next(iter(visible_paths))
+        visible_file = visible_root.joinpath(*PurePosixPath(only_path).parts)
+        if not _is_sha256(case.get("visible_test_sha256")) or not visible_file.is_file() or _file_hash(visible_file) != case.get("visible_test_sha256"):
+            blockers.append("visible test content hash mismatch")
+    return blockers
 
 
 def _tree_hash(root: Path) -> str:
@@ -568,6 +653,10 @@ def plan(
             blockers.append(f"{task['task_id']}: case contains private-oracle metadata")
         if (case_path.parent / "hidden_tests").exists():
             blockers.append(f"{task['task_id']}: private-oracle directory present")
+        blockers.extend(
+            f"{task['task_id']}: {item}"
+            for item in _case_materialization_blockers(case_path.parent, case)
+        )
     return blockers, total_reserve
 
 

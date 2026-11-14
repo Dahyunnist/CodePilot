@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -8,10 +9,72 @@ from evals.cp2_benchmark import (
     DEFAULT_SOURCE_PROVENANCE,
     _current_artifact_hashes,
     _canonical_hash,
+    _case_materialization_blockers,
     _validate_runnable_contract,
     freeze_manifest,
     plan,
 )
+
+
+def _materialized_case(tmp_path: Path) -> tuple[Path, dict[str, object]]:
+    case_dir = tmp_path / "c"
+    repo = case_dir / "repo"
+    visible = case_dir / "visible_tests" / "tests"
+    repo_file = repo / "django" / "__init__.py"
+    visible_repo_test = repo / "tests" / "t.py"
+    visible_file = visible / "t.py"
+    repo_file.parent.mkdir(parents=True)
+    visible_repo_test.parent.mkdir(parents=True)
+    visible_file.parent.mkdir(parents=True)
+    repo_file.write_text("# public base\n", encoding="utf-8")
+    test_content = "def test_public_regression(): pass\n"
+    visible_file.write_text(test_content, encoding="utf-8")
+    visible_repo_test.write_text(test_content, encoding="utf-8")
+    manifest = {
+        "case_id": "django__django-10924",
+        "files": {"django/__init__.py": hashlib.sha256(repo_file.read_bytes()).hexdigest()},
+        "source_commit": "a" * 40,
+        "source_tree_sha": "b" * 40,
+    }
+    manifest_path = case_dir / "source-files.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    case = {
+        "case_id": "django__django-10924",
+        "source_commit": manifest["source_commit"],
+        "source_tree_sha": manifest["source_tree_sha"],
+        "source_file_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+        "visible_test_sha256": hashlib.sha256(visible_file.read_bytes()).hexdigest(),
+        "visible_test_files": ["tests/t.py"],
+    }
+    return case_dir, case
+
+
+def test_cp2_case_materialization_accepts_exact_public_base_and_visible_test(tmp_path: Path):
+    case_dir, case = _materialized_case(tmp_path)
+
+    assert _case_materialization_blockers(case_dir, case) == []
+
+
+def test_cp2_case_materialization_rejects_added_or_changed_agent_files(tmp_path: Path):
+    case_dir, case = _materialized_case(tmp_path)
+    (case_dir / "repo" / "gold.patch").write_text("sentinel only\n", encoding="utf-8")
+    (case_dir / "repo" / "django" / "__init__.py").write_text("changed\n", encoding="utf-8")
+
+    blockers = _case_materialization_blockers(case_dir, case)
+
+    assert any("file inventory differs" in item for item in blockers)
+    assert any("base source file differs" in item for item in blockers)
+
+
+def test_cp2_case_materialization_rejects_oracle_metadata(tmp_path: Path):
+    case_dir, case = _materialized_case(tmp_path)
+    case["gold_patch"] = "sentinel only"
+    case["patches"] = [{"path": "django/__init__.py"}]
+
+    blockers = _case_materialization_blockers(case_dir, case)
+
+    assert "case contains forbidden oracle field: gold_patch" in blockers
+    assert "case contains forbidden oracle field: patches" in blockers
 
 
 def test_cp2_manifest_freezes_selected_scope_and_artifacts():

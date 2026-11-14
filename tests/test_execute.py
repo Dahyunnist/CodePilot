@@ -195,6 +195,22 @@ def test_docker_command_runs_bounded_django_runner_inside_same_sandbox(tmp_path)
     ]
 
 
+def test_docker_django_runner_imports_package_from_mounted_project_root(tmp_path) -> None:
+    package = tmp_path / "django"
+    package.mkdir()
+    (package / "__init__.py").write_text("", encoding="utf-8")
+
+    command = build_docker_command(
+        tmp_path,
+        [sys.executable, "tests/runtests.py", "model_fields.test_filepathfield"],
+        "swebench/django:test",
+        "codepilot-django-test",
+    )
+
+    assert command[command.index("--env") + 1] == "PYTHONDONTWRITEBYTECODE=1"
+    assert "PYTHONPATH=/workspace" in command
+
+
 def test_docker_daemon_permission_error_is_not_a_test_failure(tmp_path, monkeypatch) -> None:
     error = "permission denied while trying to connect to the docker API"
     monkeypatch.setattr(
