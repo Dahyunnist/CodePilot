@@ -16,3 +16,7 @@ CP-2 15 题中，xarray-4493 的镜像 digest 仍缺；15 题可见测试均未�
 - 较宽 CP-2/runner 测试组：**30 passed, 1 failed**。唯一失败在 `test_budget_stopped_patch_verifies_from_clean_copy_and_frozen_tests`，Windows 沙箱复制临时 Git object 时返回 `FileNotFoundError`。宿主之前报告 283 项全通过；当前受限环境结果不覆盖该宿主证据。
 
 未跟踪的 `django_10924/` 未读取、修改或提交。
+
+## seaborn-3010 宿主预检补充（2026-11-14）
+
+Docker daemon 已可用。seaborn-3010 镜像 digest、base 父提交和 `LICENSE.md` 哈希与冻结 sidecar 一致。base 中没有 `test_missing_data`，所以 manifest 声明的选择器得到 `2 deselected`、pytest 退出 5；不能据此算 baseline 失败。随后在只读、无网络容器的 tmpfs 中运行了公开 PR #3010 的新增测试逻辑，base 因 `LinAlgError: SVD did not converge in Linear Least Squares` 失败，确认单题 base 缺陷。完整记录见 [单题预检](cp2-seaborn-3010-baseline-preflight-2026-11-14.md)。未跑 fix、Agent 或模型。

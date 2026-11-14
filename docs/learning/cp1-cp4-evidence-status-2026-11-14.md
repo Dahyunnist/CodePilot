@@ -5,7 +5,7 @@
 | 阶段 | 代码/评测入口 | 可复核证据 | 尚缺验收 |
 |---|---|---|---|
 | CP-1 上下文预算 | `codepilot/agent.py`、`codepilot/context_selector.py`；`evals/context_selector_offline.py` | 机制 fixture 比较同一字符计数器；历史 `reports/cp1-selector-pair/` 有 2 个同任务双配置结果。定向机制测试 8 passed。 | 两份历史 pair 都未通过任务验收；token 上限及 selector 版本未完整冻结。尚无可支持普遍效果结论的配对样本。 |
-| CP-2 真实仓库 benchmark | `evals/cp2_benchmark.py`、`benchmark-v1.json` | 15 题元数据；当前有 5 个公开切片的 base/fix 证据，Django 10924、pytest 5103、xarray 3364、seaborn 2848/3010；2848/3010 已宿主 Docker 复核。 | 冻结 15 题清单与本地状态/hash 漂移；源仓库未随安全分支提供；账本余额未知。无 CodePilot Agent 修复验收，runner 继续 fail closed。 |
+| CP-2 真实仓库 benchmark | `evals/cp2_benchmark.py`、`benchmark-v1.json` | 15 题元数据；公开切片已有 base/fix 证据。seaborn-3010 新增单题证据：镜像 digest、base 父提交、BSD-3-Clause 许可证核对通过，公开 PR 测试逻辑在 base 复现预期缺陷；详见 `docs/learning/cp2-seaborn-3010-baseline-preflight-2026-11-14.md`。 | 冻结 v1 状态/hash 不变；base 镜像自带测试未包含 `test_missing_data`，原选择器退出 5，新增公开测试逻辑仅在临时容器路径复现。修复后验收、15 题完整 visible baseline、账本余额和 Agent 修复验收仍缺。 |
 | CP-3 安全与 trace | `codepilot/security.py`、`codepilot/tracing.py`、Agent/CLI/registry 测试 | 安全负例、trace/checkpoint；Agent 并行调用与顺序结果；双仓 registry 隔离及新增并发隔离回归。此前宿主 CLI 外部仓库流程 3/3、registry 测试 10 passed。 | 本轮组合宿主复核 5 passed、2 failed；两项失败在 Git 读取 `.git/config` 时遇权限拒绝，不能归因产品。重跑遭自动审批器拒绝。尚无生产 OTLP、真实模型攻击或真实公司多仓任务。 |
 | CP-4 Skill | `codepilot/skills.py`、`evals/skills/ablation.py` | schema/allowlist 的离线测试；消融脚本固定输出 `model_calls=0`。历史模型报告留有若干尝试记录。 | 真实尝试均因预算停止，未得到接受修复；没有可用于比较两个 Skill 成效的成功率结论。 |
 
