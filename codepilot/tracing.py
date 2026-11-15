@@ -109,7 +109,10 @@ class TraceLogger:
         if event == "run_started":
             span = self._otel_tracer.start_span(
                 "codepilot.run",
-                attributes={"codepilot.run_id": self.run_id},
+                attributes={
+                    "codepilot.run_id": self.run_id,
+                    "codepilot.trace_id": self.trace_id,
+                },
             )
             self._otel_spans[span_id] = span
             return
@@ -118,7 +121,12 @@ class TraceLogger:
                 span_id,
                 parent_id,
                 "codepilot.model.call",
-                {"codepilot.run_id": self.run_id, "codepilot.step": record["step"], **fields},
+                {
+                    "codepilot.run_id": self.run_id,
+                    "codepilot.trace_id": self.trace_id,
+                    "codepilot.step": record["step"],
+                    **fields,
+                },
             )
             return
         if event == "tool_started":
@@ -126,7 +134,12 @@ class TraceLogger:
                 span_id,
                 parent_id,
                 "codepilot.tool.execute",
-                {"codepilot.run_id": self.run_id, "codepilot.step": record["step"], **fields},
+                {
+                    "codepilot.run_id": self.run_id,
+                    "codepilot.trace_id": self.trace_id,
+                    "codepilot.step": record["step"],
+                    **fields,
+                },
             )
             return
         if event == "patch_started":
@@ -140,7 +153,11 @@ class TraceLogger:
                 span_id,
                 parent_id,
                 "codepilot.writeback.approval" if event.endswith("requested") else "codepilot.writeback.apply",
-                {"codepilot.run_id": self.run_id, **fields},
+                {
+                    "codepilot.run_id": self.run_id,
+                    "codepilot.trace_id": self.trace_id,
+                    **fields,
+                },
             )
             return
 

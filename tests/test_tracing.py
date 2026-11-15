@@ -176,6 +176,29 @@ class FakeTracer:
         return span
 
 
+def test_otel_span_chain_carries_custom_trace_identity(tmp_path, monkeypatch):
+    from codepilot import tracing
+
+    monkeypatch.setattr(tracing.otel_trace, "set_span_in_context", lambda span: span)
+    otel = FakeTracer()
+    trace = TraceLogger(
+        tmp_path / "custom-trace.jsonl",
+        "run-cp3",
+        trace_id="trace-cp3",
+        otel_tracer=otel,
+    )
+    trace.event("run_started", 0)
+    trace.event("model_budget_reserved", 1, span_id="model-cp3")
+    trace.event("model_finished", 1, span_id="model-cp3")
+    trace.tool_started(1, ToolCall(id="tool-cp3", name="read_file", arguments={}))
+
+    assert otel.spans
+    assert all(
+        span.attributes.get("codepilot.trace_id") == "trace-cp3"
+        for span in otel.spans
+    )
+
+
 def test_opentelemetry_spans_cover_run_model_tools_and_writeback(tmp_path, monkeypatch):
     from codepilot import tracing
 
