@@ -12,6 +12,7 @@
       "case_path": "evals/public_cases/cp2/cases/pytest-dev__pytest-8365/case.json",
       "base_commit": "4964b468c83c06971eb743fbc57cc404f760c573",
       "official_fix_commit_sha": "b7f2d7ca61d6169495e5780fffc252daaacd6583",
+      "official_merge_source_file_sha256": "669093b9b2fe8d5f21470bd75f5002bcdbfe5dbaa1f57f607d8490bfed1012c8",
       "license": "MIT",
       "docker_image_ref": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-8365@sha256:ad963610bf29e6d0df24f5eab20df20ada6db050f21434f2dd329075286c4044",
       "visible_test_spec": "testing/test_tmpdir.py::test_tmp_path_factory_handles_invalid_dir_characters",

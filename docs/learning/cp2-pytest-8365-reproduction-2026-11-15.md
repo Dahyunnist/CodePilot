@@ -15,6 +15,7 @@
 | PR base | `4964b468c83c06971eb743fbc57cc404f760c573` |
 | PR head | `26d3d7743a860c0898c035961536fe36d9ff12e7` |
 | 官方 merge/fix commit | `b7f2d7ca61d6169495e5780fffc252daaacd6583` |
+| 官方 merge 中修复源码 / 可见测试 SHA-256 | `src/_pytest/tmpdir.py`: `669093b9b2fe8d5f21470bd75f5002bcdbfe5dbaa1f57f607d8490bfed1012c8`；`testing/test_tmpdir.py`: `1696de6151b0dee0f88db6d9e2df2d91f81f71fa0296505b3e1faef2eac0c3de` |
 | 镜像 | `swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-8365@sha256:ad963610bf29e6d0df24f5eab20df20ada6db050f21434f2dd329075286c4044` |
 | 镜像 Git 状态 | `HEAD=a2ae9f63ad2d1d5e87b84ec52e07c38d5a210d5c`，其父提交与 PR base 完全一致 |
 | 可见测试 | `testing/test_tmpdir.py::test_tmp_path_factory_handles_invalid_dir_characters` |
@@ -29,16 +30,21 @@
 
 随后从相同 base 应用原始官方 patch。运行同一个可见测试，结果：**1 passed, 33 deselected**，退出码 **0**。两次均固定镜像 digest、`--network none`，容器使用 `--rm` 销毁；没有宿主仓库挂载。
 
-原始官方 patch 可从 PR patch URL 重新下载。SHA-256 必须与 case manifest 中的 `official_patch_sha256` 一致。当前工作副本的下载位于 `evals/public_cases/cp2/reproductions/pytest_8365/official-pr-8365.patch`；该原始 patch 文件保持未跟踪，不进入本次提交。
+原始官方 patch 不保存在仓库。复现前从 PR patch URL 下载到系统临时目录，先核验 SHA-256，再挂入一次性容器。容器内应用 PR patch；`src/_pytest/tmpdir.py` 与 `testing/test_tmpdir.py` 的 SHA-256 均与官方 merge commit 的对应文件字节一致。
 
 复现命令：
 
 ```powershell
-$patch = 'E:/job/codepilot-safe-validation/evals/public_cases/cp2/reproductions/pytest_8365/official-pr-8365.patch'
-docker run --rm --network none --tmpfs /tmp:rw,nosuid,nodev,size=1g --mount "type=bind,source=$patch,target=/input/official.patch,readonly" --entrypoint /bin/bash sha256:ad963610bf29e6d0df24f5eab20df20ada6db050f21434f2dd329075286c4044 -lc 'set -e; cd /testbed; git checkout --detach 4964b468c83c06971eb743fbc57cc404f760c573; git am /input/official.patch; git checkout 4964b468c83c06971eb743fbc57cc404f760c573 -- src/_pytest/tmpdir.py; /opt/miniconda3/envs/testbed/bin/python -m pytest testing/test_tmpdir.py -p no:cacheprovider -k test_tmp_path_factory_handles_invalid_dir_characters -q'
+$patch = Join-Path $env:TEMP 'pytest-8365-official.patch'
+Invoke-WebRequest -Uri 'https://github.com/pytest-dev/pytest/pull/8365.patch' -OutFile $patch
+$patchSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $patch).Hash.ToLowerInvariant()
+if ($patchSha -ne '275dcb5855d867cb603841b31a47a425d232601b35e55650adefb16e7ac595ec') { throw '官方 patch SHA-256 不匹配' }
+$mount = 'type=bind,source=' + ($patch -replace '\\', '/') + ',target=/input/official.patch,readonly'
+docker run --rm --network none --tmpfs /tmp:rw,nosuid,nodev,size=1g --mount $mount --entrypoint /bin/bash sha256:ad963610bf29e6d0df24f5eab20df20ada6db050f21434f2dd329075286c4044 -lc 'set -e; cd /testbed; git checkout --detach 4964b468c83c06971eb743fbc57cc404f760c573; git am /input/official.patch; git checkout 4964b468c83c06971eb743fbc57cc404f760c573 -- src/_pytest/tmpdir.py; set +e; /opt/miniconda3/envs/testbed/bin/python -m pytest testing/test_tmpdir.py -p no:cacheprovider -k test_tmp_path_factory_handles_invalid_dir_characters -q; base_rc=$?; set -e; echo BASE_EXIT=$base_rc; git checkout HEAD -- src/_pytest/tmpdir.py; set +e; /opt/miniconda3/envs/testbed/bin/python -m pytest testing/test_tmpdir.py -p no:cacheprovider -k test_tmp_path_factory_handles_invalid_dir_characters -q; fix_rc=$?; set -e; echo FIX_EXIT=$fix_rc; test "$base_rc" -eq 1; test "$fix_rc" -eq 0'
+Remove-Item -LiteralPath $patch
 ```
 
-此命令产生预期 base 失败。再在容器中执行 `git checkout HEAD -- src/_pytest/tmpdir.py`，并重复 pytest 命令，得到官方修复通过。结构化结果和原始 patch 分别保存在 `evals/public_cases/cp2/reproductions/pytest_8365/reproduction.json` 与 `official-pr-8365.patch`。
+命令在同一容器中先验证 base 失败，再验证官方修复通过；末尾删除下载的 patch。结构化结果保存在 `evals/public_cases/cp2/reproductions/pytest_8365/reproduction.json`。
 
 首次试跑曾显示 base 通过。复核发现该次 `git restore` 从已应用 PR 的 HEAD 恢复了源文件，实际仍是修复代码。该结果已明确作废；第二次从冻结 base SHA 恢复源文件后，得到上述失败/通过配对。
 

@@ -23,6 +23,7 @@ def test_pytest_8365_supplemental_case_binds_public_sources_and_results():
     assert case["docker_image_config_digest"].startswith("sha256:")
     assert len(case["official_fix_commit_sha"]) == 40
     assert len(case["official_pr_head_sha"]) == 40
+    assert len(case["official_merge_source_file_sha256"]) == 64
     assert case["official_patch_url"].endswith("/pull/8365.patch")
     assert len(case["official_patch_sha256"]) == 64
     assert len(case["visible_test_sha256"]) == 64
@@ -43,6 +44,16 @@ def test_pytest_8365_supplemental_case_binds_public_sources_and_results():
     assert report["environment"]["base_commit_match"] is True
     assert report["visible_test"]["base"]["exit_code"] == 1
     assert report["visible_test"]["official_fix"]["exit_code"] == 0
+    assert report["visible_test"]["official_fix"]["source_sha256_matches_official_merge"] is True
+    assert report["visible_test"]["official_fix"]["test_sha256_matches_official_merge"] is True
+    assert (
+        report["source"]["official_merge_changed_files_sha256"]["src/_pytest/tmpdir.py"]
+        == case["official_merge_source_file_sha256"]
+    )
+    assert (
+        report["source"]["official_merge_changed_files_sha256"]["testing/test_tmpdir.py"]
+        == case["visible_test_sha256"]
+    )
     assert report["scope"]["agent_runs"] == 0
     assert report["scope"]["model_calls"] == 0
     assert report["scope"]["hidden_tests_read_or_run"] is False

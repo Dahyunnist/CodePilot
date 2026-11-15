@@ -16,6 +16,7 @@
   "pull_request_url": "https://github.com/pytest-dev/pytest/pull/8365",
   "official_pr_head_sha": "26d3d7743a860c0898c035961536fe36d9ff12e7",
   "official_fix_commit_sha": "b7f2d7ca61d6169495e5780fffc252daaacd6583",
+  "official_merge_source_file_sha256": "669093b9b2fe8d5f21470bd75f5002bcdbfe5dbaa1f57f607d8490bfed1012c8",
   "official_patch_url": "https://github.com/pytest-dev/pytest/pull/8365.patch",
   "official_patch_sha256": "275dcb5855d867cb603841b31a47a425d232601b35e55650adefb16e7ac595ec",
   "docker_image_ref": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-8365:latest",

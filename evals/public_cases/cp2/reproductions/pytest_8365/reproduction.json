@@ -20,6 +20,10 @@
     "pull_request_base_sha": "4964b468c83c06971eb743fbc57cc404f760c573",
     "pull_request_head_sha": "26d3d7743a860c0898c035961536fe36d9ff12e7",
     "merge_commit_sha": "b7f2d7ca61d6169495e5780fffc252daaacd6583",
+    "official_merge_changed_files_sha256": {
+      "src/_pytest/tmpdir.py": "669093b9b2fe8d5f21470bd75f5002bcdbfe5dbaa1f57f607d8490bfed1012c8",
+      "testing/test_tmpdir.py": "1696de6151b0dee0f88db6d9e2df2d91f81f71fa0296505b3e1faef2eac0c3de"
+    },
     "official_patch_sha256": "275dcb5855d867cb603841b31a47a425d232601b35e55650adefb16e7ac595ec",
     "base_test_file_sha256": "824a8b3310d5904a7aa36d570e7080eee590c7953acf7569b5ebae655cbe5bad",
     "test_file_after_official_patch_sha256": "1696de6151b0dee0f88db6d9e2df2d91f81f71fa0296505b3e1faef2eac0c3de"
@@ -34,7 +38,9 @@
     },
     "official_fix": {
       "exit_code": 0,
-      "summary": "1 passed, 33 deselected"
+      "summary": "1 passed, 33 deselected",
+      "source_sha256_matches_official_merge": true,
+      "test_sha256_matches_official_merge": true
     }
   },
   "discarded_invalid_attempt": {
