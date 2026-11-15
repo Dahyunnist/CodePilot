@@ -1,12 +1,18 @@
 import hashlib
 import json
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
 from evals.cp2_benchmark import (
+    AUTHORIZED_CAP_USD,
+    DEFAULT_MANIFEST,
     DEFAULT_SELECTION,
     DEFAULT_SOURCE_PROVENANCE,
+    LIMITS,
+    REPORTS_ROOT,
+    TASK_IDS,
     _current_artifact_hashes,
     _canonical_hash,
     _case_materialization_blockers,
@@ -14,6 +20,7 @@ from evals.cp2_benchmark import (
     build_budget_ledger,
     freeze_manifest,
     plan,
+    run_pairs,
 )
 
 
@@ -209,6 +216,156 @@ def test_cp2_manifest_freezes_selected_scope_and_artifacts():
     assert manifest["model_sha256"] == _canonical_hash(manifest["model"])
     assert all("gold_patch" not in task for task in manifest["tasks"])
     assert all(task["gold_source"].endswith("gold content not read or exposed") for task in manifest["tasks"])
+
+
+def test_checked_in_cp2_freeze_has_consistent_task_statement_and_gold_hashes():
+    manifest = json.loads(DEFAULT_MANIFEST.read_text(encoding="utf-8"))
+    selection = json.loads(DEFAULT_SELECTION.read_text(encoding="utf-8"))
+    selected = {item["task_id"]: item for item in selection["tasks"]}
+    tasks = manifest["tasks"]
+    record_hashes = []
+    gold_hashes = {}
+
+    assert [item["task_id"] for item in tasks] == list(TASK_IDS)
+    assert len({item["task_id"] for item in tasks}) == len(TASK_IDS)
+    assert manifest["dataset"]["selection_manifest_sha256"] == hashlib.sha256(
+        DEFAULT_SELECTION.read_bytes()
+    ).hexdigest()
+    for task in tasks:
+        source = selected[task["task_id"]]
+        assert task["problem_statement"] == source["problem_statement"]
+        assert task["problem_statement_sha256"] == source["problem_statement_sha256"]
+        assert hashlib.sha256(task["problem_statement"].encode("utf-8")).hexdigest() == task[
+            "problem_statement_sha256"
+        ]
+        assert task["gold_patch_sha256"] == source["gold_patch_sha256"]
+        record = dict(task)
+        record_hash = record.pop("task_record_sha256")
+        assert record_hash == _canonical_hash(record)
+        record_hashes.append(record_hash)
+        gold_hashes[task["task_id"]] = task["gold_patch_sha256"]
+
+    assert manifest["task_record_sha256"] == _canonical_hash(record_hashes)
+    assert manifest["gold_sha256"] == _canonical_hash(gold_hashes)
+    assert all("gold_patch" not in task for task in tasks)
+
+
+def test_cp2_preflight_does_not_create_output_or_call_live_runner(tmp_path, monkeypatch, capsys):
+    from evals import live_runner
+
+    calls = []
+
+    def forbidden_model_path(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("preflight must not enter live runner")
+
+    monkeypatch.setattr(live_runner, "run_live_evaluation", forbidden_model_path)
+    output_root = tmp_path / "unique-output"
+    manifest = json.loads(DEFAULT_MANIFEST.read_text(encoding="utf-8"))
+    ledger = build_budget_ledger(REPORTS_ROOT)
+
+    status = run_pairs(
+        manifest,
+        ledger,
+        cases_root=tmp_path / "missing-cases",
+        output_root=output_root,
+        work_root=tmp_path / "work",
+    )
+
+    output = capsys.readouterr().out
+    assert status == 2
+    assert "未发送模型请求" in output
+    assert calls == []
+    assert not output_root.exists()
+    assert manifest["task_count"] * 2 == 30
+    assert AUTHORIZED_CAP_USD == Decimal("0.50")
+    assert LIMITS["max_steps"] == 8
+
+
+def test_cp2_pair_driver_retains_success_and_failure_traces(tmp_path, monkeypatch):
+    from evals import compare_live_runs, live_runner
+    import evals.cp2_benchmark as cp2
+
+    manifest = {
+        "limits": {
+            "max_input_tokens_per_request": 22_000,
+            "max_completion_tokens": 512,
+            "max_steps": 8,
+            "max_total_tokens_per_task": 20_000,
+            "context_budget_chars": 8_000,
+            "max_elapsed_seconds": 180,
+        },
+        "tasks": [{"task_id": "offline-case", "docker_image_config_digest": "sha256:test"}],
+    }
+    monkeypatch.setattr(cp2, "plan", lambda *args, **kwargs: ([], Decimal("0.01")))
+    runs = []
+
+    def fake_run(cases_root, output_root, work_root, case_ids, **kwargs):
+        output_root.mkdir(parents=True)
+        accepted = kwargs["context_selector"] is False
+        trace = output_root / "offline-trace.jsonl"
+        trace.write_text(json.dumps({"event": "run_finished", "accepted": accepted}) + "\n")
+        (output_root / "results.csv").write_text("accepted\n" + str(accepted) + "\n")
+        runs.append((accepted, trace))
+        return []
+
+    monkeypatch.setattr(live_runner, "run_live_evaluation", fake_run)
+    monkeypatch.setattr(
+        compare_live_runs,
+        "compare_runs",
+        lambda selector, baseline: {
+            "details": [{"selector_accepted": False, "baseline_accepted": True}],
+            "trace_files_retained": True,
+        },
+    )
+    output_root = tmp_path / "new-pair-output"
+
+    status = run_pairs(
+        manifest,
+        {},
+        cases_root=tmp_path / "cases",
+        output_root=output_root,
+        work_root=tmp_path / "work",
+    )
+
+    assert status == 0
+    assert len(runs) == 2
+    assert {accepted for accepted, _ in runs} == {True, False}
+    assert all(path.is_file() and json.loads(path.read_text()) for _, path in runs)
+    paired = json.loads((output_root / "paired-results.json").read_text(encoding="utf-8"))
+    assert paired[0]["details"][0] == {
+        "selector_accepted": False,
+        "baseline_accepted": True,
+    }
+
+
+def test_cp2_pair_driver_refuses_existing_output_path_before_runner(tmp_path, monkeypatch):
+    from evals import live_runner
+    import evals.cp2_benchmark as cp2
+
+    monkeypatch.setattr(cp2, "plan", lambda *args, **kwargs: ([], Decimal("0.01")))
+    calls = []
+    monkeypatch.setattr(live_runner, "run_live_evaluation", lambda *a, **k: calls.append(a))
+    output_root = tmp_path / "already-used"
+    output_root.mkdir()
+    sentinel = output_root / "keep.txt"
+    sentinel.write_text("prior run", encoding="utf-8")
+    manifest = {
+        "limits": LIMITS,
+        "tasks": [{"task_id": "offline-case", "docker_image_config_digest": "sha256:test"}],
+    }
+
+    with pytest.raises(FileExistsError):
+        run_pairs(
+            manifest,
+            {},
+            cases_root=tmp_path / "cases",
+            output_root=output_root,
+            work_root=tmp_path / "work",
+        )
+
+    assert calls == []
+    assert sentinel.read_text(encoding="utf-8") == "prior run"
 
 
 def test_cp2_freeze_rejects_missing_selected_task(tmp_path: Path):

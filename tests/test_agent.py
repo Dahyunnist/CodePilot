@@ -218,6 +218,7 @@ def test_loop_stops_at_max_steps(tmp_path) -> None:
 
     assert result.status == "max_steps"
     assert result.steps == 2
+    assert len(model.requests) == 2
 
 
 def test_repeated_read_only_rounds_remind_model_to_converge(tmp_path) -> None:
