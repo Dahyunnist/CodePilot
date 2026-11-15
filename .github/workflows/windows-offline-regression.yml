@@ -1,0 +1,88 @@
+name: Windows offline regression
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/windows-offline-regression.yml"
+      - "codepilot/**"
+      - "tests/**"
+      - "pyproject.toml"
+  push:
+    branches:
+      - main
+      - publish/safe-source-20261024
+    paths:
+      - ".github/workflows/windows-offline-regression.yml"
+      - "codepilot/**"
+      - "tests/**"
+      - "pyproject.toml"
+
+permissions:
+  contents: read
+
+jobs:
+  windows-offline:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install project and test dependencies
+        run: python -m pip install --disable-pip-version-check -e ".[dev]"
+
+      - name: Run offline Windows regression
+        shell: pwsh
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          $repo = $env:GITHUB_WORKSPACE
+          $base = Join-Path $env:RUNNER_TEMP ("cp-offline-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
+          if (Test-Path -LiteralPath $base) { throw "Basetemp already exists: $base" }
+
+          $names = @(
+            "GIT_CONFIG_COUNT",
+            "GIT_CONFIG_KEY_0",
+            "GIT_CONFIG_VALUE_0",
+            "GIT_CONFIG_KEY_1",
+            "GIT_CONFIG_VALUE_1"
+          )
+          $previous = @{}
+          foreach ($name in $names) {
+            $previous[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+          }
+
+          $testExit = 1
+          try {
+            $env:GIT_CONFIG_COUNT = "2"
+            $env:GIT_CONFIG_KEY_0 = "safe.directory"
+            $env:GIT_CONFIG_VALUE_0 = $repo
+            $env:GIT_CONFIG_KEY_1 = "safe.directory"
+            $env:GIT_CONFIG_VALUE_1 = "$base/*"
+
+            python -m pytest -p no:cacheprovider -vv `
+              tests/test_cli_e2e.py `
+              tests/test_workspace.py `
+              tests/test_repository_tools.py `
+              tests/test_mcp.py `
+              tests/test_agent.py `
+              tests/test_model.py `
+              tests/test_execute.py `
+              -k "not test_cp2_django_visible_preflight_hashes_and_docker_command_are_isolated" `
+              --basetemp="$base"
+            $testExit = $LASTEXITCODE
+          }
+          finally {
+            foreach ($name in $names) {
+              [Environment]::SetEnvironmentVariable($name, $previous[$name], "Process")
+            }
+            if (Test-Path -LiteralPath $base) {
+              Remove-Item -LiteralPath $base -Recurse -Force
+            }
+          }
+
+          if ($testExit -ne 0) { exit $testExit }
