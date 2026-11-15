@@ -25,6 +25,7 @@ DEFAULT_SOURCE_PROVENANCE = ROOT / "evals/public_cases/cp2/source-provenance-v1.
 RUNNABLE_TASK_SCHEMA = ROOT / "evals/public_cases/cp2/runnable-task.schema.json"
 SOURCE_PROVENANCE_SCHEMA = ROOT / "evals/public_cases/cp2/source-provenance.schema.json"
 DEFAULT_LEDGER = ROOT / "evals/public_cases/cp2/budget-ledger-v1.json"
+PARTIAL_PROVIDER_USAGE = ROOT / "evals/public_cases/cp2/provider-usage-partial-2026-11-15.json"
 REPORTS_ROOT = ROOT / "reports"
 AUTHORIZED_CAP_USD = Decimal("0.50")
 DATASET_REVISION = "b0dde1093fe417d83b7184254edf8199c1f0dff5"
@@ -292,6 +293,11 @@ def build_budget_ledger(reports_root: Path) -> dict[str, Any]:
     csv_usage = sum(unique.values(), Decimal("0"))
     unique_runs = sum(scope == "run" for scope, _ in unique)
     unique_requests = sum(scope == "request" for scope, _ in unique)
+    partial_provider_usage_path = None
+    partial_provider_usage_hash = None
+    if PARTIAL_PROVIDER_USAGE.is_file() and not PARTIAL_PROVIDER_USAGE.is_symlink():
+        partial_provider_usage_path = PARTIAL_PROVIDER_USAGE.relative_to(ROOT).as_posix()
+        partial_provider_usage_hash = _file_hash(PARTIAL_PROVIDER_USAGE)
     # Partial and unidentified rows may overlap other records. Quarantine them;
     # do not convert a document estimate into spendable account balance.
     return {
@@ -315,6 +321,8 @@ def build_budget_ledger(reports_root: Path) -> dict[str, Any]:
         "estimated_remaining_usd": None,
         "spendable_remaining_usd": None,
         "usage_files_sha256": _canonical_hash(file_fingerprints),
+        "partial_provider_usage_evidence_path": partial_provider_usage_path,
+        "partial_provider_usage_evidence_sha256": partial_provider_usage_hash,
         "provider_balance_status": "unknown",
         "provider_balance_usd": None,
         "provider_balance_evidence_path": None,
@@ -746,6 +754,32 @@ def validate_budget_ledger(ledger: dict[str, Any], reserve: Decimal) -> list[str
         blockers.append("usage ledger is not provider-reconciled")
     if ledger.get("provider_balance_status") != "verified":
         blockers.append("provider balance is unknown or unverified")
+    partial_path = ledger.get("partial_provider_usage_evidence_path")
+    partial_hash = ledger.get("partial_provider_usage_evidence_sha256")
+    if partial_path is not None or partial_hash is not None:
+        valid_partial = False
+        if isinstance(partial_path, str) and _is_sha256(partial_hash):
+            relative = PurePosixPath(partial_path)
+            if not relative.is_absolute() and ".." not in relative.parts:
+                candidate = ROOT.joinpath(*relative.parts)
+                try:
+                    resolved = candidate.resolve(strict=True)
+                    resolved.relative_to(ROOT.resolve())
+                    if not candidate.is_symlink() and resolved.is_file() and _file_hash(resolved) == partial_hash:
+                        partial = json.loads(resolved.read_text(encoding="utf-8"))
+                        valid_partial = (
+                            isinstance(partial, dict)
+                            and partial.get("kind") == "partial_provider_usage_export"
+                            and partial.get("status") == "partial"
+                            and partial.get("coverage_complete") is False
+                            and partial.get("usage_scope") == "project_api_key"
+                        )
+                except (OSError, ValueError, UnicodeError, json.JSONDecodeError):
+                    valid_partial = False
+        if valid_partial:
+            blockers.append("partial project usage export is evidence only; complete cumulative spend remains unknown")
+        else:
+            blockers.append("partial project usage evidence is unsafe, malformed, or hash-mismatched")
     evidence_payloads: dict[str, dict[str, Any]] = {}
     for kind in ("usage", "balance", "fx_policy"):
         relative = ledger.get(f"provider_{kind}_evidence_path")

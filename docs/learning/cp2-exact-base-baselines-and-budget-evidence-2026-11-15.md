@@ -16,6 +16,10 @@
 
 ## 预算证据门禁
 
+补充的 provider CSV 摘要在 `evals/public_cases/cp2/provider-usage-partial-2026-11-15.json`。`codepilot-lite` API key 维度观测到 843 次请求，2026-10-19 至 2026-10-25 的 amount×price 合计 ¥3.67053452。这个日期范围不等于完整历史。cost 导出有 6 个观察日，账号总额 ¥10.91277486；它与 amount 导出所有 key 的合计一致，只能作账号级交叉核对，不能分摊给 `codepilot-lite`。摘要保存了原 CSV SHA-256，不保存 key 值、用户 ID 或原始 CSV。
+
+`build_budget_ledger` 会把该摘要作为部分证据引用；`validate_budget_ledger` 会验证摘要文件哈希，并明确报告完整累计支出仍未知。部分金额不会写入 provider 累计美元数，也不能放行模型调用。
+
 `validate_budget_ledger` 现在要求以下内容同时成立：
 
 1. usage、balance、FX policy 三份仓库内 JSON 证据文件通过路径安全检查和 SHA-256 校验。

@@ -109,6 +109,27 @@ def test_budget_ledger_without_raw_csv_or_balance_stays_unknown(tmp_path: Path) 
     assert ledger["provider_balance_status"] == "unknown"
     assert ledger["estimated_remaining_usd"] is None
     assert ledger["spendable_remaining_usd"] is None
+    assert ledger["partial_provider_usage_evidence_path"] == (
+        "evals/public_cases/cp2/provider-usage-partial-2026-11-15.json"
+    )
+    blockers = validate_budget_ledger(ledger, Decimal("0.3462912"))
+    assert "partial project usage export is evidence only; complete cumulative spend remains unknown" in blockers
+
+
+def test_partial_provider_usage_summary_contains_only_safe_partial_aggregates():
+    evidence_path = DEFAULT_BUDGET_SUBSET.parent / "provider-usage-partial-2026-11-15.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert evidence["api_key_name"] == "codepilot-lite"
+    assert evidence["request_count"] == 843
+    assert evidence["amount_export_cost_cny"] == "3.67053452"
+    assert evidence["observed_start"] == "2026-10-19"
+    assert evidence["observed_end"] == "2026-10-25"
+    assert evidence["coverage_complete"] is False
+    assert evidence["cost_export_scope"] == "account"
+    assert evidence["cost_export_account_total_cny"] == "10.91277486"
+    assert evidence["cost_export_can_be_allocated_to_project_key"] is False
+    assert not {"api_key", "api_key_value", "user_id"}.intersection(evidence)
 
 
 def _materialized_case(tmp_path: Path) -> tuple[Path, dict[str, object]]:
