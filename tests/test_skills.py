@@ -29,6 +29,10 @@ def test_builtin_skills_define_inputs_tools_budgets_and_exit_guidance():
     assert api_skill.max_steps == 12
     assert "完整测试" in pytest_skill.instructions
     assert "兼容性" in api_skill.instructions
+    assert "必需：pytest 测试命令" in pytest_skill.input_contract
+    assert "可选：已有失败日志" in pytest_skill.input_contract
+    assert "必需：API 行为或兼容性目标" in api_skill.input_contract
+    assert "可选：接口入口、schema、调用方线索" in api_skill.input_contract
     assert any("完整测试通过" in item for item in pytest_skill.exit_conditions)
     assert pytest_skill.schema_version == api_skill.schema_version == 1
     assert any("询问用户" in item for item in api_skill.exit_conditions)
@@ -66,6 +70,8 @@ def test_task_prompt_includes_selected_skill_and_limits(tmp_path):
     assert "公开入口、schema/类型定义" in prompt
     assert "24000 tokens" in prompt
     assert "退出条件" in prompt
+    assert "输入契约" in prompt
+    assert "必需：相关测试命令" in prompt
     assert "apply_patch" in prompt
 
 

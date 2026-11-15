@@ -7,7 +7,7 @@
 | CP-1 上下文预算 | `codepilot/agent.py`、`codepilot/context_selector.py`；`evals/context_selector_offline.py` | 预算预留、超长工具输出截断/原因、同 SHA 去重组合回归；适用 Agent/selector/CP1/runner 测试 **86 passed**。学习记录见 `docs/learning/cp1-context-budget-2026-11-11.md`。 | 机制测试使用字符上限与假模型；两份历史 live pair 均 `budget_exceeded`。没有真实任务成功率或 token/cost 收益结论。 |
 | CP-2 真实仓库 benchmark | `evals/cp2_benchmark.py`、`benchmark-v1.json` | seaborn-3010 与 seaborn-2848 均有单题 baseline→官方修复可见测试证据；2848 source sidecar 与完整 visible test 文件 SHA 绑定已验证，base 1 failed、fix 1 passed。详见两份 `cp2-seaborn-*-reproduction/preflight` 记录。 | 冻结 v1 不改；仅两题有公开补丁复现证据，未运行 CodePilot Agent/模型或 hidden tests。其余题、账本和 15 题完整验收仍缺。 |
 | CP-3 安全与 trace | `codepilot/security.py`、`codepilot/tracing.py`、Agent/CLI/registry 测试 | 新增 OTel spans 携带 JSONL 自定义 trace ID 回归；tracing 19 passed，安全/路径 5 passed，审批恢复宿主 3 passed。详细记录见 `docs/learning/cp3-otel-trace-correlation-2026-11-15.md`。 | 无真实 OTel collector/外部模型攻击或企业多仓任务证据；本轮 Windows junction 权限 skip，受限沙箱 Git E2E 错误需以宿主结果为准。 |
-| CP-4 Skill | `codepilot/skills.py`、`evals/skills/ablation.py` | schema/allowlist 的离线测试；消融脚本固定输出 `model_calls=0`。历史模型报告留有若干尝试记录。 | 真实尝试均因预算停止，未得到接受修复；没有可用于比较两个 Skill 成效的成功率结论。 |
+| CP-4 Skill | `codepilot/skills.py`、`evals/skills/ablation.py` | 输入契约、schema/allowlist/预算/退出条件回归 **9 passed**；确定性双 fixture 报告记录在 `docs/learning/cp4-skill-offline-2026-11-15.json`，fixture SHA 已绑定，`model_calls=0`。详见 `docs/learning/cp4-skill-input-contract-offline-2026-11-15.md`。 | 离线演示仅校验约束投影，不是模型行为或修复效果。真实模型尝试因预算停止，未得到接受修复；没有 Skill 成效的成功率、成本或耗时结论。 |
 
 ## CP-1 两组历史 live pair
 

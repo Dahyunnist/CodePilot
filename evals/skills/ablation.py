@@ -1,5 +1,6 @@
 """Deterministic fixture-only skill ablation; performs no model calls."""
 import json
+import hashlib
 from pathlib import Path
 from codepilot.skills import get_skill
 
@@ -30,8 +31,10 @@ def run():
             "case_id": case_id,
             "skill": {
                 "skill_id": skill.skill_id,
+                "schema_version": skill.schema_version,
                 "title": skill.title,
                 "objective": skill.objective,
+                "input_contract": list(skill.input_contract),
                 "allowed_tools": sorted(skill.allowed_tools),
                 "exit_conditions": list(skill.exit_conditions),
                 "limits": {
@@ -51,9 +54,21 @@ def run():
             "tool_count_no_skill": len(selected),
             "tool_count_skill": len(restricted),
         })
-    return {"kind": "deterministic_skill_ablation_fixture", "deterministic_fixture": True,
-            "model_calls": 0, "sample_count": len(cases), "cases": cases,
-            "interpretation": "固定工具选择 fixture；不代表 LLM 行为或修复效果"}
+    return {
+        "kind": "deterministic_skill_ablation_fixture",
+        "deterministic_fixture": True,
+        "model_calls": 0,
+        "manifest": {
+            "fixture": FIXTURE.relative_to(ROOT).as_posix(),
+            "fixture_sha256": hashlib.sha256(FIXTURE.read_bytes()).hexdigest(),
+            "skill_schema_versions": sorted(
+                {case["skill"]["schema_version"] for case in cases}
+            ),
+        },
+        "sample_count": len(cases),
+        "cases": cases,
+        "interpretation": "固定工具选择 fixture；不代表 LLM 行为或修复效果",
+    }
 
 if __name__ == "__main__":
     print(json.dumps(run(), ensure_ascii=False, indent=2))

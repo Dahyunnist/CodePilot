@@ -150,6 +150,10 @@ python -m codepilot run `
 
 Skill 为常见任务提供流程提示、工具白名单和更紧的步数、测试次数及 Token 上限。可选 `pytest-failure-triage` 或 `api-contract-check`：
 
+- `pytest-failure-triage` 必需输入：任务/失败描述、仓库路径、pytest 命令；可选失败日志。
+- `api-contract-check` 必需输入：API 行为或兼容性目标、仓库路径、相关测试命令；可选入口、schema 或调用方线索。
+- 两个 Skill 都固定 schema 版本、工具白名单、步数、测试次数、Token 上限和退出条件；Agent 仍强制执行白名单与测试成功门槛。
+
 ```powershell
 python -m codepilot run `
   --repo <path-to-target-repository> `
@@ -159,6 +163,8 @@ python -m codepilot run `
 ```
 
 Skill 不代替项目约定和工程师输入。遇到缺依赖、行为歧义或白名单外工具请求，Agent 会停止、拒绝调用或向工程师报告；完整测试通过仍是成功条件。
+
+无模型的可复现演示：运行 `python -m evals.skills.ablation`。它比较固定 fixture 中启用/关闭 Skill 的工具选择约束，输出 fixture SHA 与 `model_calls=0`；结果不表示模型增益或修复率。
 
 ### 修复 CodePilot 目录之外的项目
 

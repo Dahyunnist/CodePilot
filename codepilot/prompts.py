@@ -36,6 +36,7 @@ def task_prompt(task: Task) -> str:
         "\n\n当前启用的修复 Skill（作为任务流程约束）：\n"
         f"名称：{skill.title}\n"
         f"目标：{skill.objective}\n"
+        f"输入契约：{'；'.join(skill.input_contract)}\n"
         f"步骤：{skill.instructions}\n"
         f"退出条件：{'；'.join(skill.exit_conditions)}\n"
         f"可用工具：{', '.join(sorted(skill.allowed_tools))}\n"

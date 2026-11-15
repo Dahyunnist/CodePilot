@@ -1,0 +1,153 @@
+{
+  "kind": "deterministic_skill_ablation_fixture",
+  "deterministic_fixture": true,
+  "model_calls": 0,
+  "manifest": {
+    "fixture": "evals/skills/paired-smoke.json",
+    "fixture_sha256": "d064b30c392fb33c0bdc68b9472182cda07b1b47c7f29171abe079d634396093",
+    "skill_schema_versions": [
+      1
+    ]
+  },
+  "sample_count": 2,
+  "cases": [
+    {
+      "case_id": "skill-pytest-config",
+      "skill": {
+        "skill_id": "pytest-failure-triage",
+        "schema_version": 1,
+        "title": "pytest 失败定位与修复",
+        "objective": "根据 pytest 失败证据定位根因，提交最小修复并验证回归。",
+        "input_contract": [
+          "必需：任务说明/失败现象",
+          "必需：目标仓库",
+          "必需：pytest 测试命令",
+          "可选：已有失败日志"
+        ],
+        "allowed_tools": [
+          "apply_patch",
+          "find_references",
+          "git_diff",
+          "list_files",
+          "project_map",
+          "read_file",
+          "read_project_instructions",
+          "run_selected_tests",
+          "run_tests",
+          "search_code",
+          "search_symbols",
+          "suggest_tests"
+        ],
+        "exit_conditions": [
+          "完整测试通过后总结修复与验证证据。",
+          "依赖缺失、无法复现或根因证据不足时停止，并说明用户需补充/执行的事项。",
+          "需求存在歧义时暂停并向用户确认，不猜测行为契约。"
+        ],
+        "limits": {
+          "max_steps": 10,
+          "max_test_attempts": 3,
+          "max_total_tokens": 18000
+        }
+      },
+      "inputs": {
+        "instruction": "修复 parse_options：空输入、空白行和以 # 开头的注释应被忽略；key=value 中只按第一个等号切分。保留其他解析行为。",
+        "test_command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests",
+          "-q"
+        ],
+        "repository": "evals\\skills\\cases\\skill-pytest-config\\repo"
+      },
+      "no_skill_fixture_tools": [
+        "search_code",
+        "read_file",
+        "run_tests",
+        "apply_patch",
+        "git_diff"
+      ],
+      "skill_fixture_tools": [
+        "search_code",
+        "read_file",
+        "run_tests",
+        "apply_patch",
+        "git_diff"
+      ],
+      "constraints_satisfied": true,
+      "tool_count_no_skill": 5,
+      "tool_count_skill": 5
+    },
+    {
+      "case_id": "skill-api-pagination",
+      "skill": {
+        "skill_id": "api-contract-check",
+        "schema_version": 1,
+        "title": "API 契约检查与跨文件修复",
+        "objective": "核对 API 输入、输出、错误语义及调用方，修复跨文件契约不一致。",
+        "input_contract": [
+          "必需：API 行为或兼容性目标",
+          "必需：目标仓库",
+          "必需：相关测试命令",
+          "可选：接口入口、schema、调用方线索"
+        ],
+        "allowed_tools": [
+          "apply_patch",
+          "find_references",
+          "git_diff",
+          "list_files",
+          "project_map",
+          "read_file",
+          "read_project_instructions",
+          "run_selected_tests",
+          "run_tests",
+          "search_code",
+          "search_symbols"
+        ],
+        "exit_conditions": [
+          "完整测试通过后总结 API 契约、修改文件和验证结果。",
+          "兼容策略或错误语义不明确时暂停并询问用户。",
+          "缺少测试环境或运行依赖时停止，并说明具体阻塞。"
+        ],
+        "limits": {
+          "max_steps": 12,
+          "max_test_attempts": 4,
+          "max_total_tokens": 24000
+        }
+      },
+      "inputs": {
+        "instruction": "统一分页响应契约：服务端返回 items 和 next_cursor；客户端从这两个字段读取数据。游标为 0 时必须保留，末页的 next_cursor 为 null。修改所有必要模块并保持分页顺序。",
+        "test_command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests",
+          "-q"
+        ],
+        "repository": "evals\\skills\\cases\\skill-api-pagination\\repo"
+      },
+      "no_skill_fixture_tools": [
+        "search_code",
+        "read_file",
+        "find_references",
+        "run_selected_tests",
+        "apply_patch",
+        "run_tests",
+        "git_diff"
+      ],
+      "skill_fixture_tools": [
+        "search_code",
+        "read_file",
+        "find_references",
+        "run_selected_tests",
+        "apply_patch",
+        "run_tests",
+        "git_diff"
+      ],
+      "constraints_satisfied": true,
+      "tool_count_no_skill": 7,
+      "tool_count_skill": 7
+    }
+  ],
+  "interpretation": "固定工具选择 fixture；不代表 LLM 行为或修复效果"
+}

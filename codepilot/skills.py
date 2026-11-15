@@ -11,6 +11,7 @@ class RepairSkill:
     skill_id: str
     title: str
     objective: str
+    input_contract: tuple[str, ...]
     instructions: str
     exit_conditions: tuple[str, ...]
     allowed_tools: frozenset[str]
@@ -41,6 +42,12 @@ SKILLS: dict[str, RepairSkill] = {
         skill_id="pytest-failure-triage",
         title="pytest 失败定位与修复",
         objective="根据 pytest 失败证据定位根因，提交最小修复并验证回归。",
+        input_contract=(
+            "必需：任务说明/失败现象",
+            "必需：目标仓库",
+            "必需：pytest 测试命令",
+            "可选：已有失败日志",
+        ),
         instructions=(
             "先读取失败测试和对应实现；区分测试环境错误与产品代码错误。"
             "有明确测试节点时先运行定向测试；避免无关重构。"
@@ -61,6 +68,12 @@ SKILLS: dict[str, RepairSkill] = {
         skill_id="api-contract-check",
         title="API 契约检查与跨文件修复",
         objective="核对 API 输入、输出、错误语义及调用方，修复跨文件契约不一致。",
+        input_contract=(
+            "必需：API 行为或兼容性目标",
+            "必需：目标仓库",
+            "必需：相关测试命令",
+            "可选：接口入口、schema、调用方线索",
+        ),
         instructions=(
             "先识别公开入口、schema/类型定义、实现和直接调用方。"
             "不要只改单个实现而破坏兼容性；明确检查成功、边界和错误返回。"
