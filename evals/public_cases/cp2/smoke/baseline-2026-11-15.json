@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "kind": "cp2_exact_base_visible_test_baseline",
+  "created_at": "2026-11-15",
+  "model_calls": 0,
+  "network_enabled": false,
+  "docker_pull": false,
+  "container_disposal": "--rm",
+  "visible_test_mount": "read-only host mount; copied into disposable container after checkout",
+  "agent_repair_attempted": false,
+  "results": [
+    {
+      "task_id": "django__django-10924",
+      "image": "swebench/sweb.eval.x86_64.django_1776_django-10924:latest",
+      "image_config_digest": "sha256:d41b289ea27a92ef6346702388e5ea0b8c8f48c41d83466a72c2dffb934007a1",
+      "base_commit": "bceadd2788dc2dad53eba0caae172bd8522fd483",
+      "visible_test_sha256": "805a530e676cf0ba4177153eb82b4635e7132a7a82af57d4e0245ef44dd03724",
+      "command": ["python", "tests/runtests.py", "model_fields.test_filepathfield"],
+      "exit_code": 1,
+      "outcome": "expected_baseline_failure",
+      "summary": "2 tests ran; TypeError: scandir path is a function",
+      "agent_repair_result": null
+    },
+    {
+      "task_id": "pytest-dev__pytest-5103",
+      "image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5103:latest",
+      "image_config_digest": "sha256:1648c614485c81d9e08bcf9ec8014fb38cd2f20fad6bea782552d923a35ce714",
+      "base_commit": "10ca84ffc56c2dd2d9dc4bd71b7b898e083500cd",
+      "visible_test_sha256": "31c32710503e03e8a0b945be273c43f0b151e5caa21b2f5c403ca14b9bb6a24f",
+      "command": ["python", "-m", "pytest", "testing/test_assertrewrite.py", "-p", "no:cacheprovider", "-k", "unroll_expression", "-q"],
+      "exit_code": 1,
+      "outcome": "expected_baseline_failure",
+      "summary": "1 failed, 71 deselected; expected diagnostic assertion failed",
+      "agent_repair_result": null
+    },
+    {
+      "task_id": "mwaskom__seaborn-2848",
+      "image": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-2848:latest",
+      "image_config_digest": "sha256:d719470351e66623e532a4f23cdedfe8fb737147fe108e4b5829aa273528389d",
+      "base_commit": "94621cef29f80282436d73e8d2c0aa76dab81273",
+      "visible_test_sha256": "76dbfd47cba045bc87f0ed428b85cda106d63f2dd16000dbfdff1ceef4f013a1",
+      "command": ["python", "-m", "pytest", "tests/test_relational.py", "-p", "no:cacheprovider", "-k", "test_hue_order", "-q"],
+      "exit_code": 1,
+      "outcome": "expected_baseline_failure",
+      "summary": "1 failed, 72 deselected, 12 warnings; TypeError in test_hue_order",
+      "agent_repair_result": null
+    }
+  ]
+}

@@ -746,7 +746,8 @@ def validate_budget_ledger(ledger: dict[str, Any], reserve: Decimal) -> list[str
         blockers.append("usage ledger is not provider-reconciled")
     if ledger.get("provider_balance_status") != "verified":
         blockers.append("provider balance is unknown or unverified")
-    for kind in ("usage", "balance"):
+    evidence_payloads: dict[str, dict[str, Any]] = {}
+    for kind in ("usage", "balance", "fx_policy"):
         relative = ledger.get(f"provider_{kind}_evidence_path")
         expected_hash = ledger.get(f"provider_{kind}_evidence_sha256")
         valid_evidence = False
@@ -762,19 +763,80 @@ def validate_budget_ledger(ledger: dict[str, Any], reserve: Decimal) -> list[str
                         and resolved.is_file()
                         and _file_hash(resolved) == expected_hash
                     )
+                    if valid_evidence:
+                        try:
+                            payload = json.loads(resolved.read_text(encoding="utf-8"))
+                            valid_evidence = isinstance(payload, dict)
+                            if valid_evidence:
+                                evidence_payloads[kind] = payload
+                        except (OSError, UnicodeError, json.JSONDecodeError):
+                            valid_evidence = False
                 except (OSError, ValueError):
                     valid_evidence = False
         if not valid_evidence:
             blockers.append(f"provider {kind} evidence file missing, unsafe, or hash-mismatched")
+    # 账号级总额不能分摊给项目；必须明确归属 API key，并覆盖该 key 的完整历史。
+    if ledger.get("usage_scope") != "project_api_key" or not str(
+        ledger.get("usage_api_key_name", "")
+    ).strip():
+        blockers.append("provider usage is not attributed to an explicit project API key")
+    if ledger.get("provider_usage_history_complete") is not True or not all(
+        ledger.get(key) for key in ("provider_usage_period_start", "provider_usage_period_end")
+    ):
+        blockers.append("provider usage history coverage is incomplete")
+    usage_payload = evidence_payloads.get("usage", {})
+    usage_claims = {
+        "scope": ledger.get("usage_scope"),
+        "api_key_name": ledger.get("usage_api_key_name"),
+        "history_complete": ledger.get("provider_usage_history_complete"),
+        "period_start": ledger.get("provider_usage_period_start"),
+        "period_end": ledger.get("provider_usage_period_end"),
+        "amount": ledger.get("provider_cumulative_spend_amount"),
+        "currency": ledger.get("provider_cumulative_spend_currency"),
+    }
+    if not usage_payload or any(usage_payload.get(k) != v for k, v in usage_claims.items()):
+        blockers.append("provider usage evidence does not substantiate project attribution and full history")
+    balance_payload = evidence_payloads.get("balance", {})
+    balance_claims = {
+        "amount": ledger.get("provider_balance_amount"),
+        "currency": ledger.get("provider_balance_currency"),
+    }
+    if not balance_payload or any(balance_payload.get(k) != v for k, v in balance_claims.items()):
+        blockers.append("provider balance evidence does not match the recorded amount and currency")
+    fx_payload = evidence_payloads.get("fx_policy", {})
+    fx_claims = {
+        "policy_id": ledger.get("fx_policy_id"),
+        "method": ledger.get("fx_method"),
+        "rate_to_usd": ledger.get("fx_rate_to_usd"),
+        "source": ledger.get("fx_source"),
+        "effective_date": ledger.get("fx_effective_date"),
+    }
+    if not fx_payload or any(fx_payload.get(k) != v for k, v in fx_claims.items()):
+        blockers.append("FX policy evidence is missing or does not match the recorded conversion policy")
     try:
         cumulative = Decimal(str(ledger["provider_cumulative_spend_usd"]))
         provider_balance = Decimal(str(ledger["provider_balance_usd"]))
+        spend_amount = Decimal(str(ledger["provider_cumulative_spend_amount"]))
+        balance_amount = Decimal(str(ledger["provider_balance_amount"]))
+        fx_rate = Decimal(str(ledger["fx_rate_to_usd"]))
         if not cumulative.is_finite() or cumulative < 0:
             raise ValueError
         if not provider_balance.is_finite() or provider_balance < 0:
             raise ValueError
+        if not spend_amount.is_finite() or spend_amount < 0:
+            raise ValueError
+        if not balance_amount.is_finite() or balance_amount < 0:
+            raise ValueError
+        if not fx_rate.is_finite() or fx_rate <= 0:
+            raise ValueError
+        if ledger.get("provider_cumulative_spend_currency") != ledger.get("provider_balance_currency"):
+            raise ValueError
+        if (spend_amount * fx_rate).quantize(Decimal("0.000001")) != cumulative.quantize(Decimal("0.000001")):
+            raise ValueError
+        if (balance_amount * fx_rate).quantize(Decimal("0.000001")) != provider_balance.quantize(Decimal("0.000001")):
+            raise ValueError
     except (KeyError, TypeError, ValueError, ArithmeticError):
-        blockers.append("verified provider cumulative spend or balance amount is missing/invalid")
+        blockers.append("provider amounts, currencies, or FX conversion are missing/invalid/inconsistent")
         return blockers
     if cumulative + reserve > AUTHORIZED_CAP_USD:
         blockers.append(

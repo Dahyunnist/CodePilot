@@ -435,6 +435,31 @@ def test_cp2_budget_request_ceiling_uses_frozen_task_rows_not_claimed_count():
     assert reserve == Decimal("0.2308608")
 
 
+def test_cp2_exact_base_smoke_report_matches_budget_subset_and_is_not_agent_success():
+    root = DEFAULT_BUDGET_SUBSET.parent
+    report = json.loads(
+        (root / "smoke" / "baseline-2026-11-15.json").read_text(encoding="utf-8")
+    )
+    subset = json.loads(DEFAULT_BUDGET_SUBSET.read_text(encoding="utf-8"))
+    cases = {task["task_id"]: task for task in subset["tasks"]}
+
+    assert report["model_calls"] == 0
+    assert report["network_enabled"] is False
+    assert report["agent_repair_attempted"] is False
+    assert {row["task_id"] for row in report["results"]} == set(cases)
+    for row in report["results"]:
+        case = json.loads(
+            (root / "cases" / row["task_id"] / "case.json").read_text(encoding="utf-8")
+        )
+        assert row["command"] == case["test_command"]
+        assert row["image_config_digest"] == cases[row["task_id"]]["docker_image_config_digest"]
+        assert row["base_commit"] == cases[row["task_id"]]["base_commit"]
+        assert row["visible_test_sha256"] == case["visible_test_sha256"]
+        assert row["outcome"] == "expected_baseline_failure"
+        assert row["exit_code"] != 0
+        assert row["agent_repair_result"] is None
+
+
 def test_cp2_budget_gate_requires_reconciled_usage_and_provider_balance():
     reserve = Decimal("0.3462912")
     ledger = {
@@ -468,11 +493,21 @@ def test_cp2_budget_gate_checks_cap_headroom_and_single_campaign_reserve(
     import evals.cp2_benchmark as cp2
 
     monkeypatch.setattr(cp2, "ROOT", tmp_path)
-    usage_evidence = tmp_path / "evidence" / "usage.txt"
-    balance_evidence = tmp_path / "evidence" / "balance.txt"
+    usage_evidence = tmp_path / "evidence" / "usage.json"
+    balance_evidence = tmp_path / "evidence" / "balance.json"
+    fx_evidence = tmp_path / "evidence" / "fx.json"
     usage_evidence.parent.mkdir()
-    usage_evidence.write_text("provider usage proof", encoding="utf-8")
-    balance_evidence.write_text("provider balance proof", encoding="utf-8")
+    usage = {
+        "scope": "project_api_key", "api_key_name": "project-key",
+        "history_complete": True, "period_start": "2026-01-01", "period_end": "2026-01-31",
+        "amount": str(Decimal(cumulative) / Decimal("0.01")), "currency": "CNY",
+    }
+    balance = {"amount": str(Decimal(provider_balance) / Decimal("0.01")), "currency": "CNY"}
+    fx = {"policy_id": "test-fx", "method": "test-rate", "rate_to_usd": "0.01",
+          "source": "synthetic test fixture", "effective_date": "2026-01-31"}
+    usage_evidence.write_text(json.dumps(usage), encoding="utf-8")
+    balance_evidence.write_text(json.dumps(balance), encoding="utf-8")
+    fx_evidence.write_text(json.dumps(fx), encoding="utf-8")
     reserve = Decimal("0.3462912")
     ledger = {
         "account_usage_reconciled": True,
@@ -480,17 +515,45 @@ def test_cp2_budget_gate_checks_cap_headroom_and_single_campaign_reserve(
         "provider_balance_status": "verified",
         "provider_balance_usd": provider_balance,
         "provider_cumulative_spend_usd": cumulative,
+        "provider_balance_amount": balance["amount"],
+        "provider_balance_currency": "CNY",
+        "provider_cumulative_spend_amount": usage["amount"],
+        "provider_cumulative_spend_currency": "CNY",
+        "usage_scope": "project_api_key",
+        "usage_api_key_name": "project-key",
+        "provider_usage_history_complete": True,
+        "provider_usage_period_start": "2026-01-01",
+        "provider_usage_period_end": "2026-01-31",
+        "fx_policy_id": "test-fx",
+        "fx_method": "test-rate",
+        "fx_rate_to_usd": "0.01",
+        "fx_source": "synthetic test fixture",
+        "fx_effective_date": "2026-01-31",
         "authorized_project_cap_usd": "999.00",
-        "provider_usage_evidence_path": "evidence/usage.txt",
+        "provider_usage_evidence_path": "evidence/usage.json",
         "provider_usage_evidence_sha256": hashlib.sha256(usage_evidence.read_bytes()).hexdigest(),
-        "provider_balance_evidence_path": "evidence/balance.txt",
+        "provider_balance_evidence_path": "evidence/balance.json",
         "provider_balance_evidence_sha256": hashlib.sha256(balance_evidence.read_bytes()).hexdigest(),
+        "provider_fx_policy_evidence_path": "evidence/fx.json",
+        "provider_fx_policy_evidence_sha256": hashlib.sha256(fx_evidence.read_bytes()).hexdigest(),
     }
 
     blockers = cp2.validate_budget_ledger(ledger, reserve)
 
     if expected is None:
         assert blockers == []
+        account_only = dict(ledger, usage_scope="account")
+        assert "provider usage is not attributed to an explicit project API key" in cp2.validate_budget_ledger(
+            account_only, reserve
+        )
+        incomplete = dict(ledger, provider_usage_history_complete=False)
+        assert "provider usage history coverage is incomplete" in cp2.validate_budget_ledger(
+            incomplete, reserve
+        )
+        wrong_fx = dict(ledger, fx_rate_to_usd="0.02")
+        assert "provider amounts, currencies, or FX conversion are missing/invalid/inconsistent" in cp2.validate_budget_ledger(
+            wrong_fx, reserve
+        )
     else:
         assert any(expected in blocker for blocker in blockers)
 
@@ -499,19 +562,19 @@ def test_cp2_budget_gate_rejects_evidence_path_escape(tmp_path: Path, monkeypatc
     import evals.cp2_benchmark as cp2
 
     monkeypatch.setattr(cp2, "ROOT", tmp_path)
-    usage = tmp_path / "usage.txt"
-    balance = tmp_path / "balance.txt"
-    usage.write_text("usage", encoding="utf-8")
-    balance.write_text("balance", encoding="utf-8")
+    usage = tmp_path / "usage.json"
+    balance = tmp_path / "balance.json"
+    usage.write_text("{}", encoding="utf-8")
+    balance.write_text("{}", encoding="utf-8")
     ledger = {
         "account_usage_reconciled": True,
         "usage_evidence_status": "provider_reconciled",
         "provider_balance_status": "verified",
         "provider_balance_usd": "0.40",
         "provider_cumulative_spend_usd": "0.10",
-        "provider_usage_evidence_path": "../usage.txt",
+        "provider_usage_evidence_path": "../usage.json",
         "provider_usage_evidence_sha256": hashlib.sha256(usage.read_bytes()).hexdigest(),
-        "provider_balance_evidence_path": "balance.txt",
+        "provider_balance_evidence_path": "balance.json",
         "provider_balance_evidence_sha256": hashlib.sha256(balance.read_bytes()).hexdigest(),
     }
 
