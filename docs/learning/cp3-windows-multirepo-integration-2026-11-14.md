@@ -22,3 +22,9 @@ D:\Anaconda3\envs\NN\python.exe -m pytest -p no:cacheprovider tests/test_reposit
 - 样例由假模型驱动，模型请求数为 0。未运行 Docker 或真实模型。
 
 `tests/test_repository_tools.py` 的 10 项只证明仓库工具路径策略与文件边界。它不证明 Agent 已在多个真实仓库完成修复，也不代表真实模型修复成功率或完整 CP-3 验收。
+
+## CP-3 共享宿主短路径复测（2026-11-15）
+
+用户在共享 `E:\job` 根 PowerShell 对 `tests/test_cli_e2e.py::test_cli_repairs_demo_repository` 做独立复测。使用全新短 basetemp 和进程级 `safe.directory` 配置；测试仍为 **1 failed，5.37s**。首要错误来自 Git for Windows `sh.exe`：`NtCreateDirectoryObject(...): 0xC0000022`。随后 `model.requests` 为空导致 `IndexError`，是 CLI 未进入模型流程后的次生断言失败，不是 API 错误。
+
+该测试注入 `RepairScriptModel`，未请求模型 API。用户确认短 basetemp 已清理；本次未访问 `.tmp/` 或 `verification-artifacts/`。短路径没有消除问题，故不再归因于路径长度；进程级 `safe.directory` 也未解决 Git 子进程启动限制。此结果来自用户在共享宿主运行，独立于此前沙箱中的失败。未改测试或产品逻辑。
