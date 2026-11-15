@@ -48,10 +48,14 @@ Workflow 为每次运行创建新的 `$RUNNER_TEMP` basetemp，结束后清理�
 
 GitHub Actions 首次运行 [#43670637501](https://github.com/Dahyunnist/CodePilot/actions/runs/43670637501) 在依赖安装步骤失败；Windows runner 报 flat-layout 检出多个顶层包 `evals`、`docker`、`codepilot`，测试步骤被跳过。`pyproject.toml` 现在明确使用 `setuptools.build_meta`，包发现仅包含 `codepilot*`，排除 `evals*`、`docker*`、`tests*`。没有改为非 editable 安装，也没有放宽断言。
 
-Python 3.11 NN 环境执行 setuptools wheel backend 构建成功；产物含 26 个 `codepilot/` 文件，不含 `evals/`、`docker/`、`tests/`。本机 `build_editable()` 探测未成功：setuptools 72.1.0 在 `install` 路径变量替换阶段抛出 `ValueError: invalid variable '9e3bd5ea-dc03-4e3d-acf6-79e5558c7e02'`。因此 editable 安装仍须由下一次 Actions 的原始 `pip install -e ".[dev]"` 步骤验证；不能以 wheel 构建替代该验收。
+首次本机 editable 探测失败，后来在干净源码副本与隔离 Python 3.11 环境中复现并定位：默认 `TEMP`/`TMP` 指向 Codex 沙箱目录 `...\#!sandbox.{GUID}\Temp`；setuptools 72.1.0/79.0.1 在 `install.expand_dirs()` 的 `subst_vars()` 阶段把路径中的 GUID 当成变量名，抛出 `ValueError: invalid variable '<GUID>'`。相同源码和环境将 `TEMP`、`TMP` 改为普通短目录后，wheel 与 editable install 均成功。故这是当前宿主临时路径格式触发的问题，不是包发现配置缺陷；不应为此改包内容或移除 editable 安装。
 
-离线回归结果：`tests/test_agent.py`、`tests/test_model.py`、`tests/test_execute.py` 排除唯一会读取 `.tmp/` 的 CP-2 夹具测试后，**86 passed, 1 deselected**；`tests/test_repository_tools.py` **10 passed, 1 skipped**（Windows junction 创建返回 Access denied）。CLI/Workspace 仍受本机 Git for Windows `sh.exe` `NtCreateDirectoryObject(...): 0xC0000022` 阻断；本次 CLI 组为 **1 passed, 1 failed**，未请求模型。MCP 本机首测曾挂起，未判为通过或失败。
+隔离验收使用 Python 3.11 venv、`--no-deps --no-build-isolation` 和短 `E:\job` 临时目录，不访问模型或外网：wheel 含 26 个 `codepilot/` 文件，没有 `evals/`、`docker/`、`tests/`；`pip install -e .` 成功，`codepilot.__file__` 指向临时源码副本，`codepilot --help` 与 `codepilot-mcp --help` 均退出 0。此前提交的包发现配置已由 GitHub Actions 原始 editable 安装验证通过。
+
+远端 Windows Actions [run 43672009209](https://github.com/Dahyunnist/CodePilot/actions/runs/43672009209)，commit `82e2445`：依赖安装与完整离线回归步骤均成功。它覆盖 CLI E2E、Workspace、repository tools、MCP、Agent、模型适配器及执行器；未运行真实模型。
+
+离线回归结果：Agent、模型适配器、执行器与 repository tools 合并运行，排除唯一会读取 `.tmp/` 的 CP-2 夹具测试后，**96 passed, 1 skipped, 1 deselected in 10.66s**。跳过项是 Windows junction 创建返回 Access denied。CLI/Workspace 在此前本机复测受 Git for Windows `sh.exe` `NtCreateDirectoryObject(...): 0xC0000022` 阻断；CLI 组 **1 passed, 1 failed**，未请求模型。MCP 本机首测曾挂起，未判为通过或失败；托管 Actions 已覆盖并通过这些测试。
 
 验证操作偏差：有一条本机 pytest 命令漏写 workflow 的 CP-2 排除条件，意外触发 `test_cp2_django_visible_preflight_hashes_and_docker_command_are_isolated`。该测试尝试读取 `.tmp/cp2-single-preflight/one-task.json`，文件不存在，返回 `FileNotFoundError`；没有读到内容或写入文件。后续回归命令已明确排除此测试。此次属于指令偏差，不能记作该测试通过。
 
-修复提交后需查看新的 Actions 运行；GitHub 托管 editable 安装与 Windows CLI/Workspace/MCP 结果当前仍待验证。
+当前 editable 包发现、GitHub 托管 Windows 回归已通过。Codex 宿主默认 `TEMP`/`TMP` 路径下的本机 editable 构建仍会复现 setuptools GUID 错误；本机需先设置普通短临时路径。CLI/Workspace 在当前受限宿主的 Git `sh.exe` 权限问题和 MCP 本机挂起记录仍保留，Actions 成功不替代对其他宿主的复核。
