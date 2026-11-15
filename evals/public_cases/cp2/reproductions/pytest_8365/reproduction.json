@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "task_id": "pytest-dev__pytest-8365",
+  "evidence_status": "verified_public_base_failure_and_official_fix_pass",
+  "environment": {
+    "image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-8365@sha256:ad963610bf29e6d0df24f5eab20df20ada6db050f21434f2dd329075286c4044",
+    "platform": "linux/amd64",
+    "image_head": "a2ae9f63ad2d1d5e87b84ec52e07c38d5a210d5c",
+    "base_commit": "4964b468c83c06971eb743fbc57cc404f760c573",
+    "base_commit_match": true,
+    "license": "MIT",
+    "license_file": "LICENSE",
+    "license_sha256": "7898b9b164d4f93fd9a562fd0f592935518b48c4745303964110eb7f7fe64faf",
+    "docker_network": "none",
+    "container_lifecycle": "--rm; container removed after each run"
+  },
+  "source": {
+    "issue_url": "https://github.com/pytest-dev/pytest/issues/8317",
+    "pull_request_url": "https://github.com/pytest-dev/pytest/pull/8365",
+    "pull_request_base_sha": "4964b468c83c06971eb743fbc57cc404f760c573",
+    "pull_request_head_sha": "26d3d7743a860c0898c035961536fe36d9ff12e7",
+    "merge_commit_sha": "b7f2d7ca61d6169495e5780fffc252daaacd6583",
+    "official_patch_sha256": "275dcb5855d867cb603841b31a47a425d232601b35e55650adefb16e7ac595ec",
+    "base_test_file_sha256": "824a8b3310d5904a7aa36d570e7080eee590c7953acf7569b5ebae655cbe5bad",
+    "test_file_after_official_patch_sha256": "1696de6151b0dee0f88db6d9e2df2d91f81f71fa0296505b3e1faef2eac0c3de"
+  },
+  "visible_test": {
+    "spec": "testing/test_tmpdir.py::test_tmp_path_factory_handles_invalid_dir_characters",
+    "command": "/opt/miniconda3/envs/testbed/bin/python -m pytest testing/test_tmpdir.py -p no:cacheprovider -k test_tmp_path_factory_handles_invalid_dir_characters -q",
+    "base": {
+      "exit_code": 1,
+      "summary": "1 failed, 33 deselected",
+      "failure": "FileNotFoundError while creating /tmp/pytest-of-os/<:*?;>agnostic"
+    },
+    "official_fix": {
+      "exit_code": 0,
+      "summary": "1 passed, 33 deselected"
+    }
+  },
+  "discarded_invalid_attempt": {
+    "result": "both_runs_passed",
+    "why_discarded": "首次尝试用 git restore 从已应用 PR 的 HEAD 恢复源文件，实际没有还原 base 实现。该结果无效。复核改为从精确 base SHA checkout 源文件，随后观察到 base 失败、官方修复通过。"
+  },
+  "scope": {
+    "public_development_case": true,
+    "blind_holdout": false,
+    "agent_runs": 0,
+    "model_calls": 0,
+    "hidden_tests_read_or_run": false,
+    "frozen_benchmark_v1_modified": false,
+    "limitations": "Linux 上运行 PR 提供的跨平台模拟输入；不声称复现原 issue 的 Windows SSH/域账号环境。"
+  }
+}
