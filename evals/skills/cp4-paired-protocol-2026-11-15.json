@@ -1,0 +1,48 @@
+{
+  "protocol_id": "cp4-two-skill-paired-offline-freeze-v1",
+  "status": "frozen-not-executed",
+  "model_calls": 0,
+  "claims_skill_improvement": false,
+  "pairing": {
+    "dimension": "skill",
+    "pairs": [
+      {
+        "case_id": "skill-pytest-config",
+        "baseline_skill_id": "none",
+        "treatment_skill_id": "pytest-failure-triage"
+      },
+      {
+        "case_id": "skill-api-pagination",
+        "baseline_skill_id": "none",
+        "treatment_skill_id": "api-contract-check"
+      }
+    ],
+    "hold_constant": [
+      "model and provider endpoint",
+      "agent source revision and worktree diff",
+      "case metadata, repository tree, visible tests and hidden tests",
+      "execution mode and pinned Docker image digest",
+      "ContextSelector setting and version",
+      "verification mode, step/token/time/context limits",
+      "temperature and per-request completion limits"
+    ],
+    "primary_outcomes": [
+      "strict accepted status",
+      "independent visible and hidden test status",
+      "failure type",
+      "estimated API cost and elapsed time"
+    ],
+    "interpretation": "Two-case pilot only. Report every pair, including failures. No aggregate capability claim."
+  },
+  "frozen_inputs_sha256": {
+    "codepilot/agent.py": "043b5ba4e228b50d146b1c4cd3779c3dd1798983fa624ce6aa847be79cccba20",
+    "codepilot/prompts.py": "f4f6e3608b1339745ee5afe8e0baab5071c532df7963fb786a756954c156aa2b",
+    "codepilot/skills.py": "a5595b9a78078224ca15a7523f317b1a7cc75c2ebadec77998f01f767c4fee90",
+    "evals/compare_live_runs.py": "25282bc83c2c6a8d5945e0bdf86912c1eb69c2acf2186cd59d88577fc6f2654f",
+    "evals/live_runner.py": "5011e22b56bcc7f9efcc5c9693f779107e3cf35cf9fd3afe509ea21d2f7b16fe",
+    "evals/skills/paired-smoke.json": "d064b30c392fb33c0bdc68b9472182cda07b1b47c7f29171abe079d634396093",
+    "evals/skills/cases/skill-pytest-config/case.json": "dd9c13274588535d1382faa75ab52e1c93abfd264f1a98b1cd51fb5c70179b63",
+    "evals/skills/cases/skill-api-pagination/case.json": "3cd5ee43a2ebe63ee2a239cbac9fac236812443a3e309ca208eb6752cf47495f"
+  },
+  "protocol_sha256": "d71d343398b7c385e32402ca1c1aa648006b6eafb40d208853f00295f3d6b066"
+}
