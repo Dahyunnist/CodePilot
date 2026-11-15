@@ -29,10 +29,10 @@ CP-2 仍不可启动真实评测。项目授权上限为 `$0.50`，本机可见�
 
 ## 测试记录
 
-使用 `D:\Anaconda3\envs\NN\python.exe` 执行，无模型/网络/Docker：
+使用 Python 环境执行，无模型/网络/Docker：
 
 ```powershell
-& 'D:\Anaconda3\envs\NN\python.exe' -m pytest tests/test_cp2_benchmark.py tests/test_live_runner.py tests/test_benchmark_manifest_integrity.py tests/test_agent.py::test_loop_stops_at_max_steps -q --basetemp=E:\job\cp2-s1-offline-20261115
+python -m pytest tests/test_cp2_benchmark.py tests/test_live_runner.py tests/test_benchmark_manifest_integrity.py tests/test_agent.py::test_loop_stops_at_max_steps -q --basetemp="$env:TEMP\cp2-s1-offline"
 ```
 
 结果：`59 passed in 4.34s`。
