@@ -154,6 +154,7 @@ def _print_pending_approval(state: dict[str, object], run_id: str, state_db: Pat
     if isinstance(value, dict):
         print(f"审批基线：{value.get('base_commit', '未知')}")
         print(f"补丁 SHA-256：{value.get('patch_sha256', '未知')}")
+        print(f"审批有效期至：{value.get('expires_at', '未知')}")
         print(f"源仓库：{value.get('source', '未知')}")
     print(f"回写审批待处理。运行 ID：{run_id}")
     print(f"批准：codepilot resume --run-id {run_id} --approve --state-db {state_db}")

@@ -6,6 +6,8 @@ import hashlib
 import json
 import sqlite3
 import subprocess
+import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, TypedDict
 
@@ -19,6 +21,9 @@ from codepilot.tools.registry import ToolRegistry
 from codepilot.workspace import Workspace, WorkspaceError, WorkspaceManager
 
 
+APPROVAL_TTL_SECONDS = 30 * 60
+
+
 class DurableRunState(TypedDict, total=False):
     task: dict[str, Any]
     run_id: str
@@ -29,12 +34,101 @@ class DurableRunState(TypedDict, total=False):
     result: dict[str, Any]
     patch_sha256: str
     approval: bool
+    approval_expired: bool
+    approval_expires_at: str
     delivery: str
     error: str
     runtime: dict[str, Any]
 
 
 AgentFactory = Callable[[Task, str, dict[str, Any]], Agent]
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _approval_window(
+    database: Path,
+    run_id: str,
+    patch_sha256: str,
+    *,
+    parent_span_id: str,
+) -> tuple[dict[str, str], bool]:
+    """Create one durable approval deadline; replay must reuse it."""
+    requested_at = _utc_now()
+    expires_at = requested_at + timedelta(seconds=APPROVAL_TTL_SECONDS)
+    with sqlite3.connect(database, timeout=30) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS approval_windows ("
+            "run_id TEXT PRIMARY KEY, patch_sha256 TEXT NOT NULL, "
+            "requested_at TEXT NOT NULL, expires_at TEXT NOT NULL, "
+            "approval_span_id TEXT NOT NULL, parent_span_id TEXT NOT NULL)"
+        )
+        existing = connection.execute(
+            "SELECT patch_sha256, requested_at, expires_at, approval_span_id, parent_span_id "
+            "FROM approval_windows WHERE run_id=?",
+            (run_id,),
+        ).fetchone()
+        created = existing is None
+        if created:
+            record = (
+                patch_sha256,
+                requested_at.isoformat(),
+                expires_at.isoformat(),
+                uuid.uuid4().hex,
+                parent_span_id,
+            )
+            connection.execute(
+                "INSERT INTO approval_windows "
+                "(run_id, patch_sha256, requested_at, expires_at, approval_span_id, parent_span_id) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (run_id, *record),
+            )
+            existing = record
+    if existing[0] != patch_sha256:
+        raise WorkspaceError("审批期间补丁摘要发生变化；旧审批窗口不可复用")
+    return {
+        "patch_sha256": existing[0],
+        "requested_at": existing[1],
+        "expires_at": existing[2],
+        "approval_span_id": existing[3],
+        "parent_span_id": existing[4],
+    }, created
+
+
+def _load_approval_window(database: Path, run_id: str) -> dict[str, str] | None:
+    if not database.is_file():
+        return None
+    with sqlite3.connect(database, timeout=30) as connection:
+        table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='approval_windows'"
+        ).fetchone()
+        if not table:
+            return None
+        row = connection.execute(
+            "SELECT patch_sha256, requested_at, expires_at, approval_span_id, parent_span_id "
+            "FROM approval_windows WHERE run_id=?",
+            (run_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return dict(zip(
+        ("patch_sha256", "requested_at", "expires_at", "approval_span_id", "parent_span_id"),
+        row,
+        strict=True,
+    ))
+
+
+def _approval_expired(window: dict[str, str]) -> bool:
+    try:
+        expires_at = datetime.fromisoformat(window["expires_at"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("审批过期时间缺失或格式错误；拒绝回写") from exc
+    if expires_at.tzinfo is None or expires_at.utcoffset() is None:
+        raise ValueError("审批过期时间没有时区；拒绝回写")
+    return _utc_now() >= expires_at
 
 
 def _save_agent_progress(database: Path, run_id: str, progress: dict[str, Any]) -> None:
@@ -126,13 +220,28 @@ def _build_graph(
         result = RunResult.model_validate(state["result"])
         if not state.get("apply_to_repo") or result.status != "success":
             return {"approval": False}
-        trace(
-            "writeback_approval_requested",
-            state,
-            patch_sha256=state["patch_sha256"],
-            tests_passed=bool(result.test_result and result.test_result.ok),
+        parent_span_id = str(
+            getattr(tracer, "current_span_id", None)
+            or getattr(tracer, "root_span_id", "")
         )
-        approved = interrupt(
+        window, first_request = _approval_window(
+            database,
+            state["run_id"],
+            state["patch_sha256"],
+            parent_span_id=parent_span_id,
+        )
+        if first_request:
+            trace(
+                "writeback_approval_requested",
+                state,
+                patch_sha256=state["patch_sha256"],
+                tests_passed=bool(result.test_result and result.test_result.ok),
+                requested_at=window["requested_at"],
+                expires_at=window["expires_at"],
+                span_id=window["approval_span_id"],
+                parent_span_id=window["parent_span_id"],
+            )
+        decision = interrupt(
             {
                 "type": "repository_writeback_approval",
                 "run_id": state["run_id"],
@@ -140,16 +249,31 @@ def _build_graph(
                 "base_commit": state["base_commit"],
                 "patch_sha256": state["patch_sha256"],
                 "tests_passed": bool(result.test_result and result.test_result.ok),
+                "requested_at": window["requested_at"],
+                "expires_at": window["expires_at"],
                 "diff": result.diff,
             }
         )
+        if isinstance(decision, dict):
+            approved = decision.get("approved") is True
+            expired = decision.get("expired") is True
+        else:
+            approved = bool(decision)
+            expired = False
         trace(
             "writeback_approval_decided",
             state,
-            approved=bool(approved),
+            approved=approved,
+            expired=expired,
             patch_sha256=state["patch_sha256"],
+            span_id=window["approval_span_id"],
+            parent_span_id=window["parent_span_id"],
         )
-        return {"approval": bool(approved)}
+        return {
+            "approval": approved,
+            "approval_expired": expired,
+            "approval_expires_at": window["expires_at"],
+        }
 
     def delivery(state: DurableRunState) -> dict[str, Any]:
         result = RunResult.model_validate(state["result"])
@@ -159,12 +283,36 @@ def _build_graph(
         if result.status != "success":
             trace("writeback_finished", state, outcome="agent_failed")
             return {"delivery": "not_delivered"}
+        if state.get("approval_expired"):
+            result.status = "failed"
+            result.failure_type = "policy"
+            result.error = "回写审批已过期；请重新发起任务并重新验证，补丁未写回"
+            trace("writeback_finished", state, outcome="approval_expired")
+            return {
+                "result": result.model_dump(mode="json"),
+                "delivery": "approval_expired",
+            }
         if not state.get("approval"):
             result.status = "needs_approval"
             result.failure_type = "policy"
             result.error = "用户拒绝补丁回写"
             trace("writeback_finished", state, outcome="rejected")
             return {"result": result.model_dump(mode="json"), "delivery": "rejected"}
+
+        window = _load_approval_window(database, state["run_id"])
+        if (
+            window is None
+            or window["expires_at"] != state.get("approval_expires_at")
+            or window["patch_sha256"] != state.get("patch_sha256")
+        ):
+            result.status = "failed"
+            result.failure_type = "policy"
+            result.error = "审批窗口或补丁绑定校验失败；拒绝回写"
+            trace("writeback_finished", state, outcome="approval_binding_invalid")
+            return {
+                "result": result.model_dump(mode="json"),
+                "delivery": "approval_invalid",
+            }
 
         workspace = Workspace(
             source=Path(state["source"]),
@@ -245,6 +393,21 @@ def _build_graph(
             return {
                 "result": result.model_dump(mode="json"),
                 "delivery": "stale_patch",
+            }
+        if _approval_expired(window):
+            result.status = "failed"
+            result.failure_type = "policy"
+            result.error = "回写审批在重新验证期间过期；补丁未写回"
+            trace(
+                "approval_expired",
+                state,
+                patch_sha256=window["patch_sha256"],
+                expires_at=window["expires_at"],
+            )
+            trace("writeback_finished", state, outcome="approval_expired")
+            return {
+                "result": result.model_dump(mode="json"),
+                "delivery": "approval_expired",
             }
         trace(
             "writeback_started",
@@ -333,7 +496,34 @@ def resume_durable_run(
         if interrupted:
             if approved is None:
                 raise ValueError("运行正在等待审批；请指定 --approve 或 --reject")
-            return graph.invoke(Command(resume=approved), config=config)
+            resume_value: bool | dict[str, bool] = approved
+            result_data = snapshot.values.get("result", {})
+            approval_pending = bool(
+                snapshot.values.get("apply_to_repo")
+                and isinstance(result_data, dict)
+                and result_data.get("status") == "success"
+            )
+            if approval_pending:
+                window = _load_approval_window(database, run_id)
+                if approved and window is None:
+                    raise ValueError("审批时间窗记录缺失；拒绝批准回写")
+                if window is not None:
+                    if window["patch_sha256"] != snapshot.values.get("patch_sha256"):
+                        raise ValueError("审批摘要与检查点补丁不匹配；拒绝回写")
+                    expired = bool(approved and _approval_expired(window))
+                    if expired:
+                        trace_event = getattr(tracer, "event", None)
+                        if trace_event:
+                            trace_event(
+                                "approval_expired",
+                                0,
+                                patch_sha256=window["patch_sha256"],
+                                expires_at=window["expires_at"],
+                                span_id=window["approval_span_id"],
+                                parent_span_id=window["parent_span_id"],
+                            )
+                    resume_value = {"approved": bool(approved and not expired), "expired": expired}
+            return graph.invoke(Command(resume=resume_value), config=config)
         if approved is not None:
             raise ValueError("运行未处于等待审批状态，拒绝重复恢复")
         if not snapshot.next:

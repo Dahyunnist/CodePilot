@@ -17,6 +17,9 @@
 - Trace events exclude source text, patch contents, stdout, stderr, and API keys.
 - Trace events share a trace ID and link model/tool spans; approval and
   writeback events record decisions and patch hashes without storing the diff.
+- Repository writeback approval expires after 30 minutes, binds to the reviewed
+  patch hash, and revalidates tests before applying changes. Replayed approvals
+  cannot apply a completed writeback twice.
 - Host execution requires approval and receives a minimal environment.
 - Workspace run IDs are restricted to safe directory names; failed clones remove
   their partial destination.

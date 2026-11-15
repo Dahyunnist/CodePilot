@@ -241,6 +241,56 @@ def test_opentelemetry_spans_cover_run_model_tools_and_writeback(tmp_path, monke
     assert rejected.spans[1].status is not None
 
 
+def test_restarted_approval_decision_uses_linked_otel_span(tmp_path):
+    request_exporter = FakeTracer()
+    request = TraceLogger(
+        tmp_path / "approval.jsonl",
+        "run-approval-restart",
+        trace_id="trace-approval-restart",
+        otel_tracer=request_exporter,
+    )
+    request.event("run_started", 0)
+    request.event(
+        "writeback_approval_requested",
+        0,
+        span_id="approval-span",
+        parent_span_id=request.root_span_id,
+    )
+
+    resumed_exporter = FakeTracer()
+    resumed = TraceLogger(
+        tmp_path / "approval.jsonl",
+        "run-approval-restart",
+        trace_id="trace-approval-restart",
+        otel_tracer=resumed_exporter,
+    )
+    resumed.event(
+        "approval_expired",
+        0,
+        span_id="approval-span",
+        parent_span_id=request.root_span_id,
+    )
+    resumed.event(
+        "writeback_approval_decided",
+        0,
+        span_id="approval-span",
+        parent_span_id=request.root_span_id,
+        approved=False,
+        expired=True,
+    )
+
+    assert all(span.ended for span in resumed_exporter.spans)
+    assert all(
+        span.attributes["codepilot.trace_id"] == "trace-approval-restart"
+        for span in resumed_exporter.spans
+    )
+    assert all(
+        span.attributes["codepilot.approval_span_id"] == "approval-span"
+        for span in resumed_exporter.spans
+    )
+    assert any(span.status is not None for span in resumed_exporter.spans)
+
+
 def test_opentelemetry_spans_do_not_export_secrets_or_patch_text(tmp_path):
     otel = FakeTracer()
     trace = TraceLogger(tmp_path / "trace.jsonl", "run-safe-otel", otel_tracer=otel)

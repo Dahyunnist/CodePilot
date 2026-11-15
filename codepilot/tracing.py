@@ -32,6 +32,7 @@ class StandardTraceEvent(StrEnum):
     UNSAFE_ACTION_BLOCKED = "unsafe_action_blocked"
     CANCEL = "cancel"
     CHECKPOINT_RESUME = "checkpoint_resume"
+    APPROVAL_EXPIRED = "approval_expired"
 
 def validate_event_name(event: str) -> str:
     """Validate event spelling while preserving legacy custom event names."""
@@ -161,6 +162,28 @@ class TraceLogger:
             )
             return
 
+        if event == "approval_expired" or (
+            event == "writeback_approval_decided"
+            and "writeback_approval" not in self._otel_spans
+        ):
+            # Durable approval may be decided after process restart, when the
+            # request span is no longer in this logger's in-memory span map.
+            decision_span = self._otel_tracer.start_span(
+                "codepilot.writeback.approval.decision",
+                attributes={
+                    "codepilot.run_id": self.run_id,
+                    "codepilot.trace_id": self.trace_id,
+                    "codepilot.approval_span_id": span_id,
+                    "codepilot.step": record["step"],
+                    **fields,
+                },
+            )
+            if event == "approval_expired" or fields.get("approved") is False:
+                decision_span.set_attribute("codepilot.error_present", True)
+                decision_span.set_status(Status(StatusCode.ERROR))
+            decision_span.end()
+            return
+
         close_span = None
         if event == "model_finished":
             close_span = self._otel_spans.get(span_id)
@@ -251,6 +274,11 @@ class TraceLogger:
             self.event("patch_finished", 0, span_id=span_id,
                        parent_span_id=self._tool_spans.get(call.id, ("", ""))[0],
                        ok=result.ok, error_type=result.error_type or "")
+
+    @property
+    def current_span_id(self) -> str:
+        """Return most recent model span for lifecycle events after agent completion."""
+        return self._last_model_span_id or self.root_span_id
 
 
 def _redact_value(value: Any) -> Any:
