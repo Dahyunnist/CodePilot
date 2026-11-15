@@ -33,7 +33,7 @@ D:\Anaconda3\envs\NN\python.exe -m pytest -p no:cacheprovider tests/test_reposit
 
 新增 `.github/workflows/windows-offline-regression.yml`，在 `windows-latest` 跑 CLI E2E、Workspace、repository tools、MCP、Agent、模型适配器和执行器测试。测试用例注入 scripted/fake model；没有模型 API 测试或真实外部服务请求。唯一排除项 `test_cp2_django_visible_preflight_hashes_and_docker_command_are_isolated` 会读取仓库 `.tmp/`；其余相关测试保留原断言。
 
-Workflow 为每次运行创建新的 `$RUNNER_TEMP` basetemp，结束后清理；Git `safe.directory` 通过该步骤的进程环境变量注入并恢复，不改全局配置。当前尚未在 GitHub Actions 执行：本地普通 PowerShell 短路径复测仍被 Git for Windows 的 `NtCreateDirectoryObject(...): 0xC0000022` 阻断，因此不记录 Windows CI 通过。提交后需由用户推送或在 GitHub 手动触发 workflow 才能取得托管 Windows runner 结果。
+Workflow 为每次运行创建新的 `$RUNNER_TEMP` basetemp，结束后清理；Git `safe.directory` 通过该步骤的进程环境变量注入并恢复，不改全局配置。最初提交后尚未有托管运行；后续首次运行及其包发现失败见本节末的 CI 记录。
 
 本代理按 workflow 范围在当前宿主复测：
 
@@ -43,3 +43,15 @@ Workflow 为每次运行创建新的 `$RUNNER_TEMP` basetemp，结束后清理�
 - workflow 范围和其余离线单元组也各尝试过一次；两组都超过 90 秒无汇总，被中断。它们不计通过，临时 basetemp 均已清理。
 
 这些栈把 CLI 与 Workspace 的失败定位到 Git for Windows 启动其 `sh.exe` 子进程，不是 Agent 断言，也不是模型请求。MCP 的本机挂起原因尚未定位。Windows GitHub Actions 尚未运行，不能据此判断托管 runner 是否受同一宿主限制。不得把本机中断记录为通过；workflow 设有 20 分钟 job 超时。
+
+## Windows CI 包发现修复与复测（2026-11-15）
+
+GitHub Actions 首次运行 [#43670637501](https://github.com/Dahyunnist/CodePilot/actions/runs/43670637501) 在依赖安装步骤失败；Windows runner 报 flat-layout 检出多个顶层包 `evals`、`docker`、`codepilot`，测试步骤被跳过。`pyproject.toml` 现在明确使用 `setuptools.build_meta`，包发现仅包含 `codepilot*`，排除 `evals*`、`docker*`、`tests*`。没有改为非 editable 安装，也没有放宽断言。
+
+Python 3.11 NN 环境执行 setuptools wheel backend 构建成功；产物含 26 个 `codepilot/` 文件，不含 `evals/`、`docker/`、`tests/`。本机 `build_editable()` 探测未成功：setuptools 72.1.0 在 `install` 路径变量替换阶段抛出 `ValueError: invalid variable '9e3bd5ea-dc03-4e3d-acf6-79e5558c7e02'`。因此 editable 安装仍须由下一次 Actions 的原始 `pip install -e ".[dev]"` 步骤验证；不能以 wheel 构建替代该验收。
+
+离线回归结果：`tests/test_agent.py`、`tests/test_model.py`、`tests/test_execute.py` 排除唯一会读取 `.tmp/` 的 CP-2 夹具测试后，**86 passed, 1 deselected**；`tests/test_repository_tools.py` **10 passed, 1 skipped**（Windows junction 创建返回 Access denied）。CLI/Workspace 仍受本机 Git for Windows `sh.exe` `NtCreateDirectoryObject(...): 0xC0000022` 阻断；本次 CLI 组为 **1 passed, 1 failed**，未请求模型。MCP 本机首测曾挂起，未判为通过或失败。
+
+验证操作偏差：有一条本机 pytest 命令漏写 workflow 的 CP-2 排除条件，意外触发 `test_cp2_django_visible_preflight_hashes_and_docker_command_are_isolated`。该测试尝试读取 `.tmp/cp2-single-preflight/one-task.json`，文件不存在，返回 `FileNotFoundError`；没有读到内容或写入文件。后续回归命令已明确排除此测试。此次属于指令偏差，不能记作该测试通过。
+
+修复提交后需查看新的 Actions 运行；GitHub 托管 editable 安装与 Windows CLI/Workspace/MCP 结果当前仍待验证。
