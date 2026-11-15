@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "subset_id": "cp2-budget-subset-3-v1",
+  "purpose": "offline budget precheck only; not authorization to run evaluation",
+  "parent_manifest_sha256": "ff6e649a1e71711de784b05fff0f64b908c059bd6b1f1ddd8dd175bd411b9c80",
+  "minimum_independent_tasks": 3,
+  "independence_axis": "distinct upstream repositories",
+  "task_count": 3,
+  "repository_count": 3,
+  "tasks": [
+    {
+      "task_id": "django__django-10924",
+      "repo": "django/django",
+      "base_commit": "bceadd2788dc2dad53eba0caae172bd8522fd483",
+      "problem_statement_sha256": "311f3ac50765782a0c786b04adbfc95cc87ac8c71c79c83d937de711aea8b3a9",
+      "gold_patch_sha256": "c15a336f335509fea0aa33a77e41b88e9ab95359f344a31fa7fa68eaa97165ac",
+      "visible_test_spec_sha256": "fb99057de73e65c661e97920ee607d2b7f4270ad82417f839f9e4f4b25a468fe",
+      "docker_image_config_digest": "sha256:d41b289ea27a92ef6346702388e5ea0b8c8f48c41d83466a72c2dffb934007a1"
+    },
+    {
+      "task_id": "pytest-dev__pytest-5103",
+      "repo": "pytest-dev/pytest",
+      "base_commit": "10ca84ffc56c2dd2d9dc4bd71b7b898e083500cd",
+      "problem_statement_sha256": "92b5c0a0c415a78c9b42b5cfab6f2137190332221fbce3c857d42d0e196fdb0c",
+      "gold_patch_sha256": "5b621eb0099e1e4eeb2bcb42f24a48b15b540e46fe23403475890578f546680c",
+      "visible_test_spec_sha256": "2c702300cfb0801ac87ba77528d182d86cdb36220e92be68df635cee1824095e",
+      "docker_image_config_digest": "sha256:1648c614485c81d9e08bcf9ec8014fb38cd2f20fad6bea782552d923a35ce714"
+    },
+    {
+      "task_id": "mwaskom__seaborn-2848",
+      "repo": "mwaskom/seaborn",
+      "base_commit": "94621cef29f80282436d73e8d2c0aa76dab81273",
+      "problem_statement_sha256": "cd082639d3b926a1902ff2477194396f758aa4e5fd3742dbbf9c25190e22a282",
+      "gold_patch_sha256": "c57a9e1c3469d1fa115576ec277fa828a7a5e4b32c41e3975bc5b426cf33048d",
+      "visible_test_spec_sha256": "095819acf45eb02fadb6e05f654c9e6cdfeb7ac1263dd9a2ac288fa99c9f6e2e",
+      "docker_image_config_digest": "sha256:d719470351e66623e532a4f23cdedfe8fb737147fe108e4b5829aa273528389d"
+    }
+  ],
+  "pairing": {
+    "variants_per_task": 2,
+    "variants": [
+      "baseline",
+      "treatment"
+    ]
+  },
+  "limits": {
+    "max_input_tokens_per_request": 22000,
+    "max_completion_tokens": 512,
+    "max_steps": 8,
+    "max_total_tokens_per_task": 20000,
+    "context_budget_chars": 8000,
+    "max_elapsed_seconds": 180
+  },
+  "peak_pricing_usd_per_million": {
+    "input_uncached": "0.30",
+    "input_cached": "0.006",
+    "output": "1.20"
+  },
+  "budget": {
+    "max_model_requests": 48,
+    "max_uncached_input_tokens_per_request": 22000,
+    "max_completion_tokens_per_request": 512,
+    "peak_worst_case_reserve_usd": "0.3462912",
+    "gate": "verified cumulative project spend + full campaign reserve <= authorized cap"
+  },
+  "subset_sha256": "dd03fa16cbcc3690490fe84b03676fa1b2ea2c10d0e66ecd0206aa7962ec463b"
+}

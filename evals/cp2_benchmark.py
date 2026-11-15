@@ -20,6 +20,7 @@ from codepilot.security import redact_sensitive_text
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SELECTION = ROOT / "evals/public_cases/cp2/frozen-selection.json"
 DEFAULT_MANIFEST = ROOT / "evals/public_cases/cp2/benchmark-v1.json"
+DEFAULT_BUDGET_SUBSET = ROOT / "evals/public_cases/cp2/budget-subset-3-v1.json"
 DEFAULT_SOURCE_PROVENANCE = ROOT / "evals/public_cases/cp2/source-provenance-v1.json"
 RUNNABLE_TASK_SCHEMA = ROOT / "evals/public_cases/cp2/runnable-task.schema.json"
 SOURCE_PROVENANCE_SCHEMA = ROOT / "evals/public_cases/cp2/source-provenance.schema.json"
@@ -38,6 +39,15 @@ TASK_IDS = (
     "mwaskom__seaborn-2848", "mwaskom__seaborn-3010",
     "scikit-learn__scikit-learn-10508",
 )
+
+# Three tasks, each from a separate upstream repository. This is a budget
+# candidate only; runtime, visible-test, and provenance gates still apply.
+BUDGET_SUBSET_TASK_IDS = (
+    "django__django-10924",
+    "pytest-dev__pytest-5103",
+    "mwaskom__seaborn-2848",
+)
+PAIRED_VARIANTS_PER_TASK = 2
 
 RUNTIME = {
     "django__django-10924": "sha256:d41b289ea27a92ef6346702388e5ea0b8c8f48c41d83466a72c2dffb934007a1",
@@ -285,7 +295,7 @@ def build_budget_ledger(reports_root: Path) -> dict[str, Any]:
     # Partial and unidentified rows may overlap other records. Quarantine them;
     # do not convert a document estimate into spendable account balance.
     return {
-        "ledger_version": 2,
+        "ledger_version": 3,
         "authorized_project_cap_usd": str(AUTHORIZED_CAP_USD),
         "usage_source": "local evaluation result CSVs; estimates, not provider billing export",
         "usage_evidence_status": "missing_raw_csv" if csv_count == 0 else "local_estimate_unreconciled",
@@ -301,10 +311,16 @@ def build_budget_ledger(reports_root: Path) -> dict[str, Any]:
         "partial_record_cost_usd": str(partial_cost.quantize(Decimal("0.000001"))) if partial_cost is not None else None,
         "additional_partial_record_sha256": partial_hash,
         "known_cumulative_estimated_cost_usd": str(csv_usage.quantize(Decimal("0.000001"))),
+        "provider_cumulative_spend_usd": None,
         "estimated_remaining_usd": None,
         "spendable_remaining_usd": None,
         "usage_files_sha256": _canonical_hash(file_fingerprints),
         "provider_balance_status": "unknown",
+        "provider_balance_usd": None,
+        "provider_balance_evidence_path": None,
+        "provider_balance_evidence_sha256": None,
+        "provider_usage_evidence_path": None,
+        "provider_usage_evidence_sha256": None,
         "provider_balance_amounts_persisted": False,
         "account_usage_reconciled": False,
         "model_calls_allowed": False,
@@ -651,6 +667,127 @@ def _worst_case_usd(input_tokens: int, output_tokens: int, steps: int) -> Decima
     ) / Decimal(1_000_000)
 
 
+def _campaign_budget(manifest: dict[str, Any]) -> tuple[int, Decimal]:
+    """Return max model requests and peak-price reserve for all paired runs."""
+    limits = manifest["limits"]
+    request_count = (
+        len(manifest.get("tasks", []))
+        * PAIRED_VARIANTS_PER_TASK
+        * int(limits["max_steps"])
+    )
+    per_request = (
+        Decimal(int(limits["max_input_tokens_per_request"]))
+        * Decimal(MODEL["peak_usd_per_million"]["input_uncached"])
+        + Decimal(int(limits["max_completion_tokens"]))
+        * Decimal(MODEL["peak_usd_per_million"]["output"])
+    ) / Decimal(1_000_000)
+    return request_count, per_request * request_count
+
+
+def build_budget_subset_manifest(parent_manifest: dict[str, Any]) -> dict[str, Any]:
+    """Build a separate, hash-pinned three-repository budget candidate."""
+    parent_tasks = {task["task_id"]: task for task in parent_manifest.get("tasks", [])}
+    missing = [task_id for task_id in BUDGET_SUBSET_TASK_IDS if task_id not in parent_tasks]
+    if missing:
+        raise ValueError(f"parent manifest lacks budget subset tasks: {missing}")
+    tasks = []
+    for task_id in BUDGET_SUBSET_TASK_IDS:
+        source = parent_tasks[task_id]
+        tasks.append({
+            "task_id": task_id,
+            "repo": source["repo"],
+            "base_commit": source["base_commit"],
+            "problem_statement_sha256": source["problem_statement_sha256"],
+            "gold_patch_sha256": source["gold_patch_sha256"],
+            "visible_test_spec_sha256": source["visible_test_spec_sha256"],
+            "docker_image_config_digest": source.get("docker_image_config_digest"),
+        })
+    if len({task["repo"] for task in tasks}) < 3:
+        raise ValueError("budget subset must contain at least three independent repositories")
+    subset = {
+        "schema_version": 1,
+        "subset_id": "cp2-budget-subset-3-v1",
+        "purpose": "offline budget precheck only; not authorization to run evaluation",
+        "parent_manifest_sha256": _file_hash(DEFAULT_MANIFEST),
+        "minimum_independent_tasks": 3,
+        "independence_axis": "distinct upstream repositories",
+        "task_count": len(tasks),
+        "repository_count": len({task["repo"] for task in tasks}),
+        "tasks": tasks,
+        "pairing": {
+            "variants_per_task": PAIRED_VARIANTS_PER_TASK,
+            "variants": ["baseline", "treatment"],
+        },
+        "limits": parent_manifest["limits"],
+        "peak_pricing_usd_per_million": MODEL["peak_usd_per_million"],
+    }
+    request_count, reserve = _campaign_budget(subset)
+    subset["budget"] = {
+        "max_model_requests": request_count,
+        "max_uncached_input_tokens_per_request": int(
+            subset["limits"]["max_input_tokens_per_request"]
+        ),
+        "max_completion_tokens_per_request": int(
+            subset["limits"]["max_completion_tokens"]
+        ),
+        "peak_worst_case_reserve_usd": f"{reserve:.7f}",
+        "gate": "verified cumulative project spend + full campaign reserve <= authorized cap",
+    }
+    subset["subset_sha256"] = _canonical_hash(subset)
+    return subset
+
+
+def validate_budget_ledger(ledger: dict[str, Any], reserve: Decimal) -> list[str]:
+    """Fail closed unless provider usage, balance, cap headroom, and reserve reconcile."""
+    blockers = []
+    if ledger.get("account_usage_reconciled") is not True or ledger.get(
+        "usage_evidence_status"
+    ) != "provider_reconciled":
+        blockers.append("usage ledger is not provider-reconciled")
+    if ledger.get("provider_balance_status") != "verified":
+        blockers.append("provider balance is unknown or unverified")
+    for kind in ("usage", "balance"):
+        relative = ledger.get(f"provider_{kind}_evidence_path")
+        expected_hash = ledger.get(f"provider_{kind}_evidence_sha256")
+        valid_evidence = False
+        if isinstance(relative, str) and _is_sha256(expected_hash):
+            evidence_rel = PurePosixPath(relative)
+            if not evidence_rel.is_absolute() and ".." not in evidence_rel.parts:
+                evidence_path = ROOT.joinpath(*evidence_rel.parts)
+                try:
+                    resolved = evidence_path.resolve(strict=True)
+                    resolved.relative_to(ROOT.resolve())
+                    valid_evidence = (
+                        not evidence_path.is_symlink()
+                        and resolved.is_file()
+                        and _file_hash(resolved) == expected_hash
+                    )
+                except (OSError, ValueError):
+                    valid_evidence = False
+        if not valid_evidence:
+            blockers.append(f"provider {kind} evidence file missing, unsafe, or hash-mismatched")
+    try:
+        cumulative = Decimal(str(ledger["provider_cumulative_spend_usd"]))
+        provider_balance = Decimal(str(ledger["provider_balance_usd"]))
+        if not cumulative.is_finite() or cumulative < 0:
+            raise ValueError
+        if not provider_balance.is_finite() or provider_balance < 0:
+            raise ValueError
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        blockers.append("verified provider cumulative spend or balance amount is missing/invalid")
+        return blockers
+    if cumulative + reserve > AUTHORIZED_CAP_USD:
+        blockers.append(
+            f"cumulative spend ${cumulative:.6f} plus campaign reserve ${reserve:.6f} "
+            f"exceeds authorized cap ${AUTHORIZED_CAP_USD:.2f}"
+        )
+    if provider_balance < reserve:
+        blockers.append(
+            f"provider balance ${provider_balance:.6f} is below campaign reserve ${reserve:.6f}"
+        )
+    return blockers
+
+
 def plan(
     manifest: dict[str, Any],
     ledger: dict[str, Any],
@@ -664,26 +801,17 @@ def plan(
             manifest, source_provenance_path=source_provenance_path
         )
     )
-    if ledger.get("account_usage_reconciled") is not True:
-        blockers.append("usage ledger is not provider-reconciled")
-    spendable = ledger.get("spendable_remaining_usd")
-    if "spendable_remaining_usd" not in ledger and ledger.get("account_usage_reconciled") is True:
-        spendable = ledger.get("estimated_remaining_usd")
-    if spendable is None:
-        blockers.append("spendable budget is unknown; provider usage and balance are not reconciled")
-        remaining = Decimal("0")
-    else:
-        remaining = Decimal(str(spendable))
-    task_count = int(manifest.get("task_count", 0))
-    limits = manifest["limits"]
-    one_run = _worst_case_usd(
-        int(limits["max_input_tokens_per_request"]),
-        int(limits["max_completion_tokens"]),
-        int(limits["max_steps"]),
-    )
-    total_reserve = one_run * task_count * 2
-    if total_reserve > remaining:
-        blockers.append(f"paired worst-case reserve ${total_reserve:.6f} exceeds remaining ${remaining:.6f}")
+    request_count, total_reserve = _campaign_budget(manifest)
+    budget_blockers = validate_budget_ledger(ledger, total_reserve)
+    blockers.extend(budget_blockers)
+    if any(
+        "unknown" in item or "missing/invalid" in item or "not provider-reconciled" in item
+        for item in budget_blockers
+    ):
+        blockers.append(
+            f"spendable budget is unknown for {request_count} requests; "
+            f"campaign worst-case reserve is ${total_reserve:.6f}"
+        )
     if manifest.get("model_sha256") != _canonical_hash(manifest.get("model")):
         blockers.append("model manifest hash mismatch")
     for task in manifest.get("tasks", []):
@@ -779,9 +907,13 @@ def run_pairs(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("freeze", "ledger", "plan", "run"))
+    parser.add_argument(
+        "action",
+        choices=("freeze", "freeze-budget-subset", "ledger", "budget-plan", "plan", "run"),
+    )
     parser.add_argument("--selection", type=Path, default=DEFAULT_SELECTION)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument("--subset", type=Path, default=DEFAULT_BUDGET_SUBSET)
     parser.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER)
     parser.add_argument("--reports", type=Path, default=REPORTS_ROOT)
     parser.add_argument("--cases", type=Path, default=ROOT / "evals/public_cases/cp2/cases")
@@ -797,6 +929,20 @@ def main() -> int:
         args.manifest.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"冻结 {data['task_count']} 题 / {data['repository_count']} 个仓库；{data['freeze_status']}")
         return 0
+    if args.action == "freeze-budget-subset":
+        if args.subset.exists():
+            raise FileExistsError(f"refusing to overwrite frozen budget subset: {args.subset}")
+        parent = _load_json(args.manifest)
+        data = build_budget_subset_manifest(parent)
+        args.subset.parent.mkdir(parents=True, exist_ok=True)
+        args.subset.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(
+            f"冻结预算候选 {data['task_count']} 题 / {data['repository_count']} 仓；"
+            f"最多{data['budget']['max_model_requests']}次请求；"
+            f"峰价预留=${data['budget']['peak_worst_case_reserve_usd']}；"
+            f"SHA-256={data['subset_sha256']}"
+        )
+        return 0
     if args.action == "ledger":
         if args.ledger.exists():
             raise FileExistsError(f"refusing to overwrite budget ledger: {args.ledger}")
@@ -805,6 +951,32 @@ def main() -> int:
         args.ledger.write_text(json.dumps(ledger, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"已记账：usage estimate=${ledger['known_cumulative_estimated_cost_usd']}；可用预算={ledger['spendable_remaining_usd']}")
         return 0
+
+    if args.action == "budget-plan":
+        parent = _load_json(args.manifest)
+        subset = _load_json(args.subset)
+        expected_subset = build_budget_subset_manifest(parent)
+        subset_hash_payload = dict(subset)
+        recorded_subset_hash = subset_hash_payload.pop("subset_sha256", None)
+        blockers = []
+        if recorded_subset_hash != _canonical_hash(subset_hash_payload):
+            blockers.append("budget subset hash mismatch")
+        if subset != expected_subset:
+            blockers.append("budget subset differs from frozen parent manifest or selection policy")
+        if args.ledger.is_file():
+            ledger = _load_json(args.ledger)
+        else:
+            ledger = build_budget_ledger(args.reports)
+        request_count, reserve = _campaign_budget(subset)
+        blockers.extend(validate_budget_ledger(ledger, reserve))
+        print(
+            f"预算预检（不调用模型）：{subset.get('task_count')}题 / "
+            f"{subset.get('repository_count')}仓；最多{request_count}次请求；"
+            f"峰价最坏预留=${reserve:.7f}；cap=${AUTHORIZED_CAP_USD:.2f}"
+        )
+        for blocker in blockers:
+            print(f"阻断：{blocker}")
+        return 2 if blockers else 0
 
     manifest = _load_json(args.manifest)
     ledger = _load_json(args.ledger)

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import sys
 from decimal import Decimal
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import pytest
 from evals.cp2_benchmark import (
     AUTHORIZED_CAP_USD,
     DEFAULT_MANIFEST,
+    DEFAULT_BUDGET_SUBSET,
     DEFAULT_SELECTION,
     DEFAULT_SOURCE_PROVENANCE,
     LIMITS,
@@ -16,11 +18,14 @@ from evals.cp2_benchmark import (
     _current_artifact_hashes,
     _canonical_hash,
     _case_materialization_blockers,
+    _campaign_budget,
     _validate_runnable_contract,
     build_budget_ledger,
+    build_budget_subset_manifest,
     freeze_manifest,
     plan,
     run_pairs,
+    validate_budget_ledger,
 )
 
 
@@ -393,6 +398,154 @@ def test_cp2_plan_blocks_unverified_budget_and_missing_runtime(tmp_path: Path):
     assert any("worst-case reserve" in item for item in blockers)
     assert any("runtime image digest missing" in item for item in blockers)
     assert any("visible test baseline is not verified" in item for item in blockers)
+
+
+def test_cp2_budget_subset_is_hash_pinned_three_repo_minimum():
+    parent = json.loads(DEFAULT_MANIFEST.read_text(encoding="utf-8"))
+    subset = json.loads(DEFAULT_BUDGET_SUBSET.read_text(encoding="utf-8"))
+    regenerated = build_budget_subset_manifest(parent)
+    payload = dict(subset)
+    stored_hash = payload.pop("subset_sha256")
+
+    assert subset == regenerated
+    assert stored_hash == _canonical_hash(payload)
+    assert subset["task_count"] == 3
+    assert subset["repository_count"] == 3
+    assert subset["minimum_independent_tasks"] == 3
+    assert len({task["repo"] for task in subset["tasks"]}) == 3
+    assert all("gold_patch" not in task for task in subset["tasks"])
+    assert subset["budget"]["max_model_requests"] == 48
+    assert subset["budget"]["peak_worst_case_reserve_usd"] == "0.3462912"
+
+
+def test_cp2_budget_request_ceiling_uses_frozen_task_rows_not_claimed_count():
+    manifest = {
+        "task_count": 900,
+        "tasks": [{"task_id": "one"}, {"task_id": "two"}],
+        "limits": {
+            "max_input_tokens_per_request": 22_000,
+            "max_completion_tokens": 512,
+            "max_steps": 8,
+        },
+    }
+
+    request_count, reserve = _campaign_budget(manifest)
+
+    assert request_count == 32
+    assert reserve == Decimal("0.2308608")
+
+
+def test_cp2_budget_gate_requires_reconciled_usage_and_provider_balance():
+    reserve = Decimal("0.3462912")
+    ledger = {
+        "account_usage_reconciled": False,
+        "usage_evidence_status": "missing_raw_csv",
+        "provider_balance_status": "unknown",
+        "spendable_remaining_usd": "100",
+        "known_cumulative_estimated_cost_usd": "0.01",
+    }
+
+    blockers = validate_budget_ledger(ledger, reserve)
+
+    assert "usage ledger is not provider-reconciled" in blockers
+    assert "provider balance is unknown or unverified" in blockers
+    assert any("missing/invalid" in blocker for blocker in blockers)
+    assert "provider usage evidence file missing, unsafe, or hash-mismatched" in blockers
+    assert "provider balance evidence file missing, unsafe, or hash-mismatched" in blockers
+
+
+@pytest.mark.parametrize(
+    ("cumulative", "provider_balance", "expected"),
+    [
+        ("0.10", "0.40", None),
+        ("0.20", "0.40", "cumulative spend"),
+        ("0.10", "0.30", "provider balance"),
+    ],
+)
+def test_cp2_budget_gate_checks_cap_headroom_and_single_campaign_reserve(
+    cumulative: str, provider_balance: str, expected: str | None, tmp_path: Path, monkeypatch
+):
+    import evals.cp2_benchmark as cp2
+
+    monkeypatch.setattr(cp2, "ROOT", tmp_path)
+    usage_evidence = tmp_path / "evidence" / "usage.txt"
+    balance_evidence = tmp_path / "evidence" / "balance.txt"
+    usage_evidence.parent.mkdir()
+    usage_evidence.write_text("provider usage proof", encoding="utf-8")
+    balance_evidence.write_text("provider balance proof", encoding="utf-8")
+    reserve = Decimal("0.3462912")
+    ledger = {
+        "account_usage_reconciled": True,
+        "usage_evidence_status": "provider_reconciled",
+        "provider_balance_status": "verified",
+        "provider_balance_usd": provider_balance,
+        "provider_cumulative_spend_usd": cumulative,
+        "authorized_project_cap_usd": "999.00",
+        "provider_usage_evidence_path": "evidence/usage.txt",
+        "provider_usage_evidence_sha256": hashlib.sha256(usage_evidence.read_bytes()).hexdigest(),
+        "provider_balance_evidence_path": "evidence/balance.txt",
+        "provider_balance_evidence_sha256": hashlib.sha256(balance_evidence.read_bytes()).hexdigest(),
+    }
+
+    blockers = cp2.validate_budget_ledger(ledger, reserve)
+
+    if expected is None:
+        assert blockers == []
+    else:
+        assert any(expected in blocker for blocker in blockers)
+
+
+def test_cp2_budget_gate_rejects_evidence_path_escape(tmp_path: Path, monkeypatch):
+    import evals.cp2_benchmark as cp2
+
+    monkeypatch.setattr(cp2, "ROOT", tmp_path)
+    usage = tmp_path / "usage.txt"
+    balance = tmp_path / "balance.txt"
+    usage.write_text("usage", encoding="utf-8")
+    balance.write_text("balance", encoding="utf-8")
+    ledger = {
+        "account_usage_reconciled": True,
+        "usage_evidence_status": "provider_reconciled",
+        "provider_balance_status": "verified",
+        "provider_balance_usd": "0.40",
+        "provider_cumulative_spend_usd": "0.10",
+        "provider_usage_evidence_path": "../usage.txt",
+        "provider_usage_evidence_sha256": hashlib.sha256(usage.read_bytes()).hexdigest(),
+        "provider_balance_evidence_path": "balance.txt",
+        "provider_balance_evidence_sha256": hashlib.sha256(balance.read_bytes()).hexdigest(),
+    }
+
+    blockers = cp2.validate_budget_ledger(ledger, Decimal("0.3462912"))
+
+    assert "provider usage evidence file missing, unsafe, or hash-mismatched" in blockers
+
+
+def test_cp2_budget_precheck_is_read_only_when_ledger_is_missing(tmp_path: Path, monkeypatch, capsys):
+    import evals.cp2_benchmark as cp2
+
+    reports = tmp_path / "empty-reports"
+    ledger_path = tmp_path / "ledger.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "cp2_benchmark",
+            "budget-plan",
+            "--reports",
+            str(reports),
+            "--ledger",
+            str(ledger_path),
+        ],
+    )
+
+    status = cp2.main()
+
+    output = capsys.readouterr().out
+    assert status == 2
+    assert "不调用模型" in output
+    assert "provider balance is unknown or unverified" in output
+    assert not ledger_path.exists()
+    assert not reports.exists()
 
 
 def test_cp2_plan_rejects_model_manifest_tampering(tmp_path: Path):
