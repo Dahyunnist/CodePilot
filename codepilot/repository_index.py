@@ -126,9 +126,16 @@ def get_python_index(context: Any) -> PythonIndex:
             resolved = candidate.resolve(strict=True)
             if not resolved.is_relative_to(root):
                 continue
+            resolved_relative = resolved.relative_to(root)
             if any(part.casefold() in ignored_dirs for part in relative.parts):
                 continue
-            if is_sensitive_file(relative) or not resolved.is_file():
+            if any(part.casefold() in ignored_dirs for part in resolved_relative.parts):
+                continue
+            if (
+                is_sensitive_file(relative)
+                or is_sensitive_file(resolved_relative)
+                or not resolved.is_file()
+            ):
                 continue
             size = resolved.stat().st_size
             if size > MAX_INDEX_FILE_BYTES or total_bytes + size > MAX_INDEX_TOTAL_BYTES:

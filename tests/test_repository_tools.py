@@ -6,6 +6,8 @@ from threading import Barrier
 import pytest
 
 from codepilot.tools.edit import PatchError, apply_patch, git_diff
+from codepilot.repository_index import get_python_index
+from codepilot.tools.base import ToolContext
 from codepilot.tools.repo import PathPolicyError, list_files, read_file, search_code
 
 
@@ -278,6 +280,38 @@ def test_symlink_cannot_write_outside_repository(tmp_path):
         apply_patch(tmp_path, "escape/app.py", "value = 1", "value = 2")
 
     assert outside_file.read_text(encoding="utf-8") == "value = 1\n"
+
+
+def test_internal_symlink_to_sensitive_file_is_hidden_from_listing_search_and_index(
+    tmp_path, monkeypatch
+):
+    sentinel = "SYNTHETIC_PRIVATE_ENV_VALUE"
+    secret_file = tmp_path / ".env"
+    secret_file.write_text(f"SETTING = {sentinel!r}\n", encoding="utf-8")
+    alias = tmp_path / "settings.py"
+    try:
+        alias.symlink_to(secret_file)
+    except OSError:
+        # Windows may deny symlink creation. Preserve the same resolved-path
+        # condition so the policy branch still runs on hosts without that right.
+        alias.write_text("SETTING = 'decoy'\n", encoding="utf-8")
+        resolve_path = type(alias).resolve
+
+        def resolve_alias(path, strict=False):
+            if path == alias:
+                return secret_file
+            return resolve_path(path, strict=strict)
+
+        monkeypatch.setattr(type(alias), "resolve", resolve_alias)
+
+    monkeypatch.setattr("codepilot.tools.repo.shutil.which", lambda _name: None)
+    assert "settings.py" not in list_files(tmp_path)
+    assert sentinel not in search_code(tmp_path, sentinel)
+
+    context = ToolContext(repo_root=tmp_path, test_command=["python", "-m", "pytest"])
+    index = get_python_index(context)
+    assert "settings.py" not in {item.path for item in index.files}
+    assert sentinel not in repr(index)
 
 
 def test_exact_patch_and_git_diff(tmp_path) -> None:

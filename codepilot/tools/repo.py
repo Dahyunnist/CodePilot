@@ -63,12 +63,24 @@ def list_files(repo_root: Path, path: str = ".", max_files: int = 200) -> str:
         relative = candidate.relative_to(root)
         if any(part.casefold() in _IGNORED_PARTS_CASEFOLD for part in relative.parts):
             continue
-        if is_sensitive_file(candidate):
+        try:
+            resolved = candidate.resolve(strict=True)
+            resolved_relative = resolved.relative_to(root)
+        except (OSError, RuntimeError, ValueError):
             continue
-        if candidate.is_file():
-            files.append(relative.as_posix())
-            if len(files) >= max_files:
-                break
+        if (
+            not resolved.is_file()
+            or any(
+                part.casefold() in _IGNORED_PARTS_CASEFOLD
+                for part in resolved_relative.parts
+            )
+            or is_sensitive_file(relative)
+            or is_sensitive_file(resolved_relative)
+        ):
+            continue
+        files.append(relative.as_posix())
+        if len(files) >= max_files:
+            break
 
     return "\n".join(sorted(files))
 
@@ -162,17 +174,27 @@ def search_code(
     matches: list[str] = []
     paths = [target] if target.is_file() else target.rglob("*")
     for candidate in paths:
-        if not candidate.is_file() or candidate.stat().st_size > 1_000_000:
-            continue
         relative = candidate.relative_to(root)
         if any(part.casefold() in _IGNORED_PARTS_CASEFOLD for part in relative.parts):
             continue
-        if is_sensitive_file(candidate):
+        try:
+            resolved = candidate.resolve(strict=True)
+            resolved_relative = resolved.relative_to(root)
+        except (OSError, RuntimeError, ValueError):
             continue
-        if not candidate.resolve(strict=False).is_relative_to(root):
+        if (
+            not resolved.is_file()
+            or resolved.stat().st_size > 1_000_000
+            or any(
+                part.casefold() in _IGNORED_PARTS_CASEFOLD
+                for part in resolved_relative.parts
+            )
+            or is_sensitive_file(relative)
+            or is_sensitive_file(resolved_relative)
+        ):
             continue
         try:
-            lines = candidate.read_text(encoding="utf-8").splitlines()
+            lines = resolved.read_text(encoding="utf-8").splitlines()
         except UnicodeDecodeError:
             continue
         for line_number, line in enumerate(lines, start=1):
