@@ -3,6 +3,7 @@
 import json
 import re
 from typing import Any, Sequence
+from urllib.parse import urlsplit
 
 from openai import OpenAI
 
@@ -21,9 +22,17 @@ class ModelResponseError(ModelClientError):
 class ModelClient:
     """Send validated messages and tools to a chat completion endpoint."""
 
-    def __init__(self, config: ModelConfig, sdk_client: Any | None = None) -> None:
+    def __init__(
+        self,
+        config: ModelConfig,
+        sdk_client: Any | None = None,
+        *,
+        max_input_tokens_per_request: int | None = None,
+    ) -> None:
         self.config = config
         self._client = sdk_client or self._build_sdk_client(config)
+        self.max_input_tokens_per_request = max_input_tokens_per_request
+        self.last_input_token_upper_bound = 0
 
     @staticmethod
     def _build_sdk_client(config: ModelConfig) -> OpenAI:
@@ -47,15 +56,31 @@ class ModelClient:
         request: dict[str, Any] = {
             "model": self.config.model,
             "messages": [message.to_api_dict() for message in messages],
-            "max_completion_tokens": (
-                max_completion_tokens
-                if max_completion_tokens is not None
-                else self.config.max_completion_tokens
-            ),
         }
+        output_limit = (
+            max_completion_tokens
+            if max_completion_tokens is not None
+            else self.config.max_completion_tokens
+        )
+        if _uses_deepseek_chat_api(self.config):
+            request["max_tokens"] = output_limit
+        else:
+            request["max_completion_tokens"] = output_limit
         if tools:
             request["tools"] = [tool.model_dump() for tool in tools]
             request["tool_choice"] = "auto"
+
+        input_token_upper_bound = _input_token_upper_bound(request)
+        self.last_input_token_upper_bound = input_token_upper_bound
+        if (
+            self.max_input_tokens_per_request is not None
+            and input_token_upper_bound > self.max_input_tokens_per_request
+        ):
+            raise ModelClientError(
+                "request input upper bound "
+                f"({input_token_upper_bound}) exceeds hard limit "
+                f"({self.max_input_tokens_per_request}); request was not sent"
+            )
 
         try:
             completion = self._client.chat.completions.create(**request)
@@ -108,4 +133,26 @@ class ModelClient:
             name=raw_call.function.name,
             arguments=arguments,
         )
+
+
+def _uses_deepseek_chat_api(config: ModelConfig) -> bool:
+    """DeepSeek Chat Completions uses `max_tokens`, not OpenAI's newer field."""
+    if not config.base_url:
+        return config.model.casefold().startswith("deepseek-")
+    hostname = (urlsplit(config.base_url).hostname or "").casefold()
+    return hostname == "deepseek.com" or hostname.endswith(".deepseek.com")
+
+
+def _input_token_upper_bound(request: dict[str, Any]) -> int:
+    """Conservatively bound text tokens by UTF-8 bytes plus protocol framing."""
+    messages = request.get("messages", [])
+    tools = request.get("tools", [])
+    serialized = json.dumps(
+        {"messages": messages, "tools": tools},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    # A text token cannot encode more than its source bytes. Add ample room for
+    # provider chat framing and tool-call delimiters that are not in the JSON.
+    return len(serialized) + 2_048 + 128 * (len(messages) + len(tools))
 

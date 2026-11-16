@@ -1,7 +1,15 @@
 import sys
 import subprocess
 
-from codepilot.tools.execute import _safe_environment, build_docker_command, run_tests
+import pytest
+
+from codepilot.tools.execute import (
+    CommandPolicyError,
+    _safe_environment,
+    build_docker_command,
+    normalize_test_command,
+    run_tests,
+)
 
 
 def test_run_tests_reports_success(tmp_path) -> None:
@@ -50,6 +58,34 @@ def test_run_tests_rejects_other_commands(tmp_path) -> None:
     assert result.error_type == "policy"
 
 
+def test_normalize_test_command_accepts_bounded_django_runner() -> None:
+    command = normalize_test_command(
+        ["python", "tests/runtests.py", "cache.tests", "--parallel", "2"]
+    )
+
+    assert command == [
+        sys.executable,
+        "tests/runtests.py",
+        "cache.tests",
+        "--parallel",
+        "2",
+    ]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["python", "tests/runtests.py", "../outside"],
+        ["python", "tests/runtests.py", "cache.tests", "--parallel", "999"],
+        ["python", "tests/runtests.py", "cache.tests", "--settings", "evil"],
+        ["python", "-c", "print('unsafe')"],
+    ],
+)
+def test_normalize_test_command_rejects_unbounded_django_or_python_commands(command) -> None:
+    with pytest.raises(CommandPolicyError):
+        normalize_test_command(command)
+
+
 def test_run_tests_truncates_large_output(tmp_path) -> None:
     (tmp_path / "test_output.py").write_text(
         "def test_output():\n    print('x' * 500)\n    assert False\n",
@@ -94,6 +130,63 @@ def test_docker_command_has_isolation_and_resource_limits(tmp_path) -> None:
         "no:cacheprovider",
         "--basetemp=/tmp/pytest-tmp",
     ]
+
+
+def test_docker_command_can_select_image_specific_python(tmp_path) -> None:
+    command = build_docker_command(
+        tmp_path,
+        [sys.executable, "-m", "pytest", "tests", "-q"],
+        "swebench/test:latest",
+        "codepilot-testbed",
+        docker_python="/opt/miniconda3/envs/testbed/bin/python",
+    )
+    assert command[-9:] == [
+        "swebench/test:latest",
+        "/opt/miniconda3/envs/testbed/bin/python",
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--basetemp=/tmp/pytest-tmp",
+    ]
+
+
+def test_docker_command_runs_bounded_django_runner_inside_same_sandbox(tmp_path) -> None:
+    command = build_docker_command(
+        tmp_path,
+        [sys.executable, "tests/runtests.py", "cache.tests"],
+        "swebench/django:test",
+        "codepilot-django-test",
+        docker_python="/opt/miniconda3/envs/testbed/bin/python",
+    )
+
+    assert command[:2] == ["docker", "run"]
+    assert command[command.index("--network") + 1] == "none"
+    assert "--read-only" in command
+    assert command[-4:] == [
+        "swebench/django:test",
+        "/opt/miniconda3/envs/testbed/bin/python",
+        "tests/runtests.py",
+        "cache.tests",
+    ]
+
+
+def test_docker_django_runner_imports_package_from_mounted_project_root(tmp_path) -> None:
+    package = tmp_path / "django"
+    package.mkdir()
+    (package / "__init__.py").write_text("", encoding="utf-8")
+
+    command = build_docker_command(
+        tmp_path,
+        [sys.executable, "tests/runtests.py", "model_fields.test_filepathfield"],
+        "swebench/django:test",
+        "codepilot-django-test",
+    )
+
+    assert command[command.index("--env") + 1] == "PYTHONDONTWRITEBYTECODE=1"
+    assert "PYTHONPATH=/workspace" in command
 
 
 def test_docker_daemon_permission_error_is_not_a_test_failure(tmp_path, monkeypatch) -> None:
@@ -167,11 +260,13 @@ def test_safe_environment_preserves_docker_config_but_drops_api_keys(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path))
+    monkeypatch.setenv("DOCKER_CONTEXT", "desktop-linux")
     monkeypatch.setenv("LLM_API_KEY", "must-not-reach-tests")
 
     environment = _safe_environment()
 
     assert environment["DOCKER_CONFIG"] == str(tmp_path)
+    assert environment["DOCKER_CONTEXT"] == "desktop-linux"
     assert "LLM_API_KEY" not in environment
 
 
@@ -189,3 +284,13 @@ def test_src_layout_is_importable_without_inheriting_host_pythonpath(tmp_path, m
 
     assert result.ok is True
 
+
+def test_run_tests_rejects_command_with_side_effect_before_execution(tmp_path):
+    marker = tmp_path / "must-not-exist.txt"
+    result = run_tests(
+        tmp_path,
+        [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('executed')"],
+    )
+    assert result.ok is False
+    assert result.error_type == "policy"
+    assert not marker.exists()

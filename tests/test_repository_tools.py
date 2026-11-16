@@ -1,5 +1,7 @@
 import os
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import pytest
 
@@ -67,6 +69,73 @@ def test_read_file_requires_reason_and_deduplicates_reads(tmp_path) -> None:
     assert "value = 1" in duplicate.stdout
     assert refreshed.ok and "value = 2" in refreshed.stdout and "缓存命中" not in refreshed.stdout
     assert not outside.ok and outside.error_type == "PathPolicyError"
+
+
+def test_tool_registries_keep_two_repository_roots_isolated(tmp_path) -> None:
+    from codepilot.schemas import ToolCall
+    from codepilot.tools.registry import ToolRegistry
+
+    first_repo = tmp_path / "repo-a"
+    second_repo = tmp_path / "repo-b"
+    first_repo.mkdir()
+    second_repo.mkdir()
+    (first_repo / "app.py").write_text("repo_a = True\n", encoding="utf-8")
+    (second_repo / "secret.py").write_text("repo_b_only = 'sentinel'\n", encoding="utf-8")
+    first_tools = ToolRegistry(first_repo, ["python", "-m", "pytest"])
+    second_tools = ToolRegistry(second_repo, ["python", "-m", "pytest"])
+
+    cross_read = first_tools.execute(
+        ToolCall(
+            id="cross-read",
+            name="read_file",
+            arguments={"path": "../repo-b/secret.py", "reason": "Check repository boundary."},
+        )
+    )
+    local_read = second_tools.execute(
+        ToolCall(
+            id="local-read",
+            name="read_file",
+            arguments={"path": "secret.py", "reason": "Read this repository's file."},
+        )
+    )
+
+    assert not cross_read.ok and cross_read.error_type == "PathPolicyError"
+    assert "sentinel" not in cross_read.stdout
+    assert local_read.ok and "sentinel" in local_read.stdout
+
+
+def test_concurrent_tool_registries_do_not_mix_repository_results(tmp_path) -> None:
+    from codepilot.schemas import ToolCall
+    from codepilot.tools.registry import ToolRegistry
+
+    repo_a = tmp_path / "parallel-a"
+    repo_b = tmp_path / "parallel-b"
+    repo_a.mkdir()
+    repo_b.mkdir()
+    (repo_a / "identity.py").write_text("repository = 'alpha'\n", encoding="utf-8")
+    (repo_b / "identity.py").write_text("repository = 'beta'\n", encoding="utf-8")
+    tools_a = ToolRegistry(repo_a, ["python", "-m", "pytest"])
+    tools_b = ToolRegistry(repo_b, ["python", "-m", "pytest"])
+    start_together = Barrier(2)
+
+    def read_identity(registry: ToolRegistry, call_id: str):
+        start_together.wait(timeout=5)
+        return registry.execute(
+            ToolCall(
+                id=call_id,
+                name="read_file",
+                arguments={"path": "identity.py", "reason": "Verify isolated repository context."},
+            )
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        future_a = pool.submit(read_identity, tools_a, "parallel-a")
+        future_b = pool.submit(read_identity, tools_b, "parallel-b")
+        result_a = future_a.result()
+        result_b = future_b.result()
+
+    assert result_a.ok and "alpha" in result_a.stdout and "beta" not in result_a.stdout
+    assert result_b.ok and "beta" in result_b.stdout and "alpha" not in result_b.stdout
 
 
 def test_duplicate_search_reemits_cached_evidence(tmp_path) -> None:
@@ -139,6 +208,29 @@ def test_rejects_path_traversal_and_secrets(tmp_path) -> None:
         read_file(tmp_path, "missing.py")
 
 
+def test_windows_backslash_traversal_is_rejected(tmp_path):
+    if os.name != "nt":
+        pytest.skip("native Windows path parsing is required")
+
+    with pytest.raises(PathPolicyError, match="escapes"):
+        read_file(tmp_path, r"..\outside.py")
+
+
+@pytest.mark.parametrize(
+    "secret_path",
+    [".aws/credentials", ".ssh/id_ed25519", ".netrc", ".npmrc", "credentials.json"],
+)
+def test_repository_tools_block_common_credential_paths(tmp_path, secret_path):
+    target = tmp_path / secret_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("FAKE_SECRET_SENTINEL", encoding="utf-8")
+
+    with pytest.raises(PathPolicyError, match="sensitive"):
+        read_file(tmp_path, secret_path)
+
+    assert "credentials" not in list_files(tmp_path)
+
+
 def test_symlink_cannot_escape_repository(tmp_path) -> None:
     outside_dir = tmp_path.parent / f"{tmp_path.name}-outside"
     outside_dir.mkdir()
@@ -160,6 +252,32 @@ def test_symlink_cannot_escape_repository(tmp_path) -> None:
 
     with pytest.raises(PathPolicyError, match="escapes"):
         read_file(tmp_path, "escape/secret.txt")
+
+
+def test_symlink_cannot_write_outside_repository(tmp_path):
+    outside_dir = tmp_path.parent / f"{tmp_path.name}-write-outside"
+    outside_dir.mkdir()
+    outside_file = outside_dir / "app.py"
+    outside_file.write_text("value = 1\n", encoding="utf-8")
+    link = tmp_path / "escape"
+    try:
+        link.symlink_to(outside_dir, target_is_directory=True)
+    except OSError as exc:
+        if os.name != "nt":
+            pytest.skip(f"symlink creation unavailable: {exc}")
+        completed = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(outside_dir)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            pytest.skip(f"junction creation unavailable: {completed.stderr}")
+
+    with pytest.raises(PathPolicyError, match="escapes"):
+        apply_patch(tmp_path, "escape/app.py", "value = 1", "value = 2")
+
+    assert outside_file.read_text(encoding="utf-8") == "value = 1\n"
 
 
 def test_exact_patch_and_git_diff(tmp_path) -> None:

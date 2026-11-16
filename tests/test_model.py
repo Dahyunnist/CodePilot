@@ -85,6 +85,25 @@ def test_returns_text_and_forwards_request_settings() -> None:
     }
 
 
+def test_deepseek_uses_max_tokens_chat_completion_parameter() -> None:
+    response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="done", tool_calls=[]))],
+        usage=SimpleNamespace(prompt_tokens=11, completion_tokens=4),
+    )
+    config = model_config().model_copy(
+        update={"model": "deepseek-v4-flash", "base_url": "https://api.deepseek.com"}
+    )
+    completions = FakeCompletions(response=response)
+    client = ModelClient(config, sdk_client=fake_sdk(completions))
+
+    client.complete(
+        [ChatMessage(role="user", content="hello")], max_completion_tokens=7
+    )
+
+    assert completions.request["max_tokens"] == 7
+    assert "max_completion_tokens" not in completions.request
+
+
 def test_returns_cached_input_token_usage() -> None:
     response = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="ok", tool_calls=[]))],
@@ -216,4 +235,19 @@ def test_model_errors_redact_deepseek_style_key() -> None:
 
     assert exposed not in str(error.value)
     assert "[redacted]" in str(error.value)
+
+
+def test_input_token_upper_bound_refuses_request_before_network() -> None:
+    completions = FakeCompletions()
+    client = ModelClient(
+        model_config(),
+        sdk_client=fake_sdk(completions),
+        max_input_tokens_per_request=3_000,
+    )
+
+    with pytest.raises(ModelClientError, match="request was not sent"):
+        client.complete([ChatMessage(role="user", content="汉" * 1_000)])
+
+    assert completions.request is None
+    assert client.last_input_token_upper_bound > 3_000
 
