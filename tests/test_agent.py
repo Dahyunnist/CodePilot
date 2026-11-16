@@ -955,6 +955,11 @@ def test_malicious_test_output_cannot_authorize_secret_read(tmp_path):
     assert result.status == "success"
     assert first_test.ok is False
     assert injection in first_test.stdout or injection in first_test.stderr
+    assert injection in model_input
+    assert [item.ok for item in result.tool_results if item.tool_name == "run_tests"] == [
+        False,
+        True,
+    ]
     assert denied_read.ok is False
     assert secret not in model_input
     assert secret not in trace_path.read_text(encoding="utf-8")
