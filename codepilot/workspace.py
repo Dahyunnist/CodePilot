@@ -60,7 +60,10 @@ class WorkspaceManager:
 
         try:
             completed = subprocess.run(
-                ["git", "clone", "--quiet", "--no-hardlinks", str(source), str(destination)],
+                [
+                    "git", "clone", "--quiet", "--local", "--no-hardlinks",
+                    str(source), str(destination),
+                ],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -71,6 +74,15 @@ class WorkspaceManager:
             )
             if completed.returncode != 0:
                 raise WorkspaceError(completed.stderr.strip() or "git clone failed")
+
+            if _git_output(source, ["rev-parse", "HEAD"]) != source_commit:
+                raise WorkspaceError("source HEAD changed while preparing workspace")
+            if require_clean_source and _git_output(
+                source, ["status", "--porcelain", "--untracked-files=all"]
+            ):
+                raise WorkspaceError(
+                    "source repository changed while preparing workspace"
+                )
 
             commit = _git_output(destination, ["rev-parse", "HEAD"])
             if commit != source_commit:
