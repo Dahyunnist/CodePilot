@@ -314,6 +314,26 @@ def test_internal_symlink_to_sensitive_file_is_hidden_from_listing_search_and_in
     assert sentinel not in repr(index)
 
 
+def test_python_index_cache_invalidates_when_file_content_changes(tmp_path):
+    source = tmp_path / "app.py"
+    source.write_text("def original():\n    return 1\n", encoding="utf-8")
+    context = ToolContext(repo_root=tmp_path, test_command=["python", "-m", "pytest"])
+
+    first = get_python_index(context)
+    cached = get_python_index(context)
+
+    assert cached is first
+    assert any(symbol.name == "original" for symbol in first.symbols)
+
+    source.write_text("def updated():\n    return 2\n", encoding="utf-8")
+    refreshed = get_python_index(context)
+
+    assert refreshed is not first
+    assert refreshed.revision != first.revision
+    assert any(symbol.name == "updated" for symbol in refreshed.symbols)
+    assert not any(symbol.name == "original" for symbol in refreshed.symbols)
+
+
 def test_exact_patch_and_git_diff(tmp_path) -> None:
     init_repo(tmp_path)
     source = tmp_path / "app.py"

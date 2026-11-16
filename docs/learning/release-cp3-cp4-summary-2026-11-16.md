@@ -32,4 +32,14 @@
 
 项目当前没有 `LICENSE` 文件或项目级许可声明；本候选不自行选择许可。发布及第三方复用前需要所有者确定许可。
 
-CP-2 仍被项目级用量、余额和预算证据阻断；本候选没有放宽该门禁。由于快进候选继承现有公开历史，当前树清理不等于历史脱敏；历史对象风险仍待单独处理。本轮不触碰远端分支。
+CP-2 仍被项目级用量、余额和预算证据阻断；本候选没有放宽该门禁。由于快进候选继承现有公开历史，当前树清理不等于历史脱敏；历史对象风险仍待单独处理。
+
+## CP-1 / CP-2 离线复核（2026-11-16）
+
+- CP-1 上下文预算：现有 `tests/test_agent.py` 覆盖仓库规模预算、上下文窗口、提示装载、观察截断、重复证据压缩、预算预留和预算停止；本轮在 `tests/test_repository_tools.py` 新增 AST 索引内容变更失效回归，确认同版本复用缓存、源码变化后 revision 与符号索引更新。
+- 定向验证：NN Conda 环境运行 `python -m pytest tests/test_repository_tools.py tests/test_agent.py -q`，**76 passed, 2 skipped**。两项跳过均因 Windows junction 创建权限不足。
+- 默认 `python` 指向 Anaconda base 环境，缺少 `openai` 包，测试收集失败；改用项目 NN 环境后通过。未发起模型请求。
+- 这些离线测试证明预算/缓存规则的代码行为，不证明上下文选择提升真实模型修复成功率或效率。CP-1 的有效真实模型配对仍缺失。
+- CP-2 冻结清单、SWE-bench 物化器和 `live_runner` 在当前 CP-3/CP-4 安全发布树均不存在；因此本轮不能从该树复现冻结任务或复核 CP-2 manifest。上游计划报告保留 H2 strict 0/4、H3 配对无效的结论；不重跑已付费模型任务，不读取隐藏/gold 数据。
+- CP-2 未覆盖：冻结任务 materialization、镜像/基线可复现性、manifest 哈希稳定性、配对重放及 strict 模型验收。需在包含相应公开 harness 的已授权分支另行核验，不能将缺少代码记作通过。
+- 首次用默认 Python 的测试收集失败，原因是 `ModuleNotFoundError: No module named 'openai'`；NN Conda 环境复跑通过。此环境差异保留为失败记录。
