@@ -347,6 +347,49 @@ def test_opentelemetry_spans_do_not_export_secrets_or_patch_text(tmp_path):
     assert all("private source" not in repr(span.attributes) for span in otel.spans)
 
 
+def test_trace_omits_task_and_commands_and_otel_uses_safe_attribute_allowlist(tmp_path):
+    otel = FakeTracer()
+    path = tmp_path / "trace-private-context.jsonl"
+    trace = TraceLogger(path, "run-private-context", otel_tracer=otel)
+    private_values = (
+        "SYNTHETIC_PRIVATE_TASK_SENTINEL",
+        "SYNTHETIC_PRIVATE_COMMAND_SENTINEL",
+    )
+
+    trace.event(
+        "run_started", 0,
+        task=private_values[0],
+        instruction=private_values[0],
+        command=private_values[1],
+        test_command=private_values[1],
+    )
+    trace.event(
+        "model_budget_reserved", 1,
+        span_id="model-safe-attributes",
+        task=private_values[0],
+        command=private_values[1],
+        status="running",
+        max_completion_tokens=512,
+    )
+
+    serialized = path.read_text(encoding="utf-8")
+    assert all(value not in serialized for value in private_values)
+    events = read_events(path)
+    assert events[0]["task"] == events[0]["instruction"] == "[OMITTED]"
+    assert events[0]["command"] == events[0]["test_command"] == "[OMITTED]"
+    assert events[1]["task"] == events[1]["command"] == "[OMITTED]"
+
+    model_span = next(
+        span for span in otel.spans if span.name == "codepilot.model.call"
+    )
+    assert model_span.attributes["status"] == "running"
+    assert model_span.attributes["max_completion_tokens"] == 512
+    assert not any(
+        "task" in key or "command" in key for key in model_span.attributes
+    )
+    assert all(value not in repr(model_span.attributes) for value in private_values)
+
+
 @pytest.mark.parametrize("result", [
     ToolResult(tool_name="apply_patch", ok=True),
     ToolResult(tool_name="apply_patch", ok=False, error_type="PathPolicyError"),

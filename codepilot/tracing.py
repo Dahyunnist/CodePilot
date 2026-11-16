@@ -25,8 +25,21 @@ _SENSITIVE_FIELD = re.compile(
     r"secret|secrets|password|passwd|credential|credentials|token)$"
 )
 _PRIVATE_FIELD = re.compile(
-    r"(?i)^(?:content|prompt|observation|patch|diff|source|stdout|stderr|messages|error)$"
+    r"(?i)^(?:content|prompt|instruction|task|observation|patch|diff|source|"
+    r"stdout|stderr|messages|error|command|test[_-]?command)$"
 )
+_OTEL_SAFE_FIELDS = frozenset({
+    "approved", "base_commit", "call_id", "cached_input_tokens", "decision",
+    "duration_ms", "effective_context_chars", "elapsed_ms", "error_type",
+    "estimated_input_tokens", "execution_mode", "exit_code", "expired",
+    "failure_type", "hard_input_token_limit", "input_token_upper_bound",
+    "input_tokens", "max_completion_tokens", "needs_test", "ok", "outcome",
+    "output_tokens", "patch_sha256", "phase", "protected_future_tokens",
+    "rejection_category", "remaining_tokens", "reserved_final_tokens",
+    "reserved_patch_tokens", "reserved_test_tokens", "status",
+    "test_attempt", "tool", "tool_calls", "tokens", "stdout_chars",
+    "stderr_chars", "consecutive_read_only_rounds",
+})
 
 class StandardTraceEvent(StrEnum):
     TIMEOUT = "timeout"
@@ -108,10 +121,7 @@ class TraceLogger:
         fields = {
             key: value
             for key, value in record.items()
-            if key not in {
-                "timestamp", "run_id", "trace_id", "span_id", "parent_span_id",
-                "event", "step", "arguments", "error", "diff", "stdout", "stderr",
-            }
+            if key in _OTEL_SAFE_FIELDS
             and isinstance(value, (str, int, float, bool))
         }
 
