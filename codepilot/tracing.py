@@ -17,17 +17,27 @@ from codepilot.schemas import ToolCall, ToolResult
 from codepilot.security import redact_sensitive_text
 
 
-_SENSITIVE_FIELD = re.compile(
-    r"(?i)^(?:api[_-]?key|aws[_-]?access[_-]?key(?:[_-]?id)?|"
-    r"aws[_-]?secret[_-]?access[_-]?key|secret[_-]?access[_-]?key|"
-    r"access[_-]?token|refresh[_-]?token|bearer[_-]?token|"
-    r"client[_-]?secret|private[_-]?key|auth(?:orization)?|"
-    r"secret|secrets|password|passwd|credential|credentials|token)$"
+_SAFE_TOKEN_FIELDS = frozenset({
+    "tokens", "total_tokens", "inputtokens", "cachedinputtokens",
+    "outputtokens", "inputtokenupperbound", "maxcompletiontokens",
+    "remainingtokens", "protectedfuturetokens", "reservedpatchtokens",
+    "reservedtesttokens", "reservedfinaltokens",
+})
+_SENSITIVE_FIELD_MARKERS = (
+    "apikey", "accesskey", "token", "secret", "credential", "password",
+    "passwd", "privatekey",
+    "authorization",
 )
-_PRIVATE_FIELD = re.compile(
-    r"(?i)^(?:content|prompt|instruction|task|observation|patch|diff|source|"
-    r"stdout|stderr|messages|error|command|test[_-]?command)$"
-)
+_PRIVATE_FIELD_NAMES = frozenset({
+    "content", "prompt", "instruction", "task", "taskprompt",
+    "taskdescription", "tasktext", "taskinstruction", "observation",
+    "patch", "patchtext", "diff", "source", "sourcecode", "sourcetext",
+    "stdout", "stdouttext", "stderr", "stderrtext", "messages", "error",
+    "errormessage", "command", "commandline", "commandargs", "commandtext",
+    "testcommand", "testcommandargs", "testcommandjson", "toolarguments",
+    "arguments", "usermessage", "userprompt", "userinput", "systemprompt",
+    "developerprompt",
+})
 _OTEL_SAFE_FIELDS = frozenset({
     "approved", "base_commit", "call_id", "cached_input_tokens", "decision",
     "duration_ms", "effective_context_chars", "elapsed_ms", "error_type",
@@ -324,17 +334,34 @@ def _redact_value(value: Any) -> Any:
     if isinstance(value, dict):
         return {
             key: "[OMITTED]"
-            if _PRIVATE_FIELD.fullmatch(str(key))
+            if _is_private_field(key)
             else _redact_value(item)
-            if _SENSITIVE_FIELD.fullmatch(str(key)) and isinstance(item, dict)
+            if _is_sensitive_field(key) and isinstance(item, dict)
             else "[REDACTED]"
-            if _SENSITIVE_FIELD.fullmatch(str(key))
+            if _is_sensitive_field(key)
             else _redact_value(item)
             for key, item in value.items()
         }
     if isinstance(value, list):
         return [_redact_value(item) for item in value]
     return value
+
+
+def _normalized_field_name(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value).casefold())
+
+
+def _is_private_field(name: Any) -> bool:
+    return _normalized_field_name(name) in _PRIVATE_FIELD_NAMES
+
+
+def _is_sensitive_field(name: Any) -> bool:
+    normalized = _normalized_field_name(name)
+    if normalized in _SAFE_TOKEN_FIELDS:
+        return False
+    return normalized in {"auth", "secret", "secrets", "token"} or any(
+        marker in normalized for marker in _SENSITIVE_FIELD_MARKERS
+    )
 
 
 def _argument_summary(call: ToolCall) -> dict[str, Any]:

@@ -175,6 +175,11 @@ def test_trace_redacts_compound_cloud_credential_fields(tmp_path):
         "aws_secret_access_key": "FAKE_AWS_SECRET_SENTINEL",
         "client_secret": "FAKE_CLIENT_SECRET_SENTINEL",
         "token": "FAKE_SESSION_TOKEN_SENTINEL",
+        "deepseek_api_key": "FAKE_PREFIXED_API_KEY_SENTINEL",
+        "provider_access_token": "FAKE_PROVIDER_ACCESS_TOKEN_SENTINEL",
+        "request_secret_value": "FAKE_COMPOUND_SECRET_SENTINEL",
+        "httpAuthorizationHeader": "FAKE_AUTHORIZATION_SENTINEL",
+        "sessionToken": "FAKE_CAMELCASE_TOKEN_SENTINEL",
     }
     TraceLogger(path, "run-cloud-secret").event("tool_finished", 1, **values)
 
@@ -388,6 +393,40 @@ def test_trace_omits_task_and_commands_and_otel_uses_safe_attribute_allowlist(tm
         "task" in key or "command" in key for key in model_span.attributes
     )
     assert all(value not in repr(model_span.attributes) for value in private_values)
+
+
+def test_trace_redacts_compound_secret_keys_before_jsonl_and_otel_export(tmp_path):
+    otel = FakeTracer()
+    path = tmp_path / "trace-compound-secret.jsonl"
+    trace = TraceLogger(path, "run-compound-secret", otel_tracer=otel)
+    secrets = {
+        "provider_api_key": "FAKE_PROVIDER_KEY_SENTINEL",
+        "x-api-key": "FAKE_HEADER_KEY_SENTINEL",
+        "sessionToken": "FAKE_SESSION_TOKEN_SENTINEL",
+        "task_prompt": "FAKE_PRIVATE_PROMPT_SENTINEL",
+    }
+
+    trace.event("run_started", 0)
+    trace.event(
+        "model_budget_reserved", 1,
+        span_id="model-compound-secret",
+        max_completion_tokens=512,
+        **secrets,
+    )
+
+    serialized = path.read_text(encoding="utf-8")
+    assert all(value not in serialized for value in secrets.values())
+    event = read_events(path)[1]
+    assert event["provider_api_key"] == "[REDACTED]"
+    assert event["x-api-key"] == "[REDACTED]"
+    assert event["sessionToken"] == "[REDACTED]"
+    assert event["task_prompt"] == "[OMITTED]"
+    assert event["max_completion_tokens"] == 512
+
+    model_span = next(
+        span for span in otel.spans if span.name == "codepilot.model.call"
+    )
+    assert all(value not in repr(model_span.attributes) for value in secrets.values())
 
 
 @pytest.mark.parametrize("result", [
