@@ -18,7 +18,7 @@ python scripts/verify_cp3_cli_e2e.py
 
 ## 2026-11-16 父会话复验
 
-父会话在 CodePilot 发布快照根目录运行同一入口。受限进程中 Git Bash 无法创建 MSYS named object，5 项被分类为 `host_acl_blocked`、2 项通过；这不是应用断言失败。随后在主机权限进程使用项目 NN Python 重跑：**7/7 通过，exit code 0，`model_calls=0`**，临时工作区由入口自动清理。该结果不是用户手动 PowerShell 运行记录。用户最近一次粘贴的命令显示工作目录为 `E:\job\opspilot`，因此不作为 CodePilot 快照验收证据；请勿与本次主机权限复验混记。
+父会话在 CodePilot 发布快照根目录运行同一入口。受限进程中 Git Bash 无法创建 MSYS named object，5 项被分类为 `host_acl_blocked`、2 项通过；这不是应用断言失败。随后在主机权限进程使用项目 NN Python 重跑：**7/7 通过，exit code 0，`model_calls=0`**，临时工作区由入口自动清理。该结果不是用户手动 PowerShell 运行记录。用户最近一次粘贴的命令显示工作目录为另一个项目目录，因此不作为 CodePilot 快照验收证据；请勿与本次主机权限复验混记。
 
 ## 剩余 CP-3 门槛
 

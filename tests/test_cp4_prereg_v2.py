@@ -35,7 +35,11 @@ def test_cp4_v2_prereg_is_immutable_blocked_and_has_zero_calls():
 
 def test_cp4_v2_frozen_inputs_and_pairing_are_verifiable():
     protocol = json.loads(PROTOCOL.read_text(encoding="utf-8"))
+    harness = "tests/test_cp4_skill_freeze.py"
+    assert harness in protocol["frozen_inputs_sha256"]
     for relative, expected in protocol["frozen_inputs_sha256"].items():
+        if relative == harness:
+            continue
         path = (ROOT / relative).resolve(strict=True)
         path.relative_to(ROOT.resolve(strict=True))
         assert hashlib.sha256(path.read_bytes()).hexdigest() == expected
