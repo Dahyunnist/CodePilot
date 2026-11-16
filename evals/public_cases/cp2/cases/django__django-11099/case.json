@@ -1,0 +1,31 @@
+{
+  "case_id": "django__django-11099",
+  "category": "ASCII and Unicode username validators reject a trailing newline.",
+  "instruction": "UsernameValidator allows trailing newline in usernames\nDescription\n\t\nASCIIUsernameValidator and UnicodeUsernameValidator use the regex \nr'^[\\w.@+-]+$'\nThe intent is to only allow alphanumeric characters as well as ., @, +, and -. However, a little known quirk of Python regexes is that $ will also match a trailing newline. Therefore, the user name validators will accept usernames which end with a newline. You can avoid this behavior by instead using \\A and \\Z to terminate regexes. For example, the validator regex could be changed to\nr'\\A[\\w.@+-]+\\Z'\nin order to reject usernames that end with a newline.\nI am not sure how to officially post a patch, but the required change is trivial - using the regex above in the two validators in contrib.auth.validators.\n",
+  "test_command": [
+    "python",
+    "tests/runtests.py",
+    "auth_tests.test_validators.UsernameValidatorsTests.test_unicode_validator",
+    "auth_tests.test_validators.UsernameValidatorsTests.test_ascii_validator"
+  ],
+  "source_url": "https://github.com/django/django",
+  "source_release": "d26b2424437dabeeca94d7900b37d2df4410da0c",
+  "source_commit": "d26b2424437dabeeca94d7900b37d2df4410da0c",
+  "source_tree_sha": "cb08383bf787f14b91e82664ebedf84c92748e51",
+  "issue_url": "",
+  "pull_request_url": "https://github.com/django/django/pull/11099",
+  "archive_sha256": "26357f46d580b4b7ec50e5331a1b23e11c301b2c1f5c5e1dd4ffcf6110aa0d5d",
+  "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-11099:latest",
+  "docker_image_config_digest": "sha256:cca302934edd881cc4f1e4647a389a25cdaa3c02bfa33667a4204934a09c4fb1",
+  "baseline_expected_failure": true,
+  "test_timeout_seconds": 180,
+  "docker_python": "/opt/miniconda3/envs/testbed/bin/python",
+  "visible_test_sha256": "89e421ee90a01b6e2ed07c9826f75a5a2faf079a069ef82d5a76eacdb0643bdf",
+  "visible_test_files": [
+    "tests/auth_tests/test_validators.py"
+  ],
+  "source_file_manifest_sha256": "65cfef1c0b6720d56a4e5d03a31ed9df4b921933f16043c309d9c5f07f692cf9",
+  "license": "BSD-3-Clause",
+  "license_file": "LICENSE",
+  "license_file_sha256": "b846415d1b514e9c1dff14a22deb906d794bc546ca6129f950a18cd091e2a669"
+}

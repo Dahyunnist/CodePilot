@@ -33,5 +33,5 @@
 
 ## 验证
 
-- `D:\Anaconda3\envs\NN\python.exe -m pytest tests/test_trajectory_score.py -q`：**3 passed**。
-- NN 完整测试：`D:\Anaconda3\envs\NN\python.exe -m pytest -q`，**99 passed**。
+- `python -m pytest tests/test_trajectory_score.py -q`：**3 passed**。
+- NN 完整测试：`python -m pytest -q`，**99 passed**。

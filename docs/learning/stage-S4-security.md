@@ -31,7 +31,7 @@
 
 ## 验证
 
-- NN 环境完整回归：`D:\Anaconda3\envs\NN\python.exe -m pytest -q`。
+- NN 环境完整回归：`python -m pytest -q`。
 - Docker 隔离通过命令参数测试；真实 Docker + DeepSeek 外部仓库审批写回在 S3 留有独立轨迹和二次测试记录。
 - S4 只在工具策略增加 dotenv 变体过滤和提示注入边界，没有引入权限模式或外部服务。
 

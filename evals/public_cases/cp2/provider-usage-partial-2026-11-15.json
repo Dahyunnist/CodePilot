@@ -1,0 +1,9 @@
+{
+  "kind": "partial_provider_usage_export",
+  "schema_version": 1,
+  "status": "partial",
+  "usage_scope": "project_api_key",
+  "coverage_complete": false,
+  "model_calls_authorized": false,
+  "blocker": "Provider usage history and current balance are not fully reconciled; campaign remains blocked."
+}

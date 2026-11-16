@@ -4,20 +4,29 @@ from __future__ import annotations
 
 import argparse
 import csv
+from collections import Counter
 import hashlib
+import inspect
 import json
+import math
+import os
+import re
 import shutil
 import subprocess
 import time
 import uuid
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path, PurePosixPath
 from typing import Sequence
+from urllib.parse import urlsplit
 
 from codepilot.agent import Agent
 from codepilot.config import ModelConfig
+from codepilot.context_selector import ContextSelector
 from codepilot.model import ModelClient
-from codepilot.schemas import Task
+from codepilot.security import redact_sensitive_text
+from codepilot.schemas import Task, ToolResult
 from codepilot.tools.execute import run_tests
 from codepilot.tools.registry import ToolRegistry
 from codepilot.tracing import TraceLogger
@@ -25,6 +34,32 @@ from codepilot.workspace import WorkspaceManager
 from evals.runner import load_cases
 
 
+LIVE_EVAL_HARD_COST_CEILING_USD = 0.06
+
+
+def _finalize_manifest_on_error(function):
+    """Seal an initialized live manifest when a run raises unexpectedly."""
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        output_root = kwargs.get("output_root")
+        if output_root is None and len(args) > 1:
+            output_root = args[1]
+        try:
+            return function(*args, **kwargs)
+        except BaseException as exc:
+            if output_root is not None:
+                try:
+                    _finalize_shared_live_manifest(
+                        Path(output_root) / "run_manifest.json",
+                        status="cancelled" if isinstance(exc, KeyboardInterrupt) else "failed",
+                    )
+                except Exception:
+                    pass
+            raise
+    return wrapped
+
+
+@_finalize_manifest_on_error
 def run_live_evaluation(
     cases_root: Path,
     output_root: Path,
@@ -38,13 +73,22 @@ def run_live_evaluation(
     max_elapsed: float,
     context_budget_chars: int,
     max_steps: int,
+    max_input_tokens_per_request: int = 22_000,
+    max_completion_tokens: int = 512,
+    max_cost_reserve_usd: float = LIVE_EVAL_HARD_COST_CEILING_USD,
+    context_selector: bool = True,
+    skill_id: str | None = None,
+    verification_mode: str = "full",
 ) -> list[dict[str, object]]:
     """Run clean, isolated copies and independently verify every repair."""
     if execution == "host" and not approve_host_tests:
         raise ValueError("主机测试必须显式使用 --approve-host-tests 批准")
+    if verification_mode not in {"full", "visible_only"}:
+        raise ValueError("verification_mode must be full or visible_only")
 
     config = ModelConfig.from_env()
     run_group = uuid.uuid4().hex[:12]
+    run_started_at = datetime.now(timezone.utc).isoformat()
     run_root = work_root.resolve() / run_group
     output_root.mkdir(parents=True, exist_ok=True)
     rows: list[dict[str, object]] = []
@@ -52,10 +96,51 @@ def run_live_evaluation(
     cases = [case for case in load_cases(cases_root) if case.case_id in case_ids]
     if not cases:
         raise ValueError("没有找到匹配的评测案例")
+    if "deepseek" not in config.model.casefold():
+        raise ValueError("费用硬上限仅按已核实的 DeepSeek 费率开放")
+    if max_input_tokens_per_request < 1:
+        raise ValueError("每请求输入 Token 硬上限必须为正数")
+    if not 1 <= max_completion_tokens <= 512:
+        raise ValueError("每请求输出 Token 硬上限必须在 1 到 512 之间")
+    if not 0 < max_cost_reserve_usd <= LIVE_EVAL_HARD_COST_CEILING_USD:
+        raise ValueError("本轮费用预留必须大于 0 且不超过 $0.06")
+    worst_case_per_case = _worst_case_live_cost_usd(
+        max_input_tokens_per_request, max_completion_tokens, max_steps
+    )
+    worst_case_total = worst_case_per_case * len(cases)
+    if worst_case_total > max_cost_reserve_usd:
+        raise ValueError(
+            f"最坏费用预留 ${worst_case_total:.6f} 超过上限 "
+            f"${max_cost_reserve_usd:.2f}；未发送模型请求"
+        )
+    config.max_completion_tokens = min(
+        config.max_completion_tokens, max_completion_tokens
+    )
+    _write_run_manifest(
+        output_root / "run_manifest.json",
+        cases,
+        config,
+        execution=execution,
+        docker_image=docker_image,
+        max_total_tokens=max_total_tokens,
+        max_elapsed=max_elapsed,
+        context_budget_chars=context_budget_chars,
+        max_steps=max_steps,
+        max_input_tokens_per_request=max_input_tokens_per_request,
+        max_completion_tokens=max_completion_tokens,
+        max_cost_reserve_usd=max_cost_reserve_usd,
+        worst_case_total_budget_usd=worst_case_total,
+        context_selector=context_selector,
+        skill_id=skill_id,
+        verification_mode=verification_mode,
+        run_id=run_group,
+        started_at=run_started_at,
+    )
 
     for case in cases:
         case_started = time.perf_counter()
         assert case.case_dir is not None
+        case_docker_image = case.docker_image or docker_image
         base = run_root / "bases" / case.case_id
         base.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(
@@ -70,33 +155,58 @@ def run_live_evaluation(
         _stage_generated_version_files(base)
         _git(base, ["commit", "-q", "-m", f"baseline {case.case_id}"])
 
-        baseline = run_tests(
-            base,
-            case.test_command,
-            execution_mode=execution,
-            docker_image=docker_image,
+        run_id = f"{run_group}-{case.case_id}-{uuid.uuid4().hex[:8]}"
+        trace = TraceLogger(output_root / f"{run_id}.jsonl", run_id, trace_id=run_group)
+        trace.event(
+            "evaluation_started",
+            0,
+            case_id=case.case_id,
+            execution=execution,
+            verification_mode=verification_mode,
         )
-        baseline_failed = baseline.error_type == "test_failure" and not baseline.ok
-        if not baseline.ok and not baseline_failed:
+        baseline = _run_traced_verification(
+            trace,
+            "baseline",
+            case.case_id,
+            case.test_command,
+            execution,
+            base,
+            timeout_seconds=case.test_timeout_seconds,
+            execution_mode=execution,
+            docker_image=case_docker_image,
+            docker_python=case.docker_python,
+        )
+        environment_issue = _benchmark_environment_issue(
+            case, baseline, verification_mode=verification_mode
+        )
+        baseline_failed = (
+            baseline.error_type == "test_failure"
+            and not baseline.ok
+            and environment_issue is None
+        )
+        if environment_issue or (not baseline.ok and not baseline_failed):
             row = {
                 "case_id": case.case_id,
-                "run_id": "",
+                "run_id": run_id,
                 "model": config.model,
+                "context_selector_variant": "enabled" if context_selector else "baseline",
+                "skill_id": skill_id or "none",
                 "source_url": case.source_url or "",
                 "source_release": case.source_release or "",
                 "source_exclusions": ";".join(case.source_exclusions),
                 "source_commit": case.source_commit or "",
                 "source_tree_sha": case.source_tree_sha or "",
+                "docker_image": case_docker_image,
                 "issue_url": case.issue_url or "",
                 "pull_request_url": case.pull_request_url or "",
                 "archive_sha256": case.archive_sha256 or "",
-                "base_url": config.base_url or "https://api.openai.com/v1",
+                "base_url": _safe_endpoint(config.base_url or "https://api.openai.com/v1"),
                 "temperature": "provider_default_unspecified",
                 "execution": execution,
                 "status": "failed",
                 "accepted": False,
                 "failure_type": "baseline_execution",
-                "error": baseline.stderr[:500],
+                "error": environment_issue or _safe_test_result_summary("baseline", baseline),
                 "baseline_failed": False,
                 "agent_test_ok": False,
                 "independent_visible_ok": False,
@@ -112,31 +222,103 @@ def run_live_evaluation(
                 "read_file_output_chars": 0,
                 "search_code_calls": 0,
                 "run_tests_calls": 0,
+                "unsafe_actions": 0,
                 "cost_usd_estimate": "",
                 "pricing_period": "unknown",
                 "elapsed_ms": baseline.duration_ms,
                 "evaluation_elapsed_ms": round((time.perf_counter() - case_started) * 1000),
                 "patch_sha256": "",
-                "trace_file": "",
+                "trace_file": str(trace.path),
                 "verification_workspace": "",
             }
+            trace.event(
+                "evaluation_finished", 0, status="blocked", failure_type="baseline_execution"
+            )
             rows.append(row)
             print(f"{case.case_id}：跳过；基线测试无法执行")
             continue
-        run_id = f"{run_group}-{case.case_id}-{uuid.uuid4().hex[:8]}"
+        if baseline.ok and case.baseline_expected_failure:
+            invalid = {
+                "case_id": case.case_id,
+                "run_id": run_id,
+                "model": config.model,
+                "context_selector_variant": "enabled" if context_selector else "baseline",
+                "skill_id": skill_id or "none",
+                "source_url": case.source_url or "",
+                "source_release": case.source_release or "",
+                "source_exclusions": ";".join(case.source_exclusions),
+                "source_commit": case.source_commit or "",
+                "source_tree_sha": case.source_tree_sha or "",
+                "docker_image": case_docker_image,
+                "issue_url": case.issue_url or "",
+                "pull_request_url": case.pull_request_url or "",
+                "archive_sha256": case.archive_sha256 or "",
+                "base_url": _safe_endpoint(config.base_url or "https://api.openai.com/v1"),
+                "temperature": "provider_default_unspecified",
+                "execution": execution,
+                "status": "failed",
+                "accepted": False,
+                "failure_type": "baseline_unexpected_pass",
+                "error": "原有基线失败型案例的测试意外通过",
+                "baseline_failed": False,
+                "baseline_expected_failure": True,
+                "agent_test_ok": False,
+                "independent_visible_ok": False,
+                "hidden_ok": False,
+                "post_budget_verification": "not_run",
+                "steps": 0,
+                "tokens": 0,
+                "input_tokens": 0,
+                "cached_input_tokens": 0,
+                "output_tokens": 0,
+                "tool_calls": 0,
+                "read_file_calls": 0,
+                "read_file_output_chars": 0,
+                "search_code_calls": 0,
+                "run_tests_calls": 0,
+                "unsafe_actions": 0,
+                "cost_usd_estimate": "",
+                "pricing_period": "unknown",
+                "elapsed_ms": baseline.duration_ms,
+                "evaluation_elapsed_ms": round((time.perf_counter() - case_started) * 1000),
+                "patch_sha256": "",
+                "trace_file": str(trace.path),
+                "verification_workspace": "",
+            }
+            trace.event(
+                "evaluation_finished", 0, status="blocked", failure_type="baseline_unexpected_pass"
+            )
+            rows.append(invalid)
+            print(f"{case.case_id}：跳过；失败型任务基线测试意外通过")
+            continue
         workspace = WorkspaceManager(run_root / "workspaces").prepare(base, run_id)
-        trace = TraceLogger(output_root / f"{run_id}.jsonl", run_id)
+        tools = ToolRegistry(
+            workspace.path,
+            case.test_command,
+            test_timeout_seconds=case.test_timeout_seconds,
+            execution_mode=execution,
+            docker_image=case_docker_image,
+            docker_python=case.docker_python,
+            host_tests_approved=approve_host_tests,
+        )
+        tool_schema_sha = hashlib.sha256(
+            json.dumps(
+                [tool.model_dump(mode="json") for tool in tools.read_tools()],
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        trace.event("tool_schema_loaded", 0, tool_schema_sha256=tool_schema_sha)
         result = Agent(
-            ModelClient(config),
-            ToolRegistry(
-                workspace.path,
-                case.test_command,
-                execution_mode=execution,
-                docker_image=docker_image,
-                host_tests_approved=approve_host_tests,
+            ModelClient(
+                config,
+                max_input_tokens_per_request=max_input_tokens_per_request,
             ),
+            tools,
             tracer=trace,
             run_id=run_id,
+            context_selection_enabled=context_selector,
         ).run(
             Task(
                 task_id=case.case_id,
@@ -148,6 +330,8 @@ def run_live_evaluation(
                 max_elapsed_seconds=max_elapsed,
                 max_total_tokens=max_total_tokens,
                 max_context_chars=context_budget_chars,
+                baseline_test_observation=_baseline_test_observation(baseline),
+                skill_id=skill_id,
             )
         )
 
@@ -162,37 +346,52 @@ def run_live_evaluation(
                 workspace.path,
                 run_root / "verification" / run_id,
             )
-            visible = run_tests(
-                verification_workspace,
+            visible = _run_traced_verification(
+                trace,
+                "independent_visible",
+                case.case_id,
                 case.test_command,
-                execution_mode=execution,
-                docker_image=docker_image,
-            )
-            hidden_command = [
-                "python",
-                "-m",
-                "pytest",
-                "/hidden" if execution == "docker" else str(case.case_dir / "hidden_tests"),
-                "-q",
-            ]
-            hidden = run_tests(
+                execution,
                 verification_workspace,
-                hidden_command,
+                timeout_seconds=case.test_timeout_seconds,
                 execution_mode=execution,
-                docker_image=docker_image,
-                additional_mounts=(
-                    ((case.case_dir / "hidden_tests", "/hidden"),)
-                    if execution == "docker"
-                    else ()
-                ),
+                docker_image=case_docker_image,
+                docker_python=case.docker_python,
             )
+            if verification_mode == "full":
+                if case.hidden_test_patch:
+                    _apply_hidden_test_patch(case, verification_workspace)
+                hidden_command = case.hidden_test_command or [
+                    "python", "-m", "pytest",
+                    "/hidden" if execution == "docker" else str(case.case_dir / "hidden_tests"),
+                    "-q",
+                ]
+                hidden = _run_traced_verification(
+                    trace,
+                    "independent_hidden",
+                    case.case_id,
+                    hidden_command,
+                    execution,
+                    verification_workspace,
+                    timeout_seconds=case.test_timeout_seconds,
+                    execution_mode=execution,
+                    docker_image=case_docker_image,
+                    docker_python=case.docker_python,
+                    additional_mounts=(
+                        ((case.case_dir / "hidden_tests", "/hidden"),)
+                        if execution == "docker" and not case.hidden_test_patch
+                        else ()
+                    ),
+                )
 
         accepted = _accepted_for_benchmark(
             baseline_failed=baseline_failed,
+            baseline_expected_failure=case.baseline_expected_failure,
             agent_status=result.status,
             agent_test_ok=bool(result.test_result and result.test_result.ok),
             visible_ok=bool(visible and visible.ok),
             hidden_ok=bool(hidden and hidden.ok),
+            require_hidden=verification_mode == "full",
         )
         post_budget_verification = _post_budget_verification_status(
             failure_type=result.failure_type,
@@ -200,29 +399,43 @@ def run_live_evaluation(
             visible_ok=visible.ok if visible is not None else None,
             hidden_ok=hidden.ok if hidden is not None else None,
         )
+        trace.event(
+            "evaluation_finished",
+            0,
+            status="completed",
+            accepted=accepted,
+            verification_mode=verification_mode,
+            visible_ok=visible.ok if visible is not None else None,
+            hidden_ok=hidden.ok if hidden is not None else None,
+        )
         row: dict[str, object] = {
             "case_id": case.case_id,
             "run_id": run_id,
             "model": config.model,
+            "context_selector_variant": "enabled" if context_selector else "baseline",
+            "skill_id": skill_id or "none",
             "source_url": case.source_url or "",
             "source_release": case.source_release or "",
             "source_exclusions": ";".join(case.source_exclusions),
             "source_commit": case.source_commit or "",
             "source_tree_sha": case.source_tree_sha or "",
+            "docker_image": case_docker_image,
             "issue_url": case.issue_url or "",
             "pull_request_url": case.pull_request_url or "",
             "archive_sha256": case.archive_sha256 or "",
-            "base_url": config.base_url or "https://api.openai.com/v1",
+            "base_url": _safe_endpoint(config.base_url or "https://api.openai.com/v1"),
             "temperature": "provider_default_unspecified",
             "execution": execution,
             "status": result.status,
+            "verification_mode": verification_mode,
             "accepted": accepted,
             "failure_type": result.failure_type or "",
             "error": result.error or "",
             "baseline_failed": not baseline.ok,
+            "baseline_expected_failure": case.baseline_expected_failure,
             "agent_test_ok": bool(result.test_result and result.test_result.ok),
             "independent_visible_ok": bool(visible and visible.ok),
-            "hidden_ok": bool(hidden and hidden.ok),
+            "hidden_ok": bool(hidden.ok) if hidden is not None else None,
             "post_budget_verification": post_budget_verification,
             "verification_workspace": (
                 str(verification_workspace) if verification_workspace else ""
@@ -230,10 +443,15 @@ def run_live_evaluation(
             "steps": result.steps,
             "tokens": result.tokens,
             **usage,
+            "max_input_tokens_per_request": max_input_tokens_per_request,
+            "max_completion_tokens": max_completion_tokens,
+            "max_cost_reserve_usd": f"{max_cost_reserve_usd:.6f}",
+            "worst_case_total_budget_usd": f"{worst_case_total:.6f}",
             "elapsed_ms": result.elapsed_ms,
             "evaluation_elapsed_ms": round((time.perf_counter() - case_started) * 1000),
             "patch_sha256": patch_hash,
             "trace_file": str(trace.path),
+            "tool_schema_sha256": tool_schema_sha,
         }
         test_log = output_root / "test-logs" / f"{case.case_id}.txt"
         test_log.parent.mkdir(parents=True, exist_ok=True)
@@ -247,12 +465,7 @@ def run_live_evaluation(
         for name, test_result in test_results.items():
             if test_result is None:
                 continue
-            log_sections.append(
-                f"[{name}]\nok={test_result.ok}\n"
-                f"exit_code={test_result.exit_code}\n"
-                f"error_type={test_result.error_type or ''}\n"
-                f"stdout:\n{test_result.stdout}\nstderr:\n{test_result.stderr}\n"
-            )
+            log_sections.append(_safe_test_result_summary(name, test_result))
         test_log.write_text("\n".join(log_sections), encoding="utf-8")
         row["test_log"] = str(test_log)
         rows.append(row)
@@ -275,14 +488,97 @@ def run_live_evaluation(
         writer.writeheader()
         writer.writerows(rows)
     _write_summary(output_root / "summary.md", rows, config.model)
+    _finalize_shared_live_manifest(
+        output_root / "run_manifest.json", status="success", rows=rows
+    )
     print(f"结果文件：{csv_path.resolve()}")
     return rows
+
+
+def _run_traced_verification(
+    trace: TraceLogger,
+    stage: str,
+    case_id: str,
+    command: Sequence[str],
+    execution: str,
+    repo: Path,
+    **kwargs: object,
+) -> ToolResult:
+    """Run one independent test phase and record only bounded metadata."""
+    command_material = json.dumps(
+        list(command), ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
+    command_sha256 = hashlib.sha256(command_material).hexdigest()
+    span_id = uuid.uuid4().hex
+    fields = {
+        "stage": stage,
+        "case_id": case_id,
+        "execution": execution,
+        "command_sha256": command_sha256,
+    }
+    trace.event(
+        "verification_started",
+        0,
+        **fields,
+        span_id=span_id,
+        parent_span_id=trace.root_span_id,
+    )
+    started = time.perf_counter()
+    try:
+        result = run_tests(repo, command, **kwargs)
+    except Exception as exc:
+        trace.event(
+            "verification_finished",
+            0,
+            **fields,
+            status="error",
+            ok=False,
+            error_type=type(exc).__name__,
+            duration_ms=round((time.perf_counter() - started) * 1000),
+            span_id=span_id,
+            parent_span_id=trace.root_span_id,
+        )
+        trace.event(
+            "evaluation_finished", 0, status="error", failure_type=type(exc).__name__
+        )
+        raise
+    trace.event(
+        "verification_finished",
+        0,
+        **fields,
+        status="passed" if result.ok else "failed",
+        ok=result.ok,
+        exit_code=result.exit_code,
+        error_type=result.error_type or "",
+        duration_ms=round((time.perf_counter() - started) * 1000),
+        span_id=span_id,
+        parent_span_id=trace.root_span_id,
+    )
+    return result
+
+
+def _safe_test_result_summary(name: str, result: ToolResult) -> str:
+    """Persist test outcome metadata without retaining raw output."""
+    stdout = result.stdout.encode("utf-8", errors="replace")
+    stderr = result.stderr.encode("utf-8", errors="replace")
+    return (
+        f"[{name}]\n"
+        f"ok={result.ok}\n"
+        f"exit_code={result.exit_code}\n"
+        f"error_type={result.error_type or ''}\n"
+        f"duration_ms={result.duration_ms}\n"
+        f"stdout_chars={len(result.stdout)}\n"
+        f"stdout_sha256={hashlib.sha256(stdout).hexdigest()}\n"
+        f"stderr_chars={len(result.stderr)}\n"
+        f"stderr_sha256={hashlib.sha256(stderr).hexdigest()}\n"
+    )
 
 
 def _trace_usage(trace_path: Path, model: str) -> dict[str, object]:
     input_tokens = cached_tokens = output_tokens = 0
     tool_counts: dict[str, int] = {}
     read_file_output_chars = 0
+    unsafe_actions = 0
     if trace_path.exists():
         for line in trace_path.read_text(encoding="utf-8").splitlines():
             try:
@@ -301,6 +597,8 @@ def _trace_usage(trace_path: Path, model: str) -> dict[str, object]:
                 tool_counts[tool] = tool_counts.get(tool, 0) + 1
                 if tool == "read_file":
                     read_file_output_chars += int(event.get("stdout_chars", 0))
+                if event.get("error_type") in {"PathPolicyError", "policy"}:
+                    unsafe_actions += 1
     cached_tokens = min(cached_tokens, input_tokens)
     tool_usage = {
         "tool_calls": sum(tool_counts.values()),
@@ -308,6 +606,7 @@ def _trace_usage(trace_path: Path, model: str) -> dict[str, object]:
         "read_file_output_chars": read_file_output_chars,
         "search_code_calls": tool_counts.get("search_code", 0),
         "run_tests_calls": tool_counts.get("run_tests", 0),
+        "unsafe_actions": unsafe_actions,
     }
     if "deepseek" not in model.casefold():
         return {
@@ -352,20 +651,32 @@ def _write_summary(path: Path, rows: list[dict[str, object]], model: str) -> Non
     total_tokens = sum(int(row.get("tokens", 0)) for row in rows)
     total_cost = sum(float(row.get("cost_usd_estimate") or 0) for row in rows)
     total_ms = sum(int(row.get("evaluation_elapsed_ms", 0)) for row in rows)
+    ci_low, ci_high = _wilson_interval(accepted, len(rows))
+    elapsed = [int(row.get("evaluation_elapsed_ms", 0)) / 1000 for row in rows]
+    costs = [float(row.get("cost_usd_estimate") or 0) for row in rows]
+    budget_failures = sum(row.get("failure_type") == "budget" for row in rows)
+    patches_returned = sum(bool(row.get("patch_sha256")) for row in rows)
+    unsafe_actions = sum(int(row.get("unsafe_actions", 0)) for row in rows)
+    failures = Counter(str(row.get("failure_type") or "success") for row in rows)
     lines = [
         "# 真实模型评测报告", "",
         f"- 模型：`{model}`", f"- 验收：{accepted}/{len(rows)}",
         f"- 成功：{accepted}，失败：{len(rows) - accepted}",
+        f"- Strict accepted / pass@1：{accepted}/{len(rows)}（Wilson 95% CI：{ci_low:.1%}–{ci_high:.1%}）",
+        f"- 补丁产出：{patches_returned}/{len(rows)}；预算失败：{budget_failures}；安全策略拒绝调用：{unsafe_actions}",
+        f"- 失败分类：{json.dumps(dict(sorted(failures.items())), ensure_ascii=False)}",
         f"- 总 Token：{total_tokens:,}", f"- 估算费用：${total_cost:.6f} USD",
-        f"- 案例累计耗时：{total_ms / 1000:.1f} 秒",
+        f"- 案例累计耗时：{total_ms / 1000:.1f} 秒；全流程 p50/p95：{_percentile(elapsed, .50):.1f}/{_percentile(elapsed, .95):.1f} 秒",
+        f"- 单题费用 p50/p95：${_percentile(costs, .50):.6f}/${_percentile(costs, .95):.6f} USD",
         "- 费用为按 API usage Token 与 DeepSeek 官方费率估算；实际账单以平台为准。",
         "- 费率时段依据运行时 UTC 时段判断；中国法定节假日可能按非高峰计价。",
-        "", "| 案例 | 验收 | 预算后独立验证 | 输入 | 缓存输入 | 输出 | 费用 USD | Agent 秒 | 全流程秒 | 步数 | 工具调用 | 读文件 | 读取字符 | 搜索 | 测试 |",
-        "|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "", "| 案例 | Skill | 验收 | 预算后独立验证 | 输入 | 缓存输入 | 输出 | 费用 USD | Agent 秒 | 全流程秒 | 步数 | 工具调用 | 读文件 | 读取字符 | 搜索 | 测试 |",
+        "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         lines.append(
-            f"| {row.get('case_id')} | {'通过' if row.get('accepted') else '失败'} | "
+            f"| {row.get('case_id')} | {row.get('skill_id', 'none')} | "
+            f"{'通过' if row.get('accepted') else '失败'} | "
             f"{row.get('post_budget_verification', 'not_run')} | "
             f"{row.get('input_tokens', 0)} | {row.get('cached_input_tokens', 0)} | "
             f"{row.get('output_tokens', 0)} | {row.get('cost_usd_estimate', '')} | "
@@ -378,13 +689,528 @@ def _write_summary(path: Path, rows: list[dict[str, object]], model: str) -> Non
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _git(repo: Path, arguments: list[str]) -> None:
+def _percentile(values: Sequence[float], quantile: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    return ordered[min(len(ordered) - 1, max(0, math.ceil(quantile * len(ordered)) - 1))]
+
+
+def _wilson_interval(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:
+    if total <= 0:
+        return 0.0, 0.0
+    proportion = successes / total
+    denominator = 1 + z * z / total
+    center = (proportion + z * z / (2 * total)) / denominator
+    radius = z * math.sqrt(
+        proportion * (1 - proportion) / total + z * z / (4 * total * total)
+    ) / denominator
+    return max(0.0, center - radius), min(1.0, center + radius)
+
+
+def _write_run_manifest(
+    path: Path,
+    cases: Sequence[object],
+    config: ModelConfig,
+    *,
+    execution: str,
+    docker_image: str,
+    max_total_tokens: int,
+    max_elapsed: float,
+    context_budget_chars: int,
+    max_steps: int,
+    context_selector: bool,
+    skill_id: str | None = None,
+    max_input_tokens_per_request: int = 22_000,
+    max_completion_tokens: int = 512,
+    max_cost_reserve_usd: float = LIVE_EVAL_HARD_COST_CEILING_USD,
+    worst_case_total_budget_usd: float = 0.0,
+    verification_mode: str = "full",
+    run_id: str | None = None,
+    started_at: str | None = None,
+) -> None:
+    case_records = []
+    for case in cases:
+        metadata_path = case.case_dir / "case.json"
+        raw = metadata_path.read_bytes()
+        case_records.append(
+            {
+                "case_id": case.case_id,
+                "metadata_sha256": hashlib.sha256(raw).hexdigest(),
+                "source_commit": case.source_commit,
+                "source_tree_sha": case.source_tree_sha,
+                "archive_sha256": case.archive_sha256,
+                "docker_image": getattr(case, "docker_image", None),
+                "docker_python": getattr(case, "docker_python", "python"),
+                "baseline_expected_failure": getattr(case, "baseline_expected_failure", True),
+                "test_timeout_seconds": getattr(case, "test_timeout_seconds", 30),
+                "compiled_extensions_sha256": getattr(case, "compiled_extensions_sha256", None),
+                "repo_tree_sha256": _directory_sha256(case.case_dir / "repo"),
+                "visible_tests_sha256": _directory_sha256(case.case_dir / "visible_tests"),
+                "verification_mode": verification_mode,
+                "hidden_tests_sha256": (
+                    (
+                        hashlib.sha256((case.case_dir / case.hidden_test_patch).read_bytes()).hexdigest()
+                        if case.hidden_test_patch
+                        else _directory_sha256(case.case_dir / "hidden_tests")
+                    )
+                    if verification_mode == "full"
+                    else None
+                ),
+            }
+        )
+    repository_root = Path(__file__).resolve().parents[1]
+
+    def read_git_output(arguments: list[str], *, text_output: bool = False) -> str | bytes:
+        return subprocess.run(
+            ["git", "-c", f"safe.directory={repository_root}", *arguments],
+            cwd=repository_root,
+            capture_output=True,
+            text=text_output,
+            check=True,
+            shell=False,
+        ).stdout
+
+    working_diff = read_git_output(["diff", "HEAD", "--binary"])
+    status = read_git_output(["status", "--porcelain", "--untracked-files=all"])
+    git_sha = read_git_output(["rev-parse", "HEAD"], text_output=True).strip()
+    manifest = {
+        "created_at_utc": started_at or datetime.now(timezone.utc).isoformat(),
+        "run_group_id": run_id or uuid.uuid4().hex,
+        "agent_git_sha": git_sha,
+        "agent_worktree_diff_sha256": hashlib.sha256(working_diff).hexdigest(),
+        "agent_worktree_dirty": bool(status.strip()),
+        "model": config.model,
+        "api_endpoint": _safe_endpoint(config.base_url or "https://api.openai.com/v1"),
+        "temperature": "provider_default_unspecified",
+        "execution": execution,
+        "verification_mode": verification_mode,
+        "docker_image": docker_image,
+        "max_total_tokens": max_total_tokens,
+        "max_elapsed_seconds": max_elapsed,
+        "context_budget_chars": context_budget_chars,
+        "max_steps": max_steps,
+        "max_input_tokens_per_request": max_input_tokens_per_request,
+        "max_completion_tokens": max_completion_tokens,
+        "max_cost_reserve_usd": max_cost_reserve_usd,
+        "worst_case_total_budget_usd": worst_case_total_budget_usd,
+        "context_selector_enabled": context_selector,
+        "context_selector_version": (
+            ContextSelector.VERSION if context_selector else "baseline"
+        ),
+        "skill_id": skill_id or "none",
+        "cases": case_records,
+    }
+    manifest["shared_run_manifest_v1"] = _build_initial_shared_live_manifest(
+        manifest,
+        cases,
+        config,
+        run_id=str(manifest["run_group_id"]),
+        started_at=str(manifest["created_at_utc"]),
+        max_steps=max_steps,
+        max_tokens=max_total_tokens,
+    )
+    _write_json_atomically(path, manifest)
+
+
+def _build_initial_shared_live_manifest(
+    manifest: dict[str, object],
+    cases: Sequence[object],
+    config: ModelConfig,
+    *,
+    run_id: str,
+    started_at: str,
+    max_steps: int,
+    max_tokens: int,
+) -> dict[str, object]:
+    case_records = manifest["cases"]
+    dataset_bytes = json.dumps(
+        case_records, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    prompt_file = Path(__file__).resolve().parents[1] / "codepilot" / "prompts.py"
+    prompt_sha = hashlib.sha256(prompt_file.read_bytes()).hexdigest()
+    image_refs = sorted({str(case.docker_image or manifest["docker_image"]) for case in cases})
+    image_digests = []
+    for image in image_refs:
+        if "@sha256:" not in image:
+            image_digests = []
+            break
+        image_digests.append(image.rsplit("@sha256:", 1)[1])
+    runtime_digest = None
+    if image_digests and all(len(value) == 64 for value in image_digests):
+        runtime_digest = image_digests[0] if len(image_digests) == 1 else hashlib.sha256(
+            json.dumps(sorted(image_digests), separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+    result = {
+        "schema_version": 1,
+        "project": "CodePilot",
+        "git_sha": manifest["agent_git_sha"],
+        "dataset_id": "evals/live-cases",
+        "dataset_sha256": hashlib.sha256(dataset_bytes).hexdigest(),
+        "split": "selected-live-cases",
+        "model_id": config.model,
+        "prompt_sha": prompt_sha,
+        "tool_schema_sha": None,
+        "runtime_digest": runtime_digest,
+        "max_steps": max_steps,
+        "max_tokens": max_tokens,
+        "scorer_sha": hashlib.sha256(
+            inspect.getsource(_accepted_for_benchmark).encode("utf-8")
+        ).hexdigest(),
+        "gold_source": "case metadata and independent visible/hidden test suites",
+        "cost_usd_estimate": None,
+        "cost_certainty": "unknown",
+        "request_attempt_count": 0,
+        "response_count": 0,
+        "failed_request_count": 0,
+        "case_count": len(cases),
+        "completed_case_count": 0,
+        "failed_case_count": 0,
+        "run_id": run_id,
+        "trace_id": run_id,
+        "started_at": started_at,
+        "ended_at": None,
+        "status": "running",
+    }
+    _validate_shared_live_manifest(result)
+    return result
+
+
+def _validate_shared_live_manifest(value: dict[str, object]) -> None:
+    required = {
+        "schema_version", "project", "git_sha", "dataset_id", "dataset_sha256",
+        "split", "model_id", "prompt_sha", "tool_schema_sha", "runtime_digest",
+        "max_steps", "max_tokens", "scorer_sha", "gold_source", "cost_usd_estimate",
+        "cost_certainty", "request_attempt_count", "response_count", "failed_request_count",
+        "case_count", "completed_case_count", "failed_case_count", "run_id", "trace_id",
+        "started_at", "ended_at", "status",
+    }
+    if set(value) != required:
+        raise ValueError("shared live manifest fields mismatch")
+    if type(value["schema_version"]) is not int or value["schema_version"] != 1 or value["project"] != "CodePilot":
+        raise ValueError("invalid shared live manifest identity")
+    if not re.fullmatch(r"[0-9a-f]{40}", str(value["git_sha"])):
+        raise ValueError("invalid shared live manifest git_sha")
+    for field in ("dataset_sha256", "prompt_sha", "scorer_sha"):
+        if not isinstance(value[field], str) or not re.fullmatch(r"[0-9a-f]{64}", value[field]):
+            raise ValueError(f"invalid shared live manifest {field}")
+    for field in ("dataset_sha256", "prompt_sha", "tool_schema_sha", "runtime_digest", "scorer_sha"):
+        item = value[field]
+        if item is not None and not re.fullmatch(r"[0-9a-f]{64}", str(item)):
+            raise ValueError(f"invalid shared live manifest {field}")
+    for field in ("dataset_id", "split", "model_id", "gold_source", "run_id", "trace_id"):
+        if not isinstance(value[field], str) or not value[field]:
+            raise ValueError(f"invalid shared live manifest {field}")
+    for field in ("max_steps", "max_tokens", "request_attempt_count", "response_count",
+                  "failed_request_count", "case_count", "completed_case_count", "failed_case_count"):
+        if type(value[field]) is not int or value[field] < 0:
+            raise ValueError(f"invalid shared live manifest {field}")
+    cost = value["cost_usd_estimate"]
+    if cost is not None and (not isinstance(cost, (int, float)) or isinstance(cost, bool) or cost < 0):
+        raise ValueError("invalid shared live manifest cost")
+    if value["cost_certainty"] not in {"unknown", "estimated_from_reported_usage", "observed_zero_requests"}:
+        raise ValueError("invalid shared live manifest cost_certainty")
+    if value["cost_certainty"] == "unknown" and cost is not None:
+        raise ValueError("unknown cost certainty requires null cost")
+    if value["cost_certainty"] == "observed_zero_requests" and (
+        value["request_attempt_count"] != 0
+        or value["response_count"] != 0
+        or cost != 0
+    ):
+        raise ValueError("zero-request cost certainty conflicts with request counts")
+    if value["response_count"] > value["request_attempt_count"]:
+        raise ValueError("response count exceeds request attempts")
+    if value["failed_request_count"] > value["request_attempt_count"]:
+        raise ValueError("failed request count exceeds request attempts")
+    if value["completed_case_count"] > value["case_count"] or value["failed_case_count"] > value["case_count"]:
+        raise ValueError("case counts exceed dataset size")
+    if value["status"] not in {"running", "success", "failed", "cancelled", "blocked"}:
+        raise ValueError("invalid shared live manifest status")
+    stamps: dict[str, datetime] = {}
+    for field in ("started_at", "ended_at"):
+        stamp = value[field]
+        if stamp is None and field == "ended_at" and value["status"] == "running":
+            continue
+        if not isinstance(stamp, str):
+            raise ValueError(f"invalid shared live manifest {field}")
+        parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            raise ValueError(f"shared live manifest {field} must include timezone")
+        stamps[field] = parsed
+    if "ended_at" in stamps and stamps["ended_at"] < stamps["started_at"]:
+        raise ValueError("shared live manifest ended_at precedes started_at")
+    if value["status"] != "running" and value["ended_at"] is None:
+        raise ValueError("final shared live manifest requires ended_at")
+    if value["status"] == "running" and value["ended_at"] is not None:
+        raise ValueError("running shared live manifest cannot have ended_at")
+    if value["run_id"] != value["trace_id"]:
+        raise ValueError("shared live manifest run_id and trace_id must match")
+
+
+def _finalize_shared_live_manifest(
+    path: Path,
+    *,
+    status: str,
+    rows: Sequence[dict[str, object]] = (),
+) -> None:
+    if not path.is_file():
+        return
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    shared = manifest.get("shared_run_manifest_v1")
+    if not isinstance(shared, dict):
+        return
+    run_id = str(shared["run_id"])
+    traces = sorted(path.parent.glob(f"{run_id}-*.jsonl"))
+    events: list[dict[str, object]] = []
+    for trace_path in traces:
+        for line in trace_path.read_text(encoding="utf-8").splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("trace_id") == run_id:
+                events.append(event)
+    attempts = sum(event.get("event") == "model_budget_reserved" for event in events)
+    responses = sum(event.get("event") == "model_finished" for event in events)
+    failures = sum(event.get("event") == "model_failed" for event in events)
+    schema_hashes = sorted({
+        str(event["tool_schema_sha256"])
+        for event in events
+        if event.get("event") == "tool_schema_loaded" and event.get("tool_schema_sha256")
+    })
+    if len(schema_hashes) == 1:
+        shared["tool_schema_sha"] = schema_hashes[0]
+    elif schema_hashes:
+        shared["tool_schema_sha"] = hashlib.sha256(
+            json.dumps(schema_hashes, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+    cost_rows = list(rows)
+    if not cost_rows:
+        for case_record in manifest.get("cases", []):
+            case_path = path.parent / f"{case_record.get('case_id', '')}.json"
+            if not case_path.is_file():
+                continue
+            try:
+                case_row = json.loads(case_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if str(case_row.get("run_id", "")).startswith(f"{run_id}-"):
+                cost_rows.append(case_row)
+    costs = [
+        float(row["cost_usd_estimate"])
+        for row in cost_rows
+        if row.get("cost_usd_estimate") not in (None, "")
+    ]
+    if attempts == 0 and responses == 0 and failures == 0:
+        shared["cost_usd_estimate"] = 0.0
+        shared["cost_certainty"] = "observed_zero_requests"
+    elif failures == 0 and len(costs) == len(cost_rows) and cost_rows:
+        shared["cost_usd_estimate"] = round(sum(costs), 6)
+        shared["cost_certainty"] = "estimated_from_reported_usage"
+    else:
+        shared["cost_usd_estimate"] = None
+        shared["cost_certainty"] = "unknown"
+    completed_ids = {
+        str(event.get("run_id"))
+        for event in events
+        if event.get("event") == "evaluation_finished"
+    }
+    started_ids = {
+        str(event.get("run_id"))
+        for event in events
+        if event.get("event") == "evaluation_started"
+    }
+    failed_ids = {
+        str(event.get("run_id"))
+        for event in events
+        if event.get("event") == "evaluation_finished"
+        and (event.get("status") != "completed" or event.get("accepted") is False)
+    }
+    shared.update({
+        "request_attempt_count": attempts,
+        "response_count": responses,
+        "failed_request_count": failures,
+        "completed_case_count": len(completed_ids),
+        "failed_case_count": max(
+            sum(row.get("accepted") is not True for row in rows),
+            len(failed_ids),
+            len(started_ids) - len(completed_ids),
+        ),
+        "ended_at": datetime.now(timezone.utc).isoformat(),
+        "status": status,
+    })
+    _validate_shared_live_manifest(shared)
+    _write_json_atomically(path, manifest)
+
+
+def _write_json_atomically(path: Path, value: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _directory_sha256(root: Path) -> str:
+    digest = hashlib.sha256()
+    if not root.is_dir():
+        return digest.hexdigest()
+    files = sorted(
+        item for item in root.rglob("*") if item.is_file() and not item.is_symlink()
+    )
+    for item in files:
+        digest.update(item.relative_to(root).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(hashlib.sha256(item.read_bytes()).digest())
+    return digest.hexdigest()
+
+
+def _safe_endpoint(value: str) -> str:
+    parsed = urlsplit(value)
+    if not parsed.scheme or not parsed.hostname:
+        return "configured"
+    port = f":{parsed.port}" if parsed.port else ""
+    return f"{parsed.scheme}://{parsed.hostname}{port}{parsed.path}"
+
+
+def _worst_case_live_cost_usd(
+    max_input_tokens_per_request: int,
+    max_completion_tokens: int,
+    max_steps: int,
+) -> float:
+    """Peak-price bound; charge every input token uncached and allow no retries."""
+    if min(max_input_tokens_per_request, max_completion_tokens, max_steps) < 1:
+        raise ValueError("Token 和步数上限必须为正数")
+    return max_steps * (
+        max_input_tokens_per_request * 0.30
+        + max_completion_tokens * 1.20
+    ) / 1_000_000
+
+
+def _baseline_test_observation(result: ToolResult, limit: int = 1_200) -> str:
+    """Share bounded, redacted visible-test baseline evidence with the model."""
+    status = "通过" if result.ok else "失败"
+    details = [
+        f"状态：{status}；退出码：{result.exit_code}；错误类型：{result.error_type or '无'}；耗时：{result.duration_ms} ms。"
+    ]
+    output = "\n".join(
+        section
+        for section in (
+            f"stdout:\n{result.stdout}" if result.stdout else "",
+            f"stderr:\n{result.stderr}" if result.stderr else "",
+        )
+        if section
+    )
+    output = redact_sensitive_text(output)
+    if not output:
+        output = "（无文本输出）"
+    if len(output) > limit:
+        marker = f"\n…基线输出已截断，原文 {len(output)} 字符…\n"
+        remaining = max(0, limit - len(marker))
+        head = min(600, remaining // 3)
+        tail = remaining - head
+        output = f"{output[:head]}{marker}{output[-tail:] if tail else ''}"
+    details.append("不可信日志开始\n" + output + "\n不可信日志结束")
+    return "\n".join(details)
+
+
+def _benchmark_environment_issue(
+    case: object,
+    baseline: ToolResult,
+    *,
+    verification_mode: str = "full",
+) -> str | None:
+    """Reject missing test runtimes and impossible Windows CLI payloads pre-LLM."""
+    output = f"{baseline.stdout}\n{baseline.stderr}".casefold()
+    if any(
+        marker in output
+        for marker in (
+            "no module named pytest",
+            "pytest: command not found",
+            "pytest is not recognized",
+        )
+    ):
+        return "基准镜像未提供 pytest；该任务环境不兼容"
+
+    if verification_mode == "visible_only":
+        return None
+    hidden_command = getattr(case, "hidden_test_command", None)
+    if hidden_command:
+        command_line = subprocess.list2cmdline(hidden_command)
+        limit = 30_000 if os.name == "nt" else 100_000
+        if len(command_line) > limit:
+            return (
+                f"隐藏测试命令长度 {len(command_line)} 超过当前平台安全上限 {limit}；"
+                "该任务无法可靠运行"
+            )
+    return None
+
+
+def _apply_hidden_test_patch(case: object, workspace: Path) -> None:
+    """Apply test-only oracle patch in independent verifier, outside Agent workspace."""
+    assert case.case_dir is not None and case.hidden_test_patch
+    private_root = case.case_dir.resolve(strict=True)
+    relative_patch = PurePosixPath(case.hidden_test_patch)
+    candidate = private_root.joinpath(*relative_patch.parts)
+    if (
+        relative_patch.is_absolute()
+        or ".." in relative_patch.parts
+        or "\\" in case.hidden_test_patch
+        or candidate.is_symlink()
+    ):
+        raise ValueError("hidden test patch path escapes case directory")
+    patch_path = candidate.resolve(strict=True)
+    if not patch_path.is_relative_to(private_root):
+        raise ValueError("hidden test patch path escapes case directory")
+    if patch_path.stat().st_size > 10_000_000:
+        raise ValueError("hidden test patch exceeds 10 MB limit")
+    patch_text = patch_path.read_text(encoding="utf-8")
+    touched = []
+    for line in patch_text.splitlines():
+        if not line.startswith("diff --git a/"):
+            continue
+        relative = line.split(" b/", 1)[0].removeprefix("diff --git a/")
+        parts = PurePosixPath(relative).parts
+        if (
+            PurePosixPath(relative).is_absolute()
+            or ".." in parts
+            or not (
+                any(part.casefold() in {"test", "tests", "testing"} for part in parts)
+                or PurePosixPath(relative).name.casefold().startswith("test_")
+                or PurePosixPath(relative).name.casefold().endswith("_test.py")
+            )
+        ):
+            raise ValueError(f"hidden test patch touches non-test path: {relative}")
+        touched.append(relative)
+    if not touched:
+        raise ValueError("hidden test patch has no recognized test files")
+    if not (workspace / ".git").exists():
+        _git(workspace, ["init", "-q"])
+    for flag in ("--check", ""):
+        command = ["git", "apply", "--whitespace=nowarn"]
+        if flag:
+            command.append(flag)
+        command.append(str(patch_path))
+        subprocess.run(
+            command,
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
+            shell=False,
+        )
+
+
+def _git(repo: Path, arguments: list[str], *, timeout_seconds: float = 120) -> None:
     subprocess.run(
         ["git", *arguments],
         cwd=repo,
         capture_output=True,
         text=True,
-        timeout=15,
+        timeout=timeout_seconds,
         check=True,
         shell=False,
     )
@@ -497,18 +1323,20 @@ def _post_budget_verification_status(
 def _accepted_for_benchmark(
     *,
     baseline_failed: bool,
+    baseline_expected_failure: bool = True,
     agent_status: str,
     agent_test_ok: bool,
     visible_ok: bool,
-    hidden_ok: bool,
+    hidden_ok: bool | None,
+    require_hidden: bool = True,
 ) -> bool:
-    """Keep benchmark acceptance tied to a complete successful Agent run."""
+    """Accept a repair only against the oracle checks selected for this run."""
     return (
-        baseline_failed
+        (baseline_failed or not baseline_expected_failure)
         and agent_status == "success"
         and agent_test_ok
         and visible_ok
-        and hidden_ok
+        and (not require_hidden or hidden_ok is True)
     )
 
 
@@ -521,16 +1349,32 @@ def _stage_generated_version_files(repo: Path) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m evals.live_runner", description="使用真实模型运行修复评测")
     parser.add_argument("--cases", type=Path, default=Path("evals/cases"))
-    parser.add_argument("--case-ids", nargs="+", default=["parse-config", "parse-port", "timeout-config"])
+    parser.add_argument("--case-ids", nargs="+", default=["parse-config"])
     parser.add_argument("--output-root", type=Path, default=Path("reports/live-model"))
     parser.add_argument("--work-root", type=Path, default=Path(".tmp/live-model"))
     parser.add_argument("--execution", choices=("docker", "host"), default="docker")
     parser.add_argument("--approve-host-tests", action="store_true")
     parser.add_argument("--docker-image", default="codepilot-runner:0.1")
-    parser.add_argument("--max-total-tokens", type=int, default=15000)
-    parser.add_argument("--context-budget-chars", type=int, default=30_000)
+    parser.add_argument("--max-total-tokens", type=int, default=20_000)
+    parser.add_argument("--context-budget-chars", type=int, default=8_000)
     parser.add_argument("--max-elapsed", type=float, default=180)
-    parser.add_argument("--max-steps", type=int, default=10)
+    parser.add_argument("--max-steps", type=int, default=8)
+    parser.add_argument("--max-input-tokens-per-request", type=int, default=22_000)
+    parser.add_argument("--max-completion-tokens", type=int, default=512)
+    parser.add_argument("--max-cost-reserve-usd", type=float, default=0.06)
+    parser.add_argument(
+        "--verification-mode",
+        choices=("full", "visible_only"),
+        default="full",
+        help="visible_only 不读取或运行隐藏测试；结果只代表公开可见验收",
+    )
+    parser.add_argument("--skill", choices=("pytest-failure-triage", "api-contract-check"))
+    parser.add_argument(
+        "--context-selector",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="关闭可作为旧逻辑配对基线",
+    )
     return parser
 
 
@@ -548,6 +1392,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_elapsed=args.max_elapsed,
         context_budget_chars=args.context_budget_chars,
         max_steps=args.max_steps,
+        max_input_tokens_per_request=args.max_input_tokens_per_request,
+        max_completion_tokens=args.max_completion_tokens,
+        max_cost_reserve_usd=args.max_cost_reserve_usd,
+        context_selector=args.context_selector,
+        skill_id=args.skill,
+        verification_mode=args.verification_mode,
     )
     accepted = sum(row["accepted"] is True for row in rows)
     print(f"真实模型评测：{accepted}/{len(rows)} 项通过验收")

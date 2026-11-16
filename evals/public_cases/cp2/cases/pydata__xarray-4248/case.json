@@ -1,0 +1,36 @@
+{
+  "case_id": "pydata__xarray-4248",
+  "category": "Dataset representation displays units stored in variable attributes.",
+  "instruction": "Feature request: show units in dataset overview\nHere's a hypothetical dataset:\r\n\r\n```\r\n<xarray.Dataset>\r\nDimensions:  (time: 3, x: 988, y: 822)\r\nCoordinates:\r\n  * x         (x) float64 ...\r\n  * y         (y) float64 ...\r\n  * time      (time) datetime64[ns] ...\r\nData variables:\r\n    rainfall  (time, y, x) float32 ...\r\n    max_temp  (time, y, x) float32 ...\r\n```\r\n\r\nIt would be really nice if the units of the coordinates and of the data variables were shown in the `Dataset` repr, for example as:\r\n\r\n```\r\n<xarray.Dataset>\r\nDimensions:  (time: 3, x: 988, y: 822)\r\nCoordinates:\r\n  * x, in metres         (x)            float64 ...\r\n  * y, in metres         (y)            float64 ...\r\n  * time                 (time)         datetime64[ns] ...\r\nData variables:\r\n    rainfall, in mm      (time, y, x)   float32 ...\r\n    max_temp, in deg C   (time, y, x)   float32 ...\r\n```\n",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "xarray/tests/test_formatting.py",
+    "-p",
+    "no:cacheprovider",
+    "-k",
+    "test_inline_variable_array_repr_custom_repr",
+    "-q"
+  ],
+  "source_url": "https://github.com/pydata/xarray",
+  "source_release": "98dc1f4ea18738492e074e9e51ddfed5cd30ab94",
+  "source_commit": "98dc1f4ea18738492e074e9e51ddfed5cd30ab94",
+  "source_tree_sha": "60cc3593374cd8a19b8fd507f663e0305476bcdd",
+  "issue_url": "",
+  "pull_request_url": "https://github.com/pydata/xarray/pull/4248",
+  "archive_sha256": "2bc8dd70030044fb429d2e9db3738f6d229f3efb772a189461304dabbef7cab5",
+  "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-4248:latest",
+  "docker_image_config_digest": "sha256:d16aca15c86b2ef8a698600711bfde3559f794154a0edd4ac4213edf6b6fdf73",
+  "baseline_expected_failure": true,
+  "test_timeout_seconds": 180,
+  "docker_python": "/opt/miniconda3/envs/testbed/bin/python",
+  "visible_test_sha256": "39ce9e06f3470dfd42d2dbe09c5d87b9cbb95b9f2ee4a060893052cf939e68c7",
+  "visible_test_files": [
+    "xarray/tests/test_formatting.py"
+  ],
+  "source_file_manifest_sha256": "abfc99586ec9c744c7469f47923e2c11d30514890328ff2658b7ca894f18f503",
+  "license": "Apache-2.0",
+  "license_file": "LICENSE",
+  "license_file_sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68"
+}

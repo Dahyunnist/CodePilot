@@ -1,0 +1,35 @@
+{
+  "case_id": "mwaskom__seaborn-2848",
+  "category": "seaborn-hue-order-subset",
+  "instruction": "让 scatterplot 支持 hue_order 只列部分已观测类别，并隐藏未列类别对应的点和图例项。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "tests/test_relational.py",
+    "-p",
+    "no:cacheprovider",
+    "-k",
+    "test_hue_order",
+    "-q"
+  ],
+  "source_url": "https://github.com/mwaskom/seaborn",
+  "source_release": "94621cef29f80282436d73e8d2c0aa76dab81273",
+  "source_commit": "94621cef29f80282436d73e8d2c0aa76dab81273",
+  "source_tree_sha": "1517b39504f7cf0966a4668a39e783f4b98ac909",
+  "pull_request_url": "https://github.com/mwaskom/seaborn/pull/2848",
+  "archive_sha256": "c5dd9be0e160589707f4b7b026c211c8299f75582807ba7396f016cecebe52b4",
+  "docker_image": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-2848:latest",
+  "baseline_expected_failure": true,
+  "test_timeout_seconds": 120,
+  "docker_python": "/opt/miniconda3/envs/testbed/bin/python",
+  "visible_test_sha256": "541484e556dd195f73ef0d916820999fdcacdf28f591251656a6bed70715fd76",
+  "visible_test_files": [
+    "tests/test_relational.py"
+  ],
+  "source_file_manifest_sha256": "5096c61f7312c5848aee8a1136038c104e2add53dc5c1d03a9879b7b1a2f15d4",
+  "docker_image_config_digest": "sha256:d719470351e66623e532a4f23cdedfe8fb737147fe108e4b5829aa273528389d",
+  "license": "BSD-3-Clause",
+  "license_file": "LICENSE",
+  "license_file_sha256": "0874bfc01308833385b2f5ca62205525739f6a57b8688afea1b078d0f845d6d4"
+}

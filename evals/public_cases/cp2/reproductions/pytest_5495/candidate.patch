@@ -1,0 +1,34 @@
+diff --git a/src/_pytest/assertion/util.py b/src/_pytest/assertion/util.py
+--- a/src/_pytest/assertion/util.py
++++ b/src/_pytest/assertion/util.py
+@@ -86,7 +86,7 @@ def issequence(x):
+ 
+ 
+ def istext(x):
+-    return isinstance(x, str)
++    return isinstance(x, (str, bytes))
+ 
+ 
+ def isdict(x):
+diff --git a/testing/test_bytes_comparison_issue.py b/testing/test_bytes_comparison_issue.py
+new file mode 100644
+--- /dev/null
++++ b/testing/test_bytes_comparison_issue.py
+@@ -0,0 +1,17 @@
++from _pytest.assertion.util import assertrepr_compare
++
++
++class DummyConfig:
++    def getoption(self, name):
++        assert name == "verbose"
++        return 0
++
++
++def test_bytes_equality_uses_readable_byte_diff():
++    explanation = assertrepr_compare(DummyConfig(), "==", b"", b"42")
++
++    assert explanation == [
++        "b'' == b'42'",
++        "- '",
++        "+ '42",
++    ]

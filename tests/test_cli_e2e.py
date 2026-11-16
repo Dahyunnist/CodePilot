@@ -1,4 +1,5 @@
 import os
+import json
 import shutil
 import subprocess
 import re
@@ -106,6 +107,40 @@ def make_demo_repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "bug baseline"], cwd=repo, check=True)
     return repo
+
+
+def test_cli_validates_model_config_before_creating_workspace(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    repo = make_demo_repo(tmp_path)
+    workspace_root = tmp_path / "workspaces"
+    monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
+    for name in (
+        "LLM_MODEL",
+        "LLM_API_KEY",
+        "LLM_BASE_URL",
+        "LLM_TIMEOUT_SECONDS",
+        "LLM_MAX_COMPLETION_TOKENS",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    exit_code = main(
+        [
+            "run",
+            "--repo",
+            str(repo),
+            "--task",
+            "修复 parse_config 空输入问题。",
+            "--test-command",
+            "python -m pytest tests -q",
+            "--workspace-root",
+            str(workspace_root),
+        ]
+    )
+
+    assert exit_code == 2
+    assert "ModelConfig" in capsys.readouterr().err
+    assert not workspace_root.exists()
 
 
 def test_cli_repairs_demo_repository(tmp_path, capsys) -> None:
@@ -259,11 +294,49 @@ def test_cli_can_apply_successful_patch_to_external_repository(tmp_path, capsys)
     )
     assert changed.stdout.splitlines() == [" M config_parser.py"]
 
+    trace_path = tmp_path / "reports" / "traces" / f"{run_id}.jsonl"
+    events = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
+    assert {item["trace_id"] for item in events} == {run_id}
+    assert {item["run_id"] for item in events} == {run_id}
+    assert "writeback_approval_requested" in {item["event"] for item in events}
+    assert "writeback_approval_decided" in {item["event"] for item in events}
+    assert "writeback_started" in {item["event"] for item in events}
+    assert any(
+        item["event"] == "writeback_finished" and item.get("outcome") == "applied"
+        for item in events
+    )
+    checkpoint_events = [item for item in events if item["event"] == "checkpoint_resume"]
+    assert len(checkpoint_events) == 1
+    assert checkpoint_events[0]["outcome"] == "resumed"
+    tool_spans = {}
+    for item in events:
+        if item["event"] == "tool_started":
+            tool_spans[item["call_id"]] = item["span_id"]
+        if item["event"] == "tool_finished" and item.get("call_id"):
+            assert tool_spans[item["call_id"]] == item["span_id"]
+
     duplicate = main(
         ["resume", "--run-id", run_id, "--approve", "--state-db", str(state_db)]
     )
     assert duplicate == 2
     assert "拒绝重复恢复" in capsys.readouterr().err
+
+
+def test_cli_missing_checkpoint_does_not_emit_checkpoint_resume(tmp_path, capsys) -> None:
+    run_id = "missing-checkpoint"
+    reports = tmp_path / "reports"
+    exit_code = main([
+        "resume", "--run-id", run_id, "--reject",
+        "--state-db", str(tmp_path / "empty-state.sqlite"),
+        "--reports-root", str(reports),
+    ])
+
+    assert exit_code == 2
+    assert "错误：" in capsys.readouterr().err
+    trace_path = reports / "traces" / f"{run_id}.jsonl"
+    events = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
+    assert "resume_requested" in {item["event"] for item in events}
+    assert "checkpoint_resume" not in {item["event"] for item in events}
 
 
 def test_cli_rejects_writeback_after_restart(tmp_path, capsys) -> None:
@@ -349,3 +422,75 @@ def test_cli_refuses_to_apply_when_external_repository_is_dirty(tmp_path, capsys
     assert not model.requests
     assert (repo / "local.py").read_text(encoding="utf-8") == "uncommitted = True\n"
     assert "must be clean" in capsys.readouterr().err
+
+
+def test_cli_revalidates_tests_after_writeback_approval_resume(tmp_path, capsys) -> None:
+    repo = make_demo_repo(tmp_path)
+    state_db = tmp_path / "reports" / "run-state.sqlite"
+    counter = tmp_path / "test-runs.txt"
+    test_file = tmp_path / "test_resume_revalidation.py"
+    test_file.write_text(
+        "from pathlib import Path\n"
+        f"COUNTER = Path({str(counter)!r})\n"
+        "def test_only_second_run_passes():\n"
+        "    count = int(COUNTER.read_text() if COUNTER.exists() else '0')\n"
+        "    COUNTER.write_text(str(count + 1))\n"
+        "    assert count == 1\n",
+        encoding="utf-8",
+    )
+    test_command = f"python -m pytest {test_file.as_posix()} -q"
+    exit_code = main(
+        [
+            "run", "--repo", str(repo), "--task", "修复 parse_config 空输入问题。",
+            "--test-command", test_command, "--execution", "host",
+            "--approve-host-tests", "--workspace-root", str(tmp_path / "workspaces"),
+            "--reports-root", str(tmp_path / "reports"), "--apply-to-repo",
+            "--state-db", str(state_db),
+        ],
+        model_client=RepairScriptModel(),
+    )
+    assert exit_code == 3
+    pending = capsys.readouterr().out
+    match = re.search(r"运行 ID：([A-Za-z0-9_-]+)", pending)
+    assert match
+
+    resumed = main(
+        [
+            "resume", "--run-id", match.group(1), "--approve",
+            "--state-db", str(state_db), "--reports-root", str(tmp_path / "reports"),
+        ]
+    )
+
+    assert resumed == 1
+    output = capsys.readouterr().out
+    assert "恢复后的完整测试未通过" in output
+    assert counter.read_text(encoding="utf-8") == "3"
+    assert "if not line and text:\n" in (repo / "config_parser.py").read_text(encoding="utf-8")
+
+
+def test_cli_rejects_writeback_when_review_diff_is_truncated(tmp_path, capsys) -> None:
+    repo = make_demo_repo(tmp_path)
+    model = RepairScriptModel()
+    patch_call = model.replies[3].tool_calls[0]
+    arguments = dict(patch_call.arguments)
+    arguments["new_text"] += "\n        # " + ("review-limit-" * 2_000)
+    model.replies[3] = ModelReply(
+        tool_calls=[patch_call.model_copy(update={"arguments": arguments})]
+    )
+
+    exit_code = main(
+        [
+            "run", "--repo", str(repo), "--task", "修复 parse_config 空输入问题。",
+            "--test-command", "python -m pytest tests -q", "--execution", "host",
+            "--approve-host-tests", "--workspace-root", str(tmp_path / "workspaces"),
+            "--reports-root", str(tmp_path / "reports"), "--apply-to-repo",
+            "--state-db", str(tmp_path / "reports" / "run-state.sqlite"),
+        ],
+        model_client=model,
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "补丁完整差异无法被审批预览完整呈现" in output
+    assert "回写审批待处理" not in output
+    assert "if not line and text:\n" in (repo / "config_parser.py").read_text(encoding="utf-8")

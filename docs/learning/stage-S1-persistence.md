@@ -35,7 +35,7 @@ LangGraph checkpointer 保存图节点状态；`agent_progress` 保存运行于�
 
 ## 验证结果
 
-- NN 环境：`D:\Anaconda3\envs\NN\python.exe`；LangGraph `1.2.16`，SQLite checkpointer `3.1.2`。
+- NN 环境：`python`；LangGraph `1.2.16`，SQLite checkpointer `3.1.2`。
 - 回归测试：`D:\\Anaconda3\\envs\\NN\\python.exe -m pytest -q`，**76 passed**。
 - 最终版真实模型 + Docker fixture：`parse-config`，Agent `needs_approval`，5 步，10,215 tokens，7.5 秒；容器测试 `3 passed`。
 - Token 分解：输入 9,446（缓存命中 7,936，未命中 1,510），输出 769。运行在 2026-10-19 15:36 UTC；按官方非高峰价估算 **$0.000712**。DeepSeek 账单是最终金额；缓存命中和实际价格会影响费用。

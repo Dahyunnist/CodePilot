@@ -1,0 +1,61 @@
+{
+  "protocol_id": "cp4-skill-paired-prereg-v3",
+  "schema_version": 3,
+  "status": "preregistered-blocked-not-executed",
+  "source_revision": "150fbef5e3f5c99f97eadf33b4c7d4c4b20446c6",
+  "source_revision_note": "Clean release snapshot is pinned by frozen input hashes; this base commit identifies its origin.",
+  "model_calls": 0,
+  "claims_skill_improvement": false,
+  "model_configuration": {
+    "model_id": null,
+    "endpoint_sha256": null,
+    "status": "blocked_pending_model_preflight"
+  },
+  "runtime_configuration": {
+    "runtime_digest": null,
+    "status": "blocked_pending_pinned_runtime"
+  },
+  "budget_configuration": {
+    "authorized_campaign_cap_usd": "0.50",
+    "campaign_reserve_usd": null,
+    "status": "blocked_pending_fresh_balance_and_full_reserve"
+  },
+  "archive_protocol_sha256": {
+    "cp4-paired-protocol-2026-11-15.json": "d71d343398b7c385e32402ca1c1aa648006b6eafb40d208853f00295f3d6b066",
+    "cp4-paired-protocol-v2-2026-11-15.json": "4335a78d90577f90512a252ce4099d67ec4440000aa8d828bfb3de1c4e5bdca3"
+  },
+  "frozen_inputs_sha256": {
+    "codepilot/agent.py": "69ea1739a0d52d550e9db3aaf5237fda67f7c652151eaab461031f81a591b477",
+    "codepilot/prompts.py": "f4f6e3608b1339745ee5afe8e0baab5071c532df7963fb786a756954c156aa2b",
+    "codepilot/skills.py": "a5595b9a78078224ca15a7523f317b1a7cc75c2ebadec77998f01f767c4fee90",
+    "evals/compare_live_runs.py": "25282bc83c2c6a8d5945e0bdf86912c1eb69c2acf2186cd59d88577fc6f2654f",
+    "evals/live_runner.py": "40a56f947e486dc37208062315c0e0fa4585ba68e0bd4ea65b9f52e56058a5de",
+    "evals/skills/ablation.py": "0b9cabb97ad5108a74f8120d378267b1c924e49fc65f17a34ce1cac8d303fccb",
+    "evals/skills/paired-smoke.json": "d064b30c392fb33c0bdc68b9472182cda07b1b47c7f29171abe079d634396093",
+    "evals/skills/cases/skill-pytest-config/case.json": "dd9c13274588535d1382faa75ab52e1c93abfd264f1a98b1cd51fb5c70179b63",
+    "evals/skills/cases/skill-api-pagination/case.json": "3cd5ee43a2ebe63ee2a239cbac9fac236812443a3e309ca208eb6752cf47495f"
+  },
+  "evaluation_input_paths": [
+    "codepilot/agent.py",
+    "codepilot/prompts.py",
+    "codepilot/skills.py",
+    "evals/compare_live_runs.py",
+    "evals/live_runner.py",
+    "evals/skills/ablation.py",
+    "evals/skills/paired-smoke.json",
+    "evals/skills/cases/skill-pytest-config/case.json",
+    "evals/skills/cases/skill-api-pagination/case.json"
+  ],
+  "excluded_from_evaluation_inputs": [
+    "tests/test_cp4_prereg_v3.py",
+    "evals/skills/cp4-paired-protocol-v3-2026-11-16.json",
+    "docs/learning/cp4-prereg-v3-2026-11-16.md"
+  ],
+  "blockers": [
+    "fresh provider balance unavailable",
+    "model identity and endpoint not pinned",
+    "runtime digest not pinned",
+    "full reserve must fit existing USD 0.50 cap"
+  ],
+  "protocol_sha256": "cbc2623750b35643eef738b3c1cba09b5d22ebbfc9a5323949b8e796658f089f"
+}

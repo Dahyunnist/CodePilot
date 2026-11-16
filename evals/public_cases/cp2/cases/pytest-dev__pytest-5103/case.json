@@ -1,0 +1,37 @@
+{
+  "case_id": "pytest-dev__pytest-5103",
+  "category": "pytest-assertion-diagnostic",
+  "instruction": "改进 all(generator) 断言失败信息，使报告指出失败元素。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "testing/test_assertrewrite.py",
+    "-p",
+    "no:cacheprovider",
+    "-k",
+    "unroll",
+    "-q"
+  ],
+  "source_url": "https://github.com/pytest-dev/pytest",
+  "source_release": "10ca84ffc56c2dd2d9dc4bd71b7b898e083500cd",
+  "source_commit": "10ca84ffc56c2dd2d9dc4bd71b7b898e083500cd",
+  "source_tree_sha": "b4f1860291efcf9923b7977bed74e34299ac4ebb",
+  "issue_url": "https://github.com/pytest-dev/pytest/issues/5062",
+  "pull_request_url": "https://github.com/pytest-dev/pytest/pull/5103",
+  "archive_sha256": "9d159dd0e3e323b30657b38d727c7f0a56d64b147e166c3bd8205637a182ee98",
+  "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5103:latest",
+  "baseline_expected_failure": true,
+  "test_timeout_seconds": 120,
+  "docker_python": "/opt/miniconda3/envs/testbed/bin/python",
+  "visible_test_sha256": "9c83f9e71f2b26824ba5bab489bff0ffea1337d45aa0f57e98dab6640cd1a324",
+  "visible_test_files": [
+    "testing/test_assertrewrite.py"
+  ],
+  "source_file_manifest_sha256": "a35770d5072bfde72abbae118c5c2bbf7118ef34625711c2368fdbe2a3ecc05c",
+  "generated_version_sha256": "e9f276f3036f19ddf29332a5a3d33a10f6d326fa7f5af046dfc419fb3769f915",
+  "docker_image_config_digest": "sha256:1648c614485c81d9e08bcf9ec8014fb38cd2f20fad6bea782552d923a35ce714",
+  "license": "MIT",
+  "license_file": "LICENSE",
+  "license_file_sha256": "4be38574daf05665b6194e4fd84c5ef6ce7c3a2810308a5222d5cdffc2d04d18"
+}

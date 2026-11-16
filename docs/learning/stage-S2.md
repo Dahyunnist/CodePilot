@@ -18,7 +18,7 @@ S1 的真实模型闭环已通过三项任务，但读取文件没有说明依�
 
 ## 5. 测试结果与证据
 
-NN 环境执行 `D:\Anaconda3\envs\NN\python.exe -m pytest -q`：49 项通过。Docker 实时评测在本执行器因 Docker named pipe `permission denied` 无法启动；改用显式授权的 host 模式运行同三例，3/3 accepted，三项 patch SHA-256 与 S1 完全相同。
+NN 环境执行 `python -m pytest -q`：49 项通过。Docker 实时评测在本执行器因 Docker named pipe `permission denied` 无法启动；改用显式授权的 host 模式运行同三例，3/3 accepted，三项 patch SHA-256 与 S1 完全相同。
 
 | 案例 | S1 Docker tokens | S2 host tokens | Patch 相同 |
 | --- | ---: | ---: | --- |

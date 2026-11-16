@@ -54,7 +54,7 @@ Docker Desktop 版本 `29.1.3` 和镜像 `codepilot-public-runner:20261020` 均�
 
 - S20 首轮：0/2 accepted；两项冻结基线失败，两个上游金标准均通过可见和隐藏测试。
 - S20 首轮：0/2；最终只重跑 urllib3 一项，仍因 Token 预算停止，0/1。两项都未修改或测试。
-- 全项目回归：`D:\Anaconda3\envs\NN\python.exe -m pytest tests -q`，**120 passed in 39.78s**。
+- 全项目回归：`python -m pytest tests -q`，**120 passed in 39.78s**。
 - 仓库此前账面 `$0.899795`；本轮已返回 usage 的新增费用下限约 `$0.027897`，累计下限约 `$0.927692`。更早中断请求可能有未返回 usage 的费用，因此仍是下限，不是账单金额。
 - 本次 urllib3 最终重跑发生于非高峰时段；同一 usage 按 DeepSeek 峰时费率估算为 `$0.006489`。
 - 加入连续探索提醒/熔断后的 urllib3 重跑仍为 0/1；Agent 在 11,244 Token、约 15.8 秒处暂停，成本 `$0.000738`，未编辑或测试。后续修复提醒投递位置后，脚本定向测试 31 项、全套测试 **122 passed in 36.70s**。

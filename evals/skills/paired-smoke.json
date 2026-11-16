@@ -1,0 +1,20 @@
+{
+  "kind": "cp4-skill-paired-smoke",
+  "model_exposure": "none before freeze",
+  "cases": [
+    {
+      "case_id": "skill-pytest-config",
+      "metadata_sha256": "74c6230d80668b42224b364c9d834015fd7f6133c985df6bb386658666936d77",
+      "repo_tree_sha256": "0c79ae8bd63a7499b583aedecf334fd8791c78e3ad3a20e5bd99dfcc95a76443",
+      "visible_tests_sha256": "7feb778c3384a04598af4d8873463e93ee0ad6ddf78fea024b4bb52a8a71b5e5",
+      "hidden_tests_sha256": "5d87c6c5faa7d096ccf225e1afa29015e8dad533d218dc54539c697683c0ae19"
+    },
+    {
+      "case_id": "skill-api-pagination",
+      "metadata_sha256": "1afa2dbeca6c8e21cd1ce331d1deeb0b28bb7fb62cabffabd9516d1b7ffc7727",
+      "repo_tree_sha256": "3e40a8062e61729de8b9a73f4cc4716b0d2a345a72dd9e326ee0aa615bf9cf96",
+      "visible_tests_sha256": "62d7f27faa5267a125d694228248bd89eb8ee3fea809ba5bef453c73a3d1807c",
+      "hidden_tests_sha256": "a3aa605282786e8259865d867691c5365e2870c0398492be92dcfff503a006cc"
+    }
+  ]
+}

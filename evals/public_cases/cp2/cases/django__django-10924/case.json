@@ -1,0 +1,30 @@
+{
+  "case_id": "django__django-10924",
+  "category": "django-model-field-callable-path",
+  "instruction": "修复 FilePathField，使 callable path 在表单字段中正确解析，同时保留 migration deconstruction 行为。",
+  "test_command": [
+    "python",
+    "tests/runtests.py",
+    "model_fields.test_filepathfield.FilePathFieldTests.test_callable_path"
+  ],
+  "source_url": "https://github.com/django/django",
+  "source_release": "bceadd2788dc2dad53eba0caae172bd8522fd483",
+  "source_commit": "bceadd2788dc2dad53eba0caae172bd8522fd483",
+  "source_tree_sha": "7efb2d995f2a78b9b6a596303807d300a64febbf",
+  "issue_url": "https://code.djangoproject.com/ticket/29529",
+  "pull_request_url": "https://github.com/django/django/pull/10924",
+  "archive_sha256": "2bbbd4f11e9bc9f1f10a366c46b11770d81a84b4c36cddb39e8d38a4547d05a2",
+  "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-10924:latest",
+  "baseline_expected_failure": true,
+  "test_timeout_seconds": 120,
+  "docker_python": "/opt/miniconda3/envs/testbed/bin/python",
+  "visible_test_sha256": "3eef116418be88a96b984caf87089d3da8f04d8e7dca8fc86f03524c4806e831",
+  "visible_test_files": [
+    "tests/model_fields/test_filepathfield.py"
+  ],
+  "source_file_manifest_sha256": "862ed6c84db6cefeabe9932238548433802aca86ecd5e68de7aa8da0f9d8122a",
+  "docker_image_config_digest": "sha256:d41b289ea27a92ef6346702388e5ea0b8c8f48c41d83466a72c2dffb934007a1",
+  "license": "BSD-3-Clause",
+  "license_file": "LICENSE",
+  "license_file_sha256": "b846415d1b514e9c1dff14a22deb906d794bc546ca6129f950a18cd091e2a669"
+}

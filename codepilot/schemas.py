@@ -113,6 +113,8 @@ class Task(BaseModel):
     repo_path: Path
     instruction: str = Field(min_length=1)
     test_command: list[str] = Field(min_length=1)
+    baseline_test_observation: str | None = Field(default=None, max_length=3_000)
+    skill_id: str | None = Field(default=None, min_length=1, max_length=80)
     max_steps: int = Field(default=12, ge=1, le=50)
     max_test_attempts: int = Field(default=3, ge=1, le=20)
     max_elapsed_seconds: float = Field(default=300, gt=0)
@@ -132,6 +134,9 @@ class ToolResult(BaseModel):
     stderr: str = ""
     duration_ms: int = Field(default=0, ge=0)
     error_type: str | None = None
+    truncation_reason: str | None = None
+    original_chars: int | None = Field(default=None, ge=0)
+    retained_chars: int | None = Field(default=None, ge=0)
 
 
 AgentStatus = Literal[

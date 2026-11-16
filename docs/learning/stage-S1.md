@@ -46,7 +46,7 @@ DeepSeek 的纯文本请求先返回 `OK`，但 agent 首轮工具请求报 HTTP
 
 命令：`python -m evals.live_runner --execution host --approve-host-tests --output-root reports/live-model-run --work-root .tmp/live-model-run`
 
-本轮三案证据：`reports/live-model-20261019-s1-verified/results.csv`、每案 JSON、`test-logs/` 和对应 JSONL 轨迹。新增 runner 另以 parse-config 冒烟运行，结果 `1/1 accepted`，产物位于 `reports/live-model-20261019-s1-runner-smoke/`。测试命令：`D:\Anaconda3\envs\NN\python.exe -m pytest -q`，结果 **45 passed**；`python -m evals.live_runner --help` 和 `git diff --check` 也通过。
+本轮三案证据：`reports/live-model-20261019-s1-verified/results.csv`、每案 JSON、`test-logs/` 和对应 JSONL 轨迹。新增 runner 另以 parse-config 冒烟运行，结果 `1/1 accepted`，产物位于 `reports/live-model-20261019-s1-runner-smoke/`。测试命令：`python -m pytest -q`，结果 **45 passed**；`python -m evals.live_runner --help` 和 `git diff --check` 也通过。
 
 ## 6. 10–20 分钟动手实验
 

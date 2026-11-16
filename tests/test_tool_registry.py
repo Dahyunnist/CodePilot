@@ -73,6 +73,24 @@ def test_registry_builds_schema_and_dispatch_from_custom_tool(tmp_path) -> None:
     assert not invalid.ok and invalid.error_type == "validation"
 
 
+def test_registry_rejects_unregistered_model_requested_tool(tmp_path) -> None:
+    registry = ToolRegistry(tmp_path, ["python", "-m", "pytest"])
+    outside = tmp_path.parent / f"unknown-tool-{tmp_path.name}.txt"
+
+    result = registry.execute(
+        ToolCall(
+            id="injected-shell",
+            name="execute_shell",
+            arguments={"command": f"write {outside}"},
+        )
+    )
+
+    assert not result.ok
+    assert result.error_type == "ValueError"
+    assert "unknown tool" in result.stderr
+    assert not outside.exists()
+
+
 def test_registry_applies_tool_declared_approval_policy(tmp_path) -> None:
     registry = ToolRegistry(
         tmp_path,

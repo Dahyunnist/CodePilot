@@ -1,0 +1,37 @@
+{
+  "case_id": "pytest-dev__pytest-5221",
+  "category": "pytest --fixtures output includes each fixture's declared scope.",
+  "instruction": "Display fixture scope with `pytest --fixtures`\nIt would be useful to show fixture scopes with `pytest --fixtures`; currently the only way to learn the scope of a fixture is look at the docs (when that is documented) or at the source code.\n",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "testing/python/fixtures.py",
+    "-p",
+    "no:cacheprovider",
+    "-k",
+    "test_show_fixtures",
+    "-q"
+  ],
+  "source_url": "https://github.com/pytest-dev/pytest",
+  "source_release": "4a2fdce62b73944030cff9b3e52862868ca9584d",
+  "source_commit": "4a2fdce62b73944030cff9b3e52862868ca9584d",
+  "source_tree_sha": "3efcdc2414e6d778661034a058bec6d5ef85b145",
+  "issue_url": "",
+  "pull_request_url": "https://github.com/pytest-dev/pytest/pull/5221",
+  "archive_sha256": "15879a09935b18fa600dadfbc953bfdbe65b6f49d7eb88f8b254b03112881f04",
+  "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5221:latest",
+  "docker_image_config_digest": "sha256:547472f1933751a67623599dae697188232c9712a46ab66fb69330f88b911e5a",
+  "baseline_expected_failure": true,
+  "test_timeout_seconds": 180,
+  "docker_python": "/opt/miniconda3/envs/testbed/bin/python",
+  "visible_test_sha256": "e809992ec4886b761a524fda45600e611279fd9d702eaca9b721c04600ef84d9",
+  "visible_test_files": [
+    "testing/python/fixtures.py"
+  ],
+  "source_file_manifest_sha256": "27a8606c93a6799e84fb59590fe5737bdf4a6087892e118a97ea537983bb36b1",
+  "license": "MIT",
+  "license_file": "LICENSE",
+  "license_file_sha256": "4be38574daf05665b6194e4fd84c5ef6ce7c3a2810308a5222d5cdffc2d04d18",
+  "generated_version_sha256": "9807c29eb24e6b537fd48434df64a2e7b8bba047689d754984b9680d076eaee3"
+}

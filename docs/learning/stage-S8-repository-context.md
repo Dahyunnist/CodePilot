@@ -35,7 +35,7 @@
 
 ## 验证结果
 
-- NN 完整回归：`D:\Anaconda3\envs\NN\python.exe -m pytest -q`，**95 passed**。
+- NN 完整回归：`python -m pytest -q`，**95 passed**。
 - DeepSeek V4 Flash + Docker 实跑 `multi-bug-invoice`：**success，独立可见和隐藏测试均通过**；9 步，58,246 Tokens（输入 52,443，缓存输入 46,720，输出 5,803），估算费用 **$0.008961**，Agent 31.2 秒，全流程 34.1 秒。Agent 实际使用 `read_project_instructions`、`project_map`、`suggest_tests`、`run_selected_tests`，随后运行完整 `run_tests`。工具调用轨迹在 `reports/live-model-20261020-s8/`。
 - 本任务用量高于 S3 相同案例的成功记录；新工具 schema 与更细的上下文可能增加输入。单个 run 不能证明平均成本，需要在 S9 固定仓库任务集上重复统计。
 

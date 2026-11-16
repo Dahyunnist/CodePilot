@@ -1,0 +1,5 @@
+{"tasks":[
+ {"task_id":"django__django-10924","budget":1000,"reserved_patch":100,"reserved_test":200,"reserved_final":100,"evidence":[{"sha256":"a","tokens":400},{"sha256":"b","tokens":500},{"sha256":"a","tokens":400}]},
+ {"task_id":"pytest-dev__pytest-5103","budget":800,"reserved_patch":100,"reserved_test":200,"reserved_final":100,"evidence":[{"sha256":"c","tokens":300},{"sha256":"d","tokens":200}]},
+ {"task_id":"pydata__xarray-3364","budget":300,"reserved_patch":100,"reserved_test":150,"reserved_final":100,"evidence":[{"sha256":"e","tokens":200},{"sha256":"f","tokens":200}]}
+]}

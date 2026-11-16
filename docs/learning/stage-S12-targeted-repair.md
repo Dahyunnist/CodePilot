@@ -22,4 +22,4 @@ DeepSeek V4 Flash + Docker，修复 [Click issue #3145](https://github.com/palle
 
 - Click 基线可见回归：2 项失败，36 项原有测试通过。
 - 修复后 Agent 测试和独立可见测试：各 38 passed；隐藏测试：3 passed。
-- NN 完整测试：`D:\Anaconda3\envs\NN\python.exe -m pytest -q --basetemp .tmp/pytest-s12-final`，**100 passed**。
+- NN 完整测试：`python -m pytest -q --basetemp .tmp/pytest-s12-final`，**100 passed**。

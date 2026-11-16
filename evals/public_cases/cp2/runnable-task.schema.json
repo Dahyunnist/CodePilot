@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codepilot.local/schemas/cp2-runnable-task-v1.json",
+  "title": "CP-2 runnable task provenance and runtime contract",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "task_id", "repo", "base_commit", "base_commit_verified_in_image",
+    "public_reference", "license", "license_file_at_base", "license_file_sha256",
+    "license_evidence", "docker_image_ref", "docker_image_config_digest",
+    "visible_test_spec", "visible_test_spec_sha256", "visible_test_status",
+    "visible_test_sha256"
+  ],
+  "properties": {
+    "task_id": {"type":"string", "minLength":1},
+    "repo": {"type":"string", "pattern":"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+    "base_commit": {"type":"string", "pattern":"^[a-f0-9]{40}$"},
+    "base_commit_verified_in_image": {"const":true},
+    "public_reference": {"type":"string", "format":"uri", "pattern":"^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+$"},
+    "license": {"type":"string", "enum":["MIT", "BSD-3-Clause", "Apache-2.0"]},
+    "license_file_at_base": {"type":"string", "minLength":1},
+    "license_file_sha256": {"type":"string", "pattern":"^[a-f0-9]{64}$"},
+    "license_evidence": {"const":"verified_at_exact_base"},
+    "docker_image_ref": {"type":"string", "minLength":1},
+    "docker_image_config_digest": {"type":"string", "pattern":"^sha256:[a-f0-9]{64}$"},
+    "visible_test_spec": {"type":"string", "minLength":1},
+    "visible_test_spec_sha256": {"type":"string", "pattern":"^[a-f0-9]{64}$"},
+    "visible_test_status": {"const":"ready_and_baseline_verified"},
+    "visible_test_sha256": {"type":"string", "pattern":"^[a-f0-9]{64}$"}
+  }
+}

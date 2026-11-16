@@ -1,0 +1,31 @@
+{
+  "case_id": "mwaskom__seaborn-3010",
+  "category": "seaborn-polyfit-missing-data",
+  "instruction": "让 PolyFit 在 x/y 数据含缺失值时跳过缺失行，并与先 dropna 再拟合的结果一致。",
+  "test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "tests/_stats/test_regression.py",
+    "-p",
+    "no:cacheprovider",
+    "-k",
+    "test_missing_data",
+    "-q"
+  ],
+  "source_url": "https://github.com/mwaskom/seaborn",
+  "source_release": "0f5a013e2cf43562deec3b879458e59a73853813",
+  "source_commit": "0f5a013e2cf43562deec3b879458e59a73853813",
+  "source_tree_sha": "902c8d72200c6f62b6c62f8bc71039cb6148841d",
+  "pull_request_url": "https://github.com/mwaskom/seaborn/pull/3010",
+  "archive_sha256": "58e3374b966a99d1fc0d2705f9b30bbdd63c631fa6f4efe71a4254acc01f339c",
+  "docker_image": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-3010:latest",
+  "baseline_expected_failure": true,
+  "test_timeout_seconds": 120,
+  "docker_python": "/opt/miniconda3/envs/testbed/bin/python",
+  "visible_test_sha256": "c68053590168ce35c79d499e2b33e0e7ca3aff7319b0feb09770065c9bb66ad9",
+  "visible_test_files": [
+    "tests/_stats/test_regression.py"
+  ],
+  "source_file_manifest_sha256": "e569b160c14050ffc619ad47ce65e97dad8bde8cf9b5436d300f309abaeb0d25"
+}

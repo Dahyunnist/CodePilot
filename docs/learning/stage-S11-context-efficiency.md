@@ -9,7 +9,7 @@
 ## 验证
 
 - 上下文压缩回归覆盖首尾证据保留、重复压缩、原始字符数和工具调用 ID。
-- NN 完整测试：`D:\Anaconda3\envs\NN\python.exe -m pytest -q --basetemp .tmp/pytest-s11-cache-full`，**100 passed**。
+- NN 完整测试：`python -m pytest -q --basetemp .tmp/pytest-s11-cache-full`，**100 passed**。
 - Click 8.3.1 上游案例额外运行 5 次：621,397 Tokens、估算 `$0.151170`，累计评测约 241 秒。五次都没有达到 Agent 完整成功状态。
 - 两次独立可见和隐藏测试通过。最新一次在 20 步、182,459 Tokens、估算 `$0.038458` 后仍在探索，并因预算停止。
 - 另三次分别在 11 至 15 步、102,000 至 122,334 Tokens 后停止；其中一次写入补丁且独立测试均通过，但 Agent 自己的配置测试和最终答复未完成。详细轨迹与成本见 `reports/public-click3145-s11-*`；评分见 `reports/trajectory-score-s11/`。

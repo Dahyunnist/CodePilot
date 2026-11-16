@@ -1,0 +1,67 @@
+{
+  "model_calls": 0,
+  "network_enabled": false,
+  "agent_repair_attempted": false,
+  "results": [
+    {
+      "task_id": "django__django-10924",
+      "status": "blocked",
+      "exit_code": 125,
+      "elapsed_seconds": 0.12,
+      "summary": [],
+      "command": [
+        "python",
+        "tests/runtests.py",
+        "model_fields.test_filepathfield.FilePathFieldTests.test_callable_path"
+      ],
+      "image_config_digest": "sha256:d41b289ea27a92ef6346702388e5ea0b8c8f48c41d83466a72c2dffb934007a1",
+      "base_commit": "bceadd2788dc2dad53eba0caae172bd8522fd483",
+      "base_tree_sha": "7efb2d995f2a78b9b6a596303807d300a64febbf",
+      "visible_test_sha256": "3eef116418be88a96b984caf87089d3da8f04d8e7dca8fc86f03524c4806e831"
+    },
+    {
+      "task_id": "pytest-dev__pytest-5103",
+      "status": "blocked",
+      "exit_code": 125,
+      "elapsed_seconds": 0.11,
+      "summary": [],
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "testing/test_assertrewrite.py",
+        "-p",
+        "no:cacheprovider",
+        "-k",
+        "unroll",
+        "-q"
+      ],
+      "image_config_digest": "sha256:1648c614485c81d9e08bcf9ec8014fb38cd2f20fad6bea782552d923a35ce714",
+      "base_commit": "10ca84ffc56c2dd2d9dc4bd71b7b898e083500cd",
+      "base_tree_sha": "b4f1860291efcf9923b7977bed74e34299ac4ebb",
+      "visible_test_sha256": "9c83f9e71f2b26824ba5bab489bff0ffea1337d45aa0f57e98dab6640cd1a324"
+    },
+    {
+      "task_id": "mwaskom__seaborn-2848",
+      "status": "blocked",
+      "exit_code": 125,
+      "elapsed_seconds": 0.11,
+      "summary": [],
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_relational.py",
+        "-p",
+        "no:cacheprovider",
+        "-k",
+        "test_hue_order",
+        "-q"
+      ],
+      "image_config_digest": "sha256:d719470351e66623e532a4f23cdedfe8fb737147fe108e4b5829aa273528389d",
+      "base_commit": "94621cef29f80282436d73e8d2c0aa76dab81273",
+      "base_tree_sha": "1517b39504f7cf0966a4668a39e783f4b98ac909",
+      "visible_test_sha256": "541484e556dd195f73ef0d916820999fdcacdf28f591251656a6bed70715fd76"
+    }
+  ]
+}

@@ -1,0 +1,402 @@
+{
+  "benchmark": "SWE-bench Lite",
+  "dataset_revision": "SWE-bench/SWE-bench_Lite:test",
+  "dataset_source_sha256": "5cb74f0feb564d6c6bf3f51725384ca646b854d2713d62e86227a29af61d1a92",
+  "swebench_code_revision": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
+  "gold_patch_policy": "hash only; patch contents excluded",
+  "repository_count": 5,
+  "task_count": 20,
+  "tasks_per_repository": {
+    "django/django": 4,
+    "mwaskom/seaborn": 4,
+    "pydata/xarray": 4,
+    "pytest-dev/pytest": 4,
+    "scikit-learn/scikit-learn": 4
+  },
+  "tasks": [
+    {
+      "task_id": "django__django-10924",
+      "repo": "django/django",
+      "license": "BSD-3-Clause",
+      "base_commit": "bceadd2788dc2dad53eba0caae172bd8522fd483",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/django/django/pull/10924",
+      "problem_statement": "Allow FilePathField path to accept a callable.\nDescription\n\t\nI have a special case where I want to create a model containing the path to some local files on the server/dev machine. Seeing as the place where these files are stored is different on different machines I have the following:\nimport os\nfrom django.conf import settings\nfrom django.db import models\nclass LocalFiles(models.Model):\n\tname = models.CharField(max_length=255)\n\tfile = models.FilePathField(path=os.path.join(settings.LOCAL_FILE_DIR, 'example_dir'))\nNow when running manage.py makemigrations it will resolve the path based on the machine it is being run on. Eg: /home/<username>/server_files/example_dir\nI had to manually change the migration to include the os.path.join() part to not break this when running the migration on production/other machine.\n",
+      "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-10924:latest",
+      "created_at": "2019-02-03T11:30:12Z",
+      "problem_statement_sha256": "311f3ac50765782a0c786b04adbfc95cc87ac8c71c79c83d937de711aea8b3a9",
+      "hidden_test_patch_sha256": "418a17eede0c413fb5424bc202f1d1cd43d51ee67941370580e21b87be0550ce",
+      "gold_patch_sha256": "c15a336f335509fea0aa33a77e41b88e9ab95359f344a31fa7fa68eaa97165ac",
+      "hidden_test_files": [
+        "tests/model_fields/test_filepathfield.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 1
+    },
+    {
+      "task_id": "django__django-11001",
+      "repo": "django/django",
+      "license": "BSD-3-Clause",
+      "base_commit": "ef082ebb84f00e38af4e8880d04e8365c2766d34",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/django/django/pull/11001",
+      "problem_statement": "Incorrect removal of order_by clause created as multiline RawSQL\nDescription\n\t\nHi.\nThe SQLCompiler is ripping off one of my \"order by\" clause, because he \"thinks\" the clause was already \"seen\" (in SQLCompiler.get_order_by()). I'm using expressions written as multiline RawSQLs, which are similar but not the same. \nThe bug is located in SQLCompiler.get_order_by(), somewhere around line computing part of SQL query without ordering:\nwithout_ordering = self.ordering_parts.search(sql).group(1)\nThe sql variable contains multiline sql. As a result, the self.ordering_parts regular expression is returning just a line containing ASC or DESC words. This line is added to seen set, and because my raw queries have identical last lines, only the first clasue is returing from SQLCompiler.get_order_by().\nAs a quick/temporal fix I can suggest making sql variable clean of newline characters, like this:\nsql_oneline = ' '.join(sql.split('\\n'))\nwithout_ordering = self.ordering_parts.search(sql_oneline).group(1)\nNote: beware of unicode (Py2.x u'') and EOL dragons (\\r).\nExample of my query:\n\treturn MyModel.objects.all().order_by(\n\t\tRawSQL('''\n\t\t\tcase when status in ('accepted', 'verification')\n\t\t\t\t then 2 else 1 end''', []).desc(),\n\t\tRawSQL('''\n\t\t\tcase when status in ('accepted', 'verification')\n\t\t\t\t then (accepted_datetime, preferred_datetime)\n\t\t\t\t else null end''', []).asc(),\n\t\tRawSQL('''\n\t\t\tcase when status not in ('accepted', 'verification')\n\t\t\t\t then (accepted_datetime, preferred_datetime, created_at)\n\t\t\t\t else null end''', []).desc())\nThe ordering_parts.search is returing accordingly:\n'\t\t\t\t then 2 else 1 end)'\n'\t\t\t\t else null end'\n'\t\t\t\t else null end'\nSecond RawSQL with a\t\t\t\t else null end part is removed from query.\nThe fun thing is that the issue can be solved by workaround by adding a space or any other char to the last line. \nSo in case of RawSQL I can just say, that current implementation of avoiding duplicates in order by clause works only for special/rare cases (or does not work in all cases). \nThe bug filed here is about wrong identification of duplicates (because it compares only last line of SQL passed to order by clause).\nHope my notes will help you fixing the issue. Sorry for my english.\n",
+      "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-11001:latest",
+      "created_at": "2019-02-17T13:02:09Z",
+      "problem_statement_sha256": "328687883868f41f912690a4f9eb7c43d69d2ac70d89c93ec818a6d9244cdfb2",
+      "hidden_test_patch_sha256": "77691e7ec1c8244184431810e9cd8ea1cdff612626677b7ae9f74259ee112a7a",
+      "gold_patch_sha256": "ad6b8e8ed7854750e064ea5008306035931828a60ba85a65918763880eb71c34",
+      "hidden_test_files": [
+        "tests/expressions/tests.py"
+      ],
+      "fail_to_pass_count": 2,
+      "pass_to_pass_count": 118
+    },
+    {
+      "task_id": "django__django-11099",
+      "repo": "django/django",
+      "license": "BSD-3-Clause",
+      "base_commit": "d26b2424437dabeeca94d7900b37d2df4410da0c",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/django/django/pull/11099",
+      "problem_statement": "UsernameValidator allows trailing newline in usernames\nDescription\n\t\nASCIIUsernameValidator and UnicodeUsernameValidator use the regex \nr'^[\\w.@+-]+$'\nThe intent is to only allow alphanumeric characters as well as ., @, +, and -. However, a little known quirk of Python regexes is that $ will also match a trailing newline. Therefore, the user name validators will accept usernames which end with a newline. You can avoid this behavior by instead using \\A and \\Z to terminate regexes. For example, the validator regex could be changed to\nr'\\A[\\w.@+-]+\\Z'\nin order to reject usernames that end with a newline.\nI am not sure how to officially post a patch, but the required change is trivial - using the regex above in the two validators in contrib.auth.validators.\n",
+      "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-11099:latest",
+      "created_at": "2019-03-20T03:46:18Z",
+      "problem_statement_sha256": "b0526bc6d9268fe373bf624621c8d5f560fc6b0ffae7e64b460d84f6726f3ed5",
+      "hidden_test_patch_sha256": "04959a592788c803778193589f239dfcc5f7caa80597363dca6f2504debfb238",
+      "gold_patch_sha256": "cf203df5a90df3747f2d9a59cb0d02620d70228c29cb0c3477e5509056c19c09",
+      "hidden_test_files": [
+        "tests/auth_tests/test_validators.py"
+      ],
+      "fail_to_pass_count": 3,
+      "pass_to_pass_count": 19
+    },
+    {
+      "task_id": "django__django-11133",
+      "repo": "django/django",
+      "license": "BSD-3-Clause",
+      "base_commit": "879cc3da6249e920b8d54518a0ae06de835d7373",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/django/django/pull/11133",
+      "problem_statement": "HttpResponse doesn't handle memoryview objects\nDescription\n\t\nI am trying to write a BinaryField retrieved from the database into a HttpResponse. When the database is Sqlite this works correctly, but Postgresql returns the contents of the field as a memoryview object and it seems like current Django doesn't like this combination:\nfrom django.http import HttpResponse\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t \n# String content\nresponse = HttpResponse(\"My Content\")\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\nresponse.content\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t \n# Out: b'My Content'\n# This is correct\n# Bytes content\nresponse = HttpResponse(b\"My Content\")\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t \nresponse.content\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t \n# Out: b'My Content'\n# This is also correct\n# memoryview content\nresponse = HttpResponse(memoryview(b\"My Content\"))\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t \nresponse.content\n# Out: b'<memory at 0x7fcc47ab2648>'\n# This is not correct, I am expecting b'My Content'\n",
+      "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-11133:latest",
+      "created_at": "2019-03-27T06:48:09Z",
+      "problem_statement_sha256": "a7f427b7eb3f746b6985030b467a99099e6e3453319297a41e35effa7c32b8ed",
+      "hidden_test_patch_sha256": "ef28eb84141ad909c3732fc7473368f1c6a22510e9ed51190401876db8e003f9",
+      "gold_patch_sha256": "a0fd6d0a4a1c733a1c6f98cbb524604ea24e643c26c5fcb152be4bfb29fb1c3d",
+      "hidden_test_files": [
+        "tests/httpwrappers/tests.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 64
+    },
+    {
+      "task_id": "pytest-dev__pytest-5103",
+      "repo": "pytest-dev/pytest",
+      "license": "MIT",
+      "base_commit": "10ca84ffc56c2dd2d9dc4bd71b7b898e083500cd",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pytest-dev/pytest/pull/5103",
+      "problem_statement": "Unroll the iterable for all/any calls to get better reports\nSometime I need to assert some predicate on all of an iterable, and for that the builtin functions `all`/`any` are great - but the failure messages aren't useful at all!\r\nFor example - the same test written in three ways:\r\n\r\n- A generator expression\r\n```sh                                                                                                                                                                                                                         \r\n    def test_all_even():\r\n        even_stevens = list(range(1,100,2))\r\n>       assert all(is_even(number) for number in even_stevens)\r\nE       assert False\r\nE        +  where False = all(<generator object test_all_even.<locals>.<genexpr> at 0x101f82ed0>)\r\n```\r\n- A list comprehension\r\n```sh\r\n    def test_all_even():\r\n        even_stevens = list(range(1,100,2))\r\n>       assert all([is_even(number) for number in even_stevens])\r\nE       assert False\r\nE        +  where False = all([False, False, False, False, False, False, ...])\r\n```\r\n- A for loop\r\n```sh\r\n    def test_all_even():\r\n        even_stevens = list(range(1,100,2))\r\n        for number in even_stevens:\r\n>           assert is_even(number)\r\nE           assert False\r\nE            +  where False = is_even(1)\r\n\r\ntest_all_any.py:7: AssertionError\r\n```\r\nThe only one that gives a meaningful report is the for loop - but it's way more wordy, and `all` asserts don't translate to a for loop nicely (I'll have to write a `break` or a helper function - yuck)\r\nI propose the assertion re-writer \"unrolls\" the iterator to the third form, and then uses the already existing reports.\r\n\r\n- [x] Include a detailed description of the bug or suggestion\r\n- [x] `pip list` of the virtual environment you are using\r\n```\r\nPackage        Version\r\n-------------- -------\r\natomicwrites   1.3.0  \r\nattrs          19.1.0 \r\nmore-itertools 7.0.0  \r\npip            19.0.3 \r\npluggy         0.9.0  \r\npy             1.8.0  \r\npytest         4.4.0  \r\nsetuptools     40.8.0 \r\nsix            1.12.0 \r\n```\r\n- [x] pytest and operating system versions\r\n`platform darwin -- Python 3.7.3, pytest-4.4.0, py-1.8.0, pluggy-0.9.0`\r\n- [x] Minimal example if possible\r\n\n",
+      "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5103:latest",
+      "created_at": "2019-04-13T16:17:45Z",
+      "problem_statement_sha256": "92b5c0a0c415a78c9b42b5cfab6f2137190332221fbce3c857d42d0e196fdb0c",
+      "hidden_test_patch_sha256": "89740f6cb7127fc954eb9fa2a84e7b6df26e77f18b76bf96b50db5bfb0ba5c86",
+      "gold_patch_sha256": "5b621eb0099e1e4eeb2bcb42f24a48b15b540e46fe23403475890578f546680c",
+      "hidden_test_files": [
+        "testing/test_assertrewrite.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 64
+    },
+    {
+      "task_id": "pytest-dev__pytest-5221",
+      "repo": "pytest-dev/pytest",
+      "license": "MIT",
+      "base_commit": "4a2fdce62b73944030cff9b3e52862868ca9584d",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pytest-dev/pytest/pull/5221",
+      "problem_statement": "Display fixture scope with `pytest --fixtures`\nIt would be useful to show fixture scopes with `pytest --fixtures`; currently the only way to learn the scope of a fixture is look at the docs (when that is documented) or at the source code.\n",
+      "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5221:latest",
+      "created_at": "2019-05-06T22:36:44Z",
+      "problem_statement_sha256": "7757789a50241137ed7228f2ffefc2eb41894ac79ce25871635a53d05a3caf23",
+      "hidden_test_patch_sha256": "2ef78e8e8f6ae6965c52756f15af115a80e980bcb52dfe7147a7d38c6f70de08",
+      "gold_patch_sha256": "be5549ceff2ee5643ad3743e8919241e16ebf9549c79c68cd56a0ee3aaaf666b",
+      "hidden_test_files": [
+        "testing/python/fixtures.py"
+      ],
+      "fail_to_pass_count": 2,
+      "pass_to_pass_count": 170
+    },
+    {
+      "task_id": "pytest-dev__pytest-5413",
+      "repo": "pytest-dev/pytest",
+      "license": "MIT",
+      "base_commit": "450d2646233c670654744d3d24330b69895bb9d2",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pytest-dev/pytest/pull/5413",
+      "problem_statement": "str() on the pytest.raises context variable doesn't behave same as normal exception catch\nPytest 4.6.2, macOS 10.14.5\r\n\r\n```Python\r\ntry:\r\n    raise LookupError(\r\n        f\"A\\n\"\r\n        f\"B\\n\"\r\n        f\"C\"\r\n    )\r\nexcept LookupError as e:\r\n    print(str(e))\r\n```\r\nprints\r\n\r\n> A\r\n> B\r\n> C\r\n\r\nBut\r\n\r\n```Python\r\nwith pytest.raises(LookupError) as e:\r\n    raise LookupError(\r\n        f\"A\\n\"\r\n        f\"B\\n\"\r\n        f\"C\"\r\n    )\r\n\r\nprint(str(e))\r\n```\r\n\r\nprints\r\n\r\n> <console>:3: LookupError: A\r\n\r\nIn order to get the full error message, one must do `str(e.value)`, which is documented, but this is a different interaction. Any chance the behavior could be changed to eliminate this gotcha?\r\n\r\n-----\r\n\r\nPip list gives\r\n\r\n```\r\nPackage            Version  Location\r\n------------------ -------- ------------------------------------------------------\r\napipkg             1.5\r\nasn1crypto         0.24.0\r\natomicwrites       1.3.0\r\nattrs              19.1.0\r\naws-xray-sdk       0.95\r\nboto               2.49.0\r\nboto3              1.9.51\r\nbotocore           1.12.144\r\ncertifi            2019.3.9\r\ncffi               1.12.3\r\nchardet            3.0.4\r\nClick              7.0\r\ncodacy-coverage    1.3.11\r\ncolorama           0.4.1\r\ncoverage           4.5.3\r\ncryptography       2.6.1\r\ndecorator          4.4.0\r\ndocker             3.7.2\r\ndocker-pycreds     0.4.0\r\ndocutils           0.14\r\necdsa              0.13.2\r\nexecnet            1.6.0\r\nfuture             0.17.1\r\nidna               2.8\r\nimportlib-metadata 0.17\r\nipaddress          1.0.22\r\nJinja2             2.10.1\r\njmespath           0.9.4\r\njsondiff           1.1.1\r\njsonpickle         1.1\r\njsonschema         2.6.0\r\nMarkupSafe         1.1.1\r\nmock               3.0.4\r\nmore-itertools     7.0.0\r\nmoto               1.3.7\r\nneobolt            1.7.10\r\nneotime            1.7.4\r\nnetworkx           2.1\r\nnumpy              1.15.0\r\npackaging          19.0\r\npandas             0.24.2\r\npip                19.1.1\r\npluggy             0.12.0\r\nprompt-toolkit     2.0.9\r\npy                 1.8.0\r\npy2neo             4.2.0\r\npyaml              19.4.1\r\npycodestyle        2.5.0\r\npycparser          2.19\r\npycryptodome       3.8.1\r\nPygments           2.3.1\r\npyOpenSSL          19.0.0\r\npyparsing          2.4.0\r\npytest             4.6.2\r\npytest-cache       1.0\r\npytest-codestyle   1.4.0\r\npytest-cov         2.6.1\r\npytest-forked      1.0.2\r\npython-dateutil    2.7.3\r\npython-jose        2.0.2\r\npytz               2018.5\r\nPyYAML             5.1\r\nrequests           2.21.0\r\nrequests-mock      1.5.2\r\nresponses          0.10.6\r\ns3transfer         0.1.13\r\nsetuptools         41.0.1\r\nsix                1.11.0\r\nsqlite3worker      1.1.7\r\ntabulate           0.8.3\r\nurllib3            1.24.3\r\nwcwidth            0.1.7\r\nwebsocket-client   0.56.0\r\nWerkzeug           0.15.2\r\nwheel              0.33.1\r\nwrapt              1.11.1\r\nxlrd               1.1.0\r\nxmltodict          0.12.0\r\nzipp               0.5.1\r\n```\n",
+      "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5413:latest",
+      "created_at": "2019-06-06T15:21:20Z",
+      "problem_statement_sha256": "d07de38ad8ef1399524db3d22cd5127e01ba3242e1c48cc37d5b397598d1b94d",
+      "hidden_test_patch_sha256": "96a694cd889a4b1597e144bc9c0a127960111eab7621b805711b8ebe5ccad8f2",
+      "gold_patch_sha256": "34f5b421e92cf10334e75169f11e7f4a6e20cec510e6b679d26eb455e093e53f",
+      "hidden_test_files": [
+        "testing/code/test_excinfo.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 92
+    },
+    {
+      "task_id": "pytest-dev__pytest-5495",
+      "repo": "pytest-dev/pytest",
+      "license": "MIT",
+      "base_commit": "1aefb24b37c30fba8fd79a744829ca16e252f340",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pytest-dev/pytest/pull/5495",
+      "problem_statement": "Confusing assertion rewriting message with byte strings\nThe comparison with assertion rewriting for byte strings is confusing: \r\n```\r\n    def test_b():\r\n>       assert b\"\" == b\"42\"\r\nE       AssertionError: assert b'' == b'42'\r\nE         Right contains more items, first extra item: 52\r\nE         Full diff:\r\nE         - b''\r\nE         + b'42'\r\nE         ?   ++\r\n```\r\n\r\n52 is the ASCII ordinal of \"4\" here.\r\n\r\nIt became clear to me when using another example:\r\n\r\n```\r\n    def test_b():\r\n>       assert b\"\" == b\"1\"\r\nE       AssertionError: assert b'' == b'1'\r\nE         Right contains more items, first extra item: 49\r\nE         Full diff:\r\nE         - b''\r\nE         + b'1'\r\nE         ?   +\r\n```\r\n\r\nNot sure what should/could be done here.\n",
+      "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5495:latest",
+      "created_at": "2019-06-25T23:41:16Z",
+      "problem_statement_sha256": "335421f7964c21193a8c352db84c8d1948fac7cb8f870bd2d6f857c91332f733",
+      "hidden_test_patch_sha256": "ffed6b9dd4e8e7deb186cd4b1b3d183a92f9cf7003235b0fa3147b010114c4b2",
+      "gold_patch_sha256": "4346eff024daf047d9dbb3c759eb53952edb7c57e613424f8f4fb98e999ca8b1",
+      "hidden_test_files": [
+        "testing/test_assertion.py"
+      ],
+      "fail_to_pass_count": 2,
+      "pass_to_pass_count": 86
+    },
+    {
+      "task_id": "pydata__xarray-3364",
+      "repo": "pydata/xarray",
+      "license": "Apache-2.0",
+      "base_commit": "863e49066ca4d61c9adfe62aca3bf21b90e1af8c",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pydata/xarray/pull/3364",
+      "problem_statement": "Ignore missing variables when concatenating datasets?\nSeveral users (@raj-kesavan, @richardotis, now myself) have wondered about how to concatenate xray Datasets with different variables.\n\nWith the current `xray.concat`, you need to awkwardly create dummy variables filled with `NaN` in datasets that don't have them (or drop mismatched variables entirely). Neither of these are great options -- `concat` should have an option (the default?) to take care of this for the user.\n\nThis would also be more consistent with `pd.concat`, which takes a more relaxed approach to matching dataframes with different variables (it does an outer join).\n\n",
+      "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-3364:latest",
+      "created_at": "2019-10-01T21:15:54Z",
+      "problem_statement_sha256": "e78b63861fd05452bec851896facf0a702c5d8313fc29d27d7b2cc57f0d4776d",
+      "hidden_test_patch_sha256": "648f0daea9ee38f4b30f37dff4af749701cf1675d5d916a2ee5a9d3325b9669c",
+      "gold_patch_sha256": "dd7e65a94252a1c6d387e771082a11d8af8cdc23045e987fa2c2e1729b274eb3",
+      "hidden_test_files": [
+        "xarray/tests/test_combine.py",
+        "xarray/tests/test_concat.py"
+      ],
+      "fail_to_pass_count": 2,
+      "pass_to_pass_count": 110
+    },
+    {
+      "task_id": "pydata__xarray-4094",
+      "repo": "pydata/xarray",
+      "license": "Apache-2.0",
+      "base_commit": "a64cf2d5476e7bbda099b34c40b7be1880dbd39a",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pydata/xarray/pull/4094",
+      "problem_statement": "to_unstacked_dataset broken for single-dim variables\n<!-- A short summary of the issue, if appropriate -->\r\n\r\n\r\n#### MCVE Code Sample\r\n\r\n```python\r\narr = xr.DataArray(\r\n     np.arange(3),\r\n     coords=[(\"x\", [0, 1, 2])],\r\n )\r\ndata = xr.Dataset({\"a\": arr, \"b\": arr})\r\nstacked = data.to_stacked_array('y', sample_dims=['x'])\r\nunstacked = stacked.to_unstacked_dataset('y')\r\n# MergeError: conflicting values for variable 'y' on objects to be combined. You can skip this check by specifying compat='override'.\r\n```\r\n\r\n#### Expected Output\r\nA working roundtrip.\r\n\r\n#### Problem Description\r\nI need to stack a bunch of variables and later unstack them again, however this doesn't work if the variables only have a single dimension.\r\n\r\n#### Versions\r\n\r\n<details><summary>Output of <tt>xr.show_versions()</tt></summary>\r\n\r\nINSTALLED VERSIONS\r\n------------------\r\ncommit: None\r\npython: 3.7.3 (default, Mar 27 2019, 22:11:17) \r\n[GCC 7.3.0]\r\npython-bits: 64\r\nOS: Linux\r\nOS-release: 4.15.0-96-generic\r\nmachine: x86_64\r\nprocessor: x86_64\r\nbyteorder: little\r\nLC_ALL: None\r\nLANG: en_GB.UTF-8\r\nLOCALE: en_GB.UTF-8\r\nlibhdf5: 1.10.4\r\nlibnetcdf: 4.6.2\r\n\r\nxarray: 0.15.1\r\npandas: 1.0.3\r\nnumpy: 1.17.3\r\nscipy: 1.3.1\r\nnetCDF4: 1.4.2\r\npydap: None\r\nh5netcdf: None\r\nh5py: 2.10.0\r\nNio: None\r\nzarr: None\r\ncftime: 1.0.4.2\r\nnc_time_axis: None\r\nPseudoNetCDF: None\r\nrasterio: None\r\ncfgrib: None\r\niris: None\r\nbottleneck: None\r\ndask: 2.10.1\r\ndistributed: 2.10.0\r\nmatplotlib: 3.1.1\r\ncartopy: None\r\nseaborn: 0.10.0\r\nnumbagg: None\r\nsetuptools: 41.0.0\r\npip: 19.0.3\r\nconda: 4.8.3\r\npytest: 5.3.5\r\nIPython: 7.9.0\r\nsphinx: None\r\n\r\n\r\n</details>\r\n\n",
+      "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-4094:latest",
+      "created_at": "2020-05-26T00:36:02Z",
+      "problem_statement_sha256": "4c60cee2e4247fd72e76052ae5938216ea38eca360d5b87d2a006d71bf4a91bc",
+      "hidden_test_patch_sha256": "3caf7bfbd1a31fc971a0aff74f090c426939bd36946300c3c5f54c30908ad24b",
+      "gold_patch_sha256": "79eac1b06943072daa994e5fb5e7fc9e5eef5e6c34ea151cb550aa09f2da2b3a",
+      "hidden_test_files": [
+        "xarray/tests/test_dataset.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 862
+    },
+    {
+      "task_id": "pydata__xarray-4248",
+      "repo": "pydata/xarray",
+      "license": "Apache-2.0",
+      "base_commit": "98dc1f4ea18738492e074e9e51ddfed5cd30ab94",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pydata/xarray/pull/4248",
+      "problem_statement": "Feature request: show units in dataset overview\nHere's a hypothetical dataset:\r\n\r\n```\r\n<xarray.Dataset>\r\nDimensions:  (time: 3, x: 988, y: 822)\r\nCoordinates:\r\n  * x         (x) float64 ...\r\n  * y         (y) float64 ...\r\n  * time      (time) datetime64[ns] ...\r\nData variables:\r\n    rainfall  (time, y, x) float32 ...\r\n    max_temp  (time, y, x) float32 ...\r\n```\r\n\r\nIt would be really nice if the units of the coordinates and of the data variables were shown in the `Dataset` repr, for example as:\r\n\r\n```\r\n<xarray.Dataset>\r\nDimensions:  (time: 3, x: 988, y: 822)\r\nCoordinates:\r\n  * x, in metres         (x)            float64 ...\r\n  * y, in metres         (y)            float64 ...\r\n  * time                 (time)         datetime64[ns] ...\r\nData variables:\r\n    rainfall, in mm      (time, y, x)   float32 ...\r\n    max_temp, in deg C   (time, y, x)   float32 ...\r\n```\n",
+      "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-4248:latest",
+      "created_at": "2020-07-22T14:54:03Z",
+      "problem_statement_sha256": "c3ed7e2a4bcf766f85ad8d923d929840f46121409ceae0a80412b840bfed69a4",
+      "hidden_test_patch_sha256": "c295e6acb9392b7f9b5a89b45bc53049472ed16319c5626198653d0e77ac5fc6",
+      "gold_patch_sha256": "cb60278c84b3245408864d4fde2f83e88229e920e6345b0f64ed74092b8f02d2",
+      "hidden_test_files": [
+        "xarray/tests/test_formatting.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 18
+    },
+    {
+      "task_id": "pydata__xarray-4493",
+      "repo": "pydata/xarray",
+      "license": "Apache-2.0",
+      "base_commit": "a5f53e203c52a7605d5db799864046471115d04f",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/pydata/xarray/pull/4493",
+      "problem_statement": "DataSet.update causes chunked dask DataArray to evalute its values eagerly \n**What happened**:\r\nUsed `DataSet.update` to update a chunked dask DataArray, but the DataArray is no longer chunked after the update.\r\n\r\n**What you expected to happen**:\r\nThe chunked DataArray should still be chunked after the update\r\n\r\n**Minimal Complete Verifiable Example**:\r\n\r\n```python\r\nfoo = xr.DataArray(np.random.randn(3, 3), dims=(\"x\", \"y\")).chunk()  # foo is chunked\r\nds = xr.Dataset({\"foo\": foo, \"bar\": (\"x\", [1, 2, 3])})  # foo is still chunked here\r\nds  # you can verify that foo is chunked\r\n```\r\n```python\r\nupdate_dict = {\"foo\": ((\"x\", \"y\"), ds.foo[1:, :]), \"bar\": (\"x\", ds.bar[1:])}\r\nupdate_dict[\"foo\"][1]  # foo is still chunked\r\n```\r\n```python\r\nds.update(update_dict)\r\nds  # now foo is no longer chunked\r\n```\r\n\r\n**Environment**:\r\n\r\n<details><summary>Output of <tt>xr.show_versions()</tt></summary>\r\n\r\n```\r\ncommit: None\r\npython: 3.8.3 (default, Jul  2 2020, 11:26:31) \r\n[Clang 10.0.0 ]\r\npython-bits: 64\r\nOS: Darwin\r\nOS-release: 19.6.0\r\nmachine: x86_64\r\nprocessor: i386\r\nbyteorder: little\r\nLC_ALL: None\r\nLANG: en_US.UTF-8\r\nLOCALE: en_US.UTF-8\r\nlibhdf5: 1.10.6\r\nlibnetcdf: None\r\n\r\nxarray: 0.16.0\r\npandas: 1.0.5\r\nnumpy: 1.18.5\r\nscipy: 1.5.0\r\nnetCDF4: None\r\npydap: None\r\nh5netcdf: None\r\nh5py: 2.10.0\r\nNio: None\r\nzarr: None\r\ncftime: None\r\nnc_time_axis: None\r\nPseudoNetCDF: None\r\nrasterio: None\r\ncfgrib: None\r\niris: None\r\nbottleneck: None\r\ndask: 2.20.0\r\ndistributed: 2.20.0\r\nmatplotlib: 3.2.2\r\ncartopy: None\r\nseaborn: None\r\nnumbagg: None\r\npint: None\r\nsetuptools: 49.2.0.post20200714\r\npip: 20.1.1\r\nconda: None\r\npytest: 5.4.3\r\nIPython: 7.16.1\r\nsphinx: None\r\n```\r\n\r\n</details>\nDataset constructor with DataArray triggers computation\nIs it intentional that creating a Dataset with a DataArray and dimension names for a single variable causes computation of that variable?  In other words, why does ```xr.Dataset(dict(a=('d0', xr.DataArray(da.random.random(10)))))``` cause the dask array to compute?\r\n\r\nA longer example:\r\n\r\n```python\r\nimport dask.array as da\r\nimport xarray as xr\r\nx = da.random.randint(1, 10, size=(100, 25))\r\nds = xr.Dataset(dict(a=xr.DataArray(x, dims=('x', 'y'))))\r\ntype(ds.a.data)\r\ndask.array.core.Array\r\n\r\n# Recreate the dataset with the same array, but also redefine the dimensions\r\nds2 = xr.Dataset(dict(a=(('x', 'y'), ds.a))\r\ntype(ds2.a.data)\r\nnumpy.ndarray\r\n```\r\n\r\n\n",
+      "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-4493:latest",
+      "created_at": "2020-10-06T22:00:41Z",
+      "problem_statement_sha256": "723ae169b1dc02a4cd019f77a45872d49fe9163bda914d5ee20c65b14a42dc1b",
+      "hidden_test_patch_sha256": "c39c7c8cebace60e973e36a1691c3b969f6a75994088cb1a939bb1f840ccbe48",
+      "gold_patch_sha256": "22bc8533c9a98fcafe60dac9502e8196f2b7fd50cfd1e6225bb6f4be43522a47",
+      "hidden_test_files": [
+        "xarray/tests/test_dask.py",
+        "xarray/tests/test_dataset.py",
+        "xarray/tests/test_interp.py",
+        "xarray/tests/test_variable.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 1689
+    },
+    {
+      "task_id": "mwaskom__seaborn-2848",
+      "repo": "mwaskom/seaborn",
+      "license": "BSD-3-Clause",
+      "base_commit": "94621cef29f80282436d73e8d2c0aa76dab81273",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/mwaskom/seaborn/pull/2848",
+      "problem_statement": "pairplot fails with hue_order not containing all hue values in seaborn 0.11.1\nIn seaborn < 0.11, one could plot only a subset of the values in the hue column, by passing a hue_order list containing only the desired values. Points with hue values not in the list were simply not plotted.\n```python\niris = sns.load_dataset(\"iris\")`\n# The hue column contains three different species; here we want to plot two\nsns.pairplot(iris, hue=\"species\", hue_order=[\"setosa\", \"versicolor\"])\n```\n\nThis no longer works in 0.11.1. Passing a hue_order list that does not contain some of the values in the hue column raises a long, ugly error traceback. The first exception arises in seaborn/_core.py:\n```\nTypeError: ufunc 'isnan' not supported for the input types, and the inputs could not be safely coerced to any supported types according to the casting rule ''safe''\n```\nseaborn version: 0.11.1\nmatplotlib version: 3.3.2\nmatplotlib backends: MacOSX, Agg or jupyter notebook inline.",
+      "docker_image": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-2848:latest",
+      "created_at": "2022-06-11T18:21:32Z",
+      "problem_statement_sha256": "cd082639d3b926a1902ff2477194396f758aa4e5fd3742dbbf9c25190e22a282",
+      "hidden_test_patch_sha256": "ac2da37d734c9c3c388b098ae9b631c8c06bf4590e4449ca2d186d68baad6e9d",
+      "gold_patch_sha256": "c57a9e1c3469d1fa115576ec277fa828a7a5e4b32c41e3975bc5b426cf33048d",
+      "hidden_test_files": [
+        "tests/test_relational.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 50
+    },
+    {
+      "task_id": "mwaskom__seaborn-3010",
+      "repo": "mwaskom/seaborn",
+      "license": "BSD-3-Clause",
+      "base_commit": "0f5a013e2cf43562deec3b879458e59a73853813",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/mwaskom/seaborn/pull/3010",
+      "problem_statement": "PolyFit is not robust to missing data\n```python\r\nso.Plot([1, 2, 3, None, 4], [1, 2, 3, 4, 5]).add(so.Line(), so.PolyFit())\r\n```\r\n\r\n<details><summary>Traceback</summary>\r\n\r\n```python-traceback\r\n---------------------------------------------------------------------------\r\nLinAlgError                               Traceback (most recent call last)\r\nFile ~/miniconda3/envs/seaborn-py39-latest/lib/python3.9/site-packages/IPython/core/formatters.py:343, in BaseFormatter.__call__(self, obj)\r\n    341     method = get_real_method(obj, self.print_method)\r\n    342     if method is not None:\r\n--> 343         return method()\r\n    344     return None\r\n    345 else:\r\n\r\nFile ~/code/seaborn/seaborn/_core/plot.py:265, in Plot._repr_png_(self)\r\n    263 def _repr_png_(self) -> tuple[bytes, dict[str, float]]:\r\n--> 265     return self.plot()._repr_png_()\r\n\r\nFile ~/code/seaborn/seaborn/_core/plot.py:804, in Plot.plot(self, pyplot)\r\n    800 \"\"\"\r\n    801 Compile the plot spec and return the Plotter object.\r\n    802 \"\"\"\r\n    803 with theme_context(self._theme_with_defaults()):\r\n--> 804     return self._plot(pyplot)\r\n\r\nFile ~/code/seaborn/seaborn/_core/plot.py:822, in Plot._plot(self, pyplot)\r\n    819 plotter._setup_scales(self, common, layers, coord_vars)\r\n    821 # Apply statistical transform(s)\r\n--> 822 plotter._compute_stats(self, layers)\r\n    824 # Process scale spec for semantic variables and coordinates computed by stat\r\n    825 plotter._setup_scales(self, common, layers)\r\n\r\nFile ~/code/seaborn/seaborn/_core/plot.py:1110, in Plotter._compute_stats(self, spec, layers)\r\n   1108     grouper = grouping_vars\r\n   1109 groupby = GroupBy(grouper)\r\n-> 1110 res = stat(df, groupby, orient, scales)\r\n   1112 if pair_vars:\r\n   1113     data.frames[coord_vars] = res\r\n\r\nFile ~/code/seaborn/seaborn/_stats/regression.py:41, in PolyFit.__call__(self, data, groupby, orient, scales)\r\n     39 def __call__(self, data, groupby, orient, scales):\r\n---> 41     return groupby.apply(data, self._fit_predict)\r\n\r\nFile ~/code/seaborn/seaborn/_core/groupby.py:109, in GroupBy.apply(self, data, func, *args, **kwargs)\r\n    106 grouper, groups = self._get_groups(data)\r\n    108 if not grouper:\r\n--> 109     return self._reorder_columns(func(data, *args, **kwargs), data)\r\n    111 parts = {}\r\n    112 for key, part_df in data.groupby(grouper, sort=False):\r\n\r\nFile ~/code/seaborn/seaborn/_stats/regression.py:30, in PolyFit._fit_predict(self, data)\r\n     28     xx = yy = []\r\n     29 else:\r\n---> 30     p = np.polyfit(x, y, self.order)\r\n     31     xx = np.linspace(x.min(), x.max(), self.gridsize)\r\n     32     yy = np.polyval(p, xx)\r\n\r\nFile <__array_function__ internals>:180, in polyfit(*args, **kwargs)\r\n\r\nFile ~/miniconda3/envs/seaborn-py39-latest/lib/python3.9/site-packages/numpy/lib/polynomial.py:668, in polyfit(x, y, deg, rcond, full, w, cov)\r\n    666 scale = NX.sqrt((lhs*lhs).sum(axis=0))\r\n    667 lhs /= scale\r\n--> 668 c, resids, rank, s = lstsq(lhs, rhs, rcond)\r\n    669 c = (c.T/scale).T  # broadcast scale coefficients\r\n    671 # warn on rank reduction, which indicates an ill conditioned matrix\r\n\r\nFile <__array_function__ internals>:180, in lstsq(*args, **kwargs)\r\n\r\nFile ~/miniconda3/envs/seaborn-py39-latest/lib/python3.9/site-packages/numpy/linalg/linalg.py:2300, in lstsq(a, b, rcond)\r\n   2297 if n_rhs == 0:\r\n   2298     # lapack can't handle n_rhs = 0 - so allocate the array one larger in that axis\r\n   2299     b = zeros(b.shape[:-2] + (m, n_rhs + 1), dtype=b.dtype)\r\n-> 2300 x, resids, rank, s = gufunc(a, b, rcond, signature=signature, extobj=extobj)\r\n   2301 if m == 0:\r\n   2302     x[...] = 0\r\n\r\nFile ~/miniconda3/envs/seaborn-py39-latest/lib/python3.9/site-packages/numpy/linalg/linalg.py:101, in _raise_linalgerror_lstsq(err, flag)\r\n    100 def _raise_linalgerror_lstsq(err, flag):\r\n--> 101     raise LinAlgError(\"SVD did not converge in Linear Least Squares\")\r\n\r\nLinAlgError: SVD did not converge in Linear Least Squares\r\n\r\n```\r\n\r\n</details>\n",
+      "docker_image": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-3010:latest",
+      "created_at": "2022-09-11T19:37:32Z",
+      "problem_statement_sha256": "71aa98ceff4d378b09f725df7802741eda6523061adade9ecf6931e23eec7092",
+      "hidden_test_patch_sha256": "1ba4f740fddbe1d3e1b82f09cf4dc724bd0d65eeed3a108f0892519b0ec8761b",
+      "gold_patch_sha256": "2d282a78db2b88dc42330fea5dc78b0551629b7d15c6d5b22f20c57a2ee3d1d7",
+      "hidden_test_files": [
+        "tests/_stats/test_regression.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 2
+    },
+    {
+      "task_id": "mwaskom__seaborn-3190",
+      "repo": "mwaskom/seaborn",
+      "license": "BSD-3-Clause",
+      "base_commit": "4a9e54962a29c12a8b103d75f838e0e795a6974d",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/mwaskom/seaborn/pull/3190",
+      "problem_statement": "Color mapping fails with boolean data\n```python\r\nso.Plot([\"a\", \"b\"], [1, 2], color=[True, False]).add(so.Bar())\r\n```\r\n```python-traceback\r\n---------------------------------------------------------------------------\r\nTypeError                                 Traceback (most recent call last)\r\n...\r\nFile ~/code/seaborn/seaborn/_core/plot.py:841, in Plot._plot(self, pyplot)\r\n    838 plotter._compute_stats(self, layers)\r\n    840 # Process scale spec for semantic variables and coordinates computed by stat\r\n--> 841 plotter._setup_scales(self, common, layers)\r\n    843 # TODO Remove these after updating other methods\r\n    844 # ---- Maybe have debug= param that attaches these when True?\r\n    845 plotter._data = common\r\n\r\nFile ~/code/seaborn/seaborn/_core/plot.py:1252, in Plotter._setup_scales(self, p, common, layers, variables)\r\n   1250     self._scales[var] = Scale._identity()\r\n   1251 else:\r\n-> 1252     self._scales[var] = scale._setup(var_df[var], prop)\r\n   1254 # Everything below here applies only to coordinate variables\r\n   1255 # We additionally skip it when we're working with a value\r\n   1256 # that is derived from a coordinate we've already processed.\r\n   1257 # e.g., the Stat consumed y and added ymin/ymax. In that case,\r\n   1258 # we've already setup the y scale and ymin/max are in scale space.\r\n   1259 if axis is None or (var != coord and coord in p._variables):\r\n\r\nFile ~/code/seaborn/seaborn/_core/scales.py:351, in ContinuousBase._setup(self, data, prop, axis)\r\n    349 vmin, vmax = axis.convert_units((vmin, vmax))\r\n    350 a = forward(vmin)\r\n--> 351 b = forward(vmax) - forward(vmin)\r\n    353 def normalize(x):\r\n    354     return (x - a) / b\r\n\r\nTypeError: numpy boolean subtract, the `-` operator, is not supported, use the bitwise_xor, the `^` operator, or the logical_xor function instead.\r\n```\n",
+      "docker_image": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-3190:latest",
+      "created_at": "2022-12-18T17:13:51Z",
+      "problem_statement_sha256": "b189f6544bb5121d2266ea261b8dc4ee25a61e1c437f324941be74407bd15981",
+      "hidden_test_patch_sha256": "01e17193a78a28dd4f466984444568127713dc21a3f1fc6a75a30ddec5aacefe",
+      "gold_patch_sha256": "e014761e43e1a1d3eb8879a4ac67aadc810db3aab87701a8f499ba7c4571fe77",
+      "hidden_test_files": [
+        "tests/_core/test_scales.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 84
+    },
+    {
+      "task_id": "mwaskom__seaborn-3407",
+      "repo": "mwaskom/seaborn",
+      "license": "BSD-3-Clause",
+      "base_commit": "515286e02be3e4c0ff2ef4addb34a53c4a676ee4",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/mwaskom/seaborn/pull/3407",
+      "problem_statement": "pairplot raises KeyError with MultiIndex DataFrame\nWhen trying to pairplot a MultiIndex DataFrame, `pairplot` raises a `KeyError`:\r\n\r\nMRE:\r\n\r\n```python\r\nimport numpy as np\r\nimport pandas as pd\r\nimport seaborn as sns\r\n\r\n\r\ndata = {\r\n    (\"A\", \"1\"): np.random.rand(100),\r\n    (\"A\", \"2\"): np.random.rand(100),\r\n    (\"B\", \"1\"): np.random.rand(100),\r\n    (\"B\", \"2\"): np.random.rand(100),\r\n}\r\ndf = pd.DataFrame(data)\r\nsns.pairplot(df)\r\n```\r\n\r\nOutput:\r\n\r\n```\r\n[c:\\Users\\KLuu\\anaconda3\\lib\\site-packages\\seaborn\\axisgrid.py](file:///C:/Users/KLuu/anaconda3/lib/site-packages/seaborn/axisgrid.py) in pairplot(data, hue, hue_order, palette, vars, x_vars, y_vars, kind, diag_kind, markers, height, aspect, corner, dropna, plot_kws, diag_kws, grid_kws, size)\r\n   2142     diag_kws.setdefault(\"legend\", False)\r\n   2143     if diag_kind == \"hist\":\r\n-> 2144         grid.map_diag(histplot, **diag_kws)\r\n   2145     elif diag_kind == \"kde\":\r\n   2146         diag_kws.setdefault(\"fill\", True)\r\n\r\n[c:\\Users\\KLuu\\anaconda3\\lib\\site-packages\\seaborn\\axisgrid.py](file:///C:/Users/KLuu/anaconda3/lib/site-packages/seaborn/axisgrid.py) in map_diag(self, func, **kwargs)\r\n   1488                 plt.sca(ax)\r\n   1489 \r\n-> 1490             vector = self.data[var]\r\n   1491             if self._hue_var is not None:\r\n   1492                 hue = self.data[self._hue_var]\r\n\r\n[c:\\Users\\KLuu\\anaconda3\\lib\\site-packages\\pandas\\core\\frame.py](file:///C:/Users/KLuu/anaconda3/lib/site-packages/pandas/core/frame.py) in __getitem__(self, key)\r\n   3765             if is_iterator(key):\r\n   3766                 key = list(key)\r\n-> 3767             indexer = self.columns._get_indexer_strict(key, \"columns\")[1]\r\n   3768 \r\n   3769         # take() does not accept boolean indexers\r\n\r\n[c:\\Users\\KLuu\\anaconda3\\lib\\site-packages\\pandas\\core\\indexes\\multi.py](file:///C:/Users/KLuu/anaconda3/lib/site-packages/pandas/core/indexes/multi.py) in _get_indexer_strict(self, key, axis_name)\r\n   2534             indexer = self._get_indexer_level_0(keyarr)\r\n   2535 \r\n-> 2536             self._raise_if_missing(key, indexer, axis_name)\r\n   2537             return self[indexer], indexer\r\n   2538 \r\n\r\n[c:\\Users\\KLuu\\anaconda3\\lib\\site-packages\\pandas\\core\\indexes\\multi.py](file:///C:/Users/KLuu/anaconda3/lib/site-packages/pandas/core/indexes/multi.py) in _raise_if_missing(self, key, indexer, axis_name)\r\n   2552                 cmask = check == -1\r\n   2553                 if cmask.any():\r\n-> 2554                     raise KeyError(f\"{keyarr[cmask]} not in index\")\r\n   2555                 # We get here when levels still contain values which are not\r\n   2556                 # actually in Index anymore\r\n\r\nKeyError: \"['1'] not in index\"\r\n```\r\n\r\nA workaround is to \"flatten\" the columns:\r\n\r\n```python\r\ndf.columns = [\"\".join(column) for column in df.columns]\r\n```\n",
+      "docker_image": "swebench/sweb.eval.x86_64.mwaskom_1776_seaborn-3407:latest",
+      "created_at": "2023-06-27T23:17:29Z",
+      "problem_statement_sha256": "939310cab884e1dace12dac0bba8576389711bfa3a3c5c79afcc97e8661ef950",
+      "hidden_test_patch_sha256": "ae7ef0f0f93f59681eab94fd38e1301d26b566915cf4bec5dcd74d46d6eae3cd",
+      "gold_patch_sha256": "a1d60cf5bd6ca42f45bbd89aef9d736758cdf9ca4c81357efddf7fb78a942b1a",
+      "hidden_test_files": [
+        "tests/test_axisgrid.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 120
+    },
+    {
+      "task_id": "scikit-learn__scikit-learn-10508",
+      "repo": "scikit-learn/scikit-learn",
+      "license": "BSD-3-Clause",
+      "base_commit": "c753b77ac49e72ebc0fe5e3c2369fe628f975017",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/scikit-learn/scikit-learn/pull/10508",
+      "problem_statement": "LabelEncoder transform fails for empty lists (for certain inputs)\nPython 3.6.3, scikit_learn 0.19.1\r\n\r\nDepending on which datatypes were used to fit the LabelEncoder, transforming empty lists works or not. Expected behavior would be that empty arrays are returned in both cases.\r\n\r\n```python\r\n>>> from sklearn.preprocessing import LabelEncoder\r\n>>> le = LabelEncoder()\r\n>>> le.fit([1,2])\r\nLabelEncoder()\r\n>>> le.transform([])\r\narray([], dtype=int64)\r\n>>> le.fit([\"a\",\"b\"])\r\nLabelEncoder()\r\n>>> le.transform([])\r\nTraceback (most recent call last):\r\n  File \"[...]\\Python36\\lib\\site-packages\\numpy\\core\\fromnumeric.py\", line 57, in _wrapfunc\r\n    return getattr(obj, method)(*args, **kwds)\r\nTypeError: Cannot cast array data from dtype('float64') to dtype('<U32') according to the rule 'safe'\r\n\r\nDuring handling of the above exception, another exception occurred:\r\n\r\nTraceback (most recent call last):\r\n  File \"<stdin>\", line 1, in <module>\r\n  File \"[...]\\Python36\\lib\\site-packages\\sklearn\\preprocessing\\label.py\", line 134, in transform\r\n    return np.searchsorted(self.classes_, y)\r\n  File \"[...]\\Python36\\lib\\site-packages\\numpy\\core\\fromnumeric.py\", line 1075, in searchsorted\r\n    return _wrapfunc(a, 'searchsorted', v, side=side, sorter=sorter)\r\n  File \"[...]\\Python36\\lib\\site-packages\\numpy\\core\\fromnumeric.py\", line 67, in _wrapfunc\r\n    return _wrapit(obj, method, *args, **kwds)\r\n  File \"[...]\\Python36\\lib\\site-packages\\numpy\\core\\fromnumeric.py\", line 47, in _wrapit\r\n    result = getattr(asarray(obj), method)(*args, **kwds)\r\nTypeError: Cannot cast array data from dtype('float64') to dtype('<U32') according to the rule 'safe'\r\n```\n",
+      "docker_image": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-10508:latest",
+      "created_at": "2018-01-19T18:00:29Z",
+      "problem_statement_sha256": "78a56f2b40bed531f50fce13f4a877943b003df526983ca62afcfae8cfe3e94f",
+      "hidden_test_patch_sha256": "4f1ae3a3d971cda5b992dfd7323ba0419033674b373e0afc2a5c5f0692a29e6b",
+      "gold_patch_sha256": "7664039eb8b692bddab2bcf1ad5e20b59cd319827a8b2b792818b0769d5d6065",
+      "hidden_test_files": [
+        "sklearn/preprocessing/tests/test_label.py"
+      ],
+      "fail_to_pass_count": 2,
+      "pass_to_pass_count": 18
+    },
+    {
+      "task_id": "scikit-learn__scikit-learn-10949",
+      "repo": "scikit-learn/scikit-learn",
+      "license": "BSD-3-Clause",
+      "base_commit": "3b5abf76597ce6aff76192869f92647c1b5259e7",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/scikit-learn/scikit-learn/pull/10949",
+      "problem_statement": "warn_on_dtype with DataFrame\n#### Description\r\n\r\n``warn_on_dtype`` has no effect when input is a pandas ``DataFrame``\r\n\r\n#### Steps/Code to Reproduce\r\n```python\r\nfrom sklearn.utils.validation import check_array\r\nimport pandas as pd\r\ndf = pd.DataFrame([[1, 2, 3], [2, 3, 4]], dtype=object)\r\nchecked = check_array(df, warn_on_dtype=True)\r\n```\r\n\r\n#### Expected result: \r\n\r\n```python-traceback\r\nDataConversionWarning: Data with input dtype object was converted to float64.\r\n```\r\n\r\n#### Actual Results\r\nNo warning is thrown\r\n\r\n#### Versions\r\nLinux-4.4.0-116-generic-x86_64-with-debian-stretch-sid\r\nPython 3.6.3 |Anaconda, Inc.| (default, Nov  3 2017, 19:19:16) \r\n[GCC 7.2.0]\r\nNumPy 1.13.1\r\nSciPy 0.19.1\r\nScikit-Learn 0.20.dev0\r\nPandas 0.21.0\r\n\nwarn_on_dtype with DataFrame\n#### Description\r\n\r\n``warn_on_dtype`` has no effect when input is a pandas ``DataFrame``\r\n\r\n#### Steps/Code to Reproduce\r\n```python\r\nfrom sklearn.utils.validation import check_array\r\nimport pandas as pd\r\ndf = pd.DataFrame([[1, 2, 3], [2, 3, 4]], dtype=object)\r\nchecked = check_array(df, warn_on_dtype=True)\r\n```\r\n\r\n#### Expected result: \r\n\r\n```python-traceback\r\nDataConversionWarning: Data with input dtype object was converted to float64.\r\n```\r\n\r\n#### Actual Results\r\nNo warning is thrown\r\n\r\n#### Versions\r\nLinux-4.4.0-116-generic-x86_64-with-debian-stretch-sid\r\nPython 3.6.3 |Anaconda, Inc.| (default, Nov  3 2017, 19:19:16) \r\n[GCC 7.2.0]\r\nNumPy 1.13.1\r\nSciPy 0.19.1\r\nScikit-Learn 0.20.dev0\r\nPandas 0.21.0\r\n\n",
+      "docker_image": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-10949:latest",
+      "created_at": "2018-04-10T15:30:56Z",
+      "problem_statement_sha256": "40f5a61a0ce68793a6b95f704e7f2be7f23716e4d7794d5c123607612cc2473b",
+      "hidden_test_patch_sha256": "9cddddbfebbc73cb20a3afd28968a7a2c79b20ea91ced1e5d8fdf45c15f74841",
+      "gold_patch_sha256": "aa168cdbc5873f2b6658f12c884eacb82802b44ab74259f7266aa5d9d8f8f913",
+      "hidden_test_files": [
+        "sklearn/utils/tests/test_validation.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 42
+    },
+    {
+      "task_id": "scikit-learn__scikit-learn-11040",
+      "repo": "scikit-learn/scikit-learn",
+      "license": "BSD-3-Clause",
+      "base_commit": "96a02f3934952d486589dddd3f00b40d5a5ab5f2",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/scikit-learn/scikit-learn/pull/11040",
+      "problem_statement": "Missing parameter validation in Neighbors estimator for float n_neighbors\n```python\r\nfrom sklearn.neighbors import NearestNeighbors\r\nfrom sklearn.datasets import make_blobs\r\nX, y = make_blobs()\r\nneighbors = NearestNeighbors(n_neighbors=3.)\r\nneighbors.fit(X)\r\nneighbors.kneighbors(X)\r\n```\r\n```\r\n~/checkout/scikit-learn/sklearn/neighbors/binary_tree.pxi in sklearn.neighbors.kd_tree.NeighborsHeap.__init__()\r\n\r\nTypeError: 'float' object cannot be interpreted as an integer\r\n```\r\nThis should be caught earlier and a more helpful error message should be raised (or we could be lenient and cast to integer, but I think a better error might be better).\r\n\r\nWe need to make sure that \r\n```python\r\nneighbors.kneighbors(X, n_neighbors=3.)\r\n```\r\nalso works.\n",
+      "docker_image": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-11040:latest",
+      "created_at": "2018-04-28T07:18:33Z",
+      "problem_statement_sha256": "579ad8e224f9138de8b94e75bf84b8d5f07120c852819c677960ff853eccd050",
+      "hidden_test_patch_sha256": "fc59843536ebe943a5f698e424994dfc410e3d76b643e5d8ab18cefcdf33a785",
+      "gold_patch_sha256": "d770bda380b128a8d911b61f4694928eba0685d0585a1c7a32f0f28b05aaa7b2",
+      "hidden_test_files": [
+        "sklearn/neighbors/tests/test_neighbors.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 44
+    },
+    {
+      "task_id": "scikit-learn__scikit-learn-12471",
+      "repo": "scikit-learn/scikit-learn",
+      "license": "BSD-3-Clause",
+      "base_commit": "02dc9ed680e7f53f1b0d410dcdd37341c7958eb1",
+      "issue_url": "",
+      "pull_request_url": "https://github.com/scikit-learn/scikit-learn/pull/12471",
+      "problem_statement": "OneHotEncoder ignore unknown error when categories are strings \n#### Description\r\n\r\nThis bug is very specific, but it happens when you set OneHotEncoder to ignore unknown entries.\r\nand your labels are strings. The memory of the arrays is not handled safely and it can lead to a ValueError\r\n\r\nBasically, when you call the transform method it will sets all the unknown strings on your array to OneHotEncoder.categories_[i][0] which is the first category alphabetically sorted given for fit\r\nIf this OneHotEncoder.categories_[i][0] is a long string, and the array that you want to transform has small strings, then it is impossible to fit the whole  OneHotEncoder.categories_[i][0] into the entries of the array we want to transform. So  OneHotEncoder.categories_[i][0]  is truncated and this raise the ValueError.\r\n\r\n\r\n\r\n#### Steps/Code to Reproduce\r\n```\r\n\r\nimport numpy as np\r\nfrom sklearn.preprocessing import OneHotEncoder\r\n\r\n\r\n# It needs to be numpy arrays, the error does not appear \r\n# is you have lists of lists because it gets treated like an array of objects.\r\ntrain  = np.array([ '22','333','4444','11111111' ]).reshape((-1,1))\r\ntest   = np.array([ '55555',  '22' ]).reshape((-1,1))\r\n\r\nohe = OneHotEncoder(dtype=bool,handle_unknown='ignore')\r\n\r\nohe.fit( train )\r\nenc_test = ohe.transform( test )\r\n\r\n```\r\n\r\n\r\n#### Expected Results\r\nHere we should get an sparse matrix 2x4 false everywhere except at (1,1) the '22' that is known\r\n\r\n#### Actual Results\r\n\r\n> ValueError: y contains previously unseen labels: ['111111']\r\n\r\n\r\n#### Versions\r\nSystem:\r\n    python: 2.7.12 (default, Dec  4 2017, 14:50:18)  [GCC 5.4.0 20160609]\r\n   machine: Linux-4.4.0-138-generic-x86_64-with-Ubuntu-16.04-xenial\r\nexecutable: /usr/bin/python\r\n\r\nBLAS:\r\n    macros: HAVE_CBLAS=None\r\ncblas_libs: openblas, openblas\r\n  lib_dirs: /usr/lib\r\n\r\nPython deps:\r\n    Cython: 0.25.2\r\n     scipy: 0.18.1\r\nsetuptools: 36.7.0\r\n       pip: 9.0.1\r\n     numpy: 1.15.2\r\n    pandas: 0.19.1\r\n   sklearn: 0.21.dev0\r\n\r\n\r\n\r\n#### Comments\r\n\r\nI already implemented a fix for this issue, where I check the size of the elements in the array before, and I cast them into objects if necessary.\n",
+      "docker_image": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-12471:latest",
+      "created_at": "2018-10-27T10:43:48Z",
+      "problem_statement_sha256": "20df1c9b7a5d2546ea810066ddfde4ff94e69d23084cd0ac43d95be23752053c",
+      "hidden_test_patch_sha256": "bc69e5d24abf9bc58a1ec74919d9f74b08de89a8471b7c596afdb698a10ed2d8",
+      "gold_patch_sha256": "bffe9a207f0b6fa5ddde03c26e6a25d1167c8f0e33d17fc48662d6128f67e5b5",
+      "hidden_test_files": [
+        "sklearn/preprocessing/tests/test_encoders.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 53
+    }
+  ]
+}

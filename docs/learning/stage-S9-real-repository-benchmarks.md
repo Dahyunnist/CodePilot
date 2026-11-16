@@ -42,7 +42,7 @@ v3-run1 写入了与上游修复一致的补丁，独立可见和隐藏测试都
 
 ## 外部仓库回写
 
-S3 已在 `E:\job\.tmp\codepilot-s3-external-repo` 验证完整流程：外部仓库建基线、独立工作区修复、Docker 测试、暂停等待、由第二个 CLI 进程批准并回写、回写后在源仓库复测。补丁只改 `config_parser.py`，最终 3 项测试通过；完整记录见 `docs/learning/stage-S3-project-context.md` 和 `reports/live-model-20261020-s3-writeback-external/`。
+S3 已在 `<WORKSPACE_PATH>` 验证完整流程：外部仓库建基线、独立工作区修复、Docker 测试、暂停等待、由第二个 CLI 进程批准并回写、回写后在源仓库复测。补丁只改 `config_parser.py`，最终 3 项测试通过；完整记录见 `docs/learning/stage-S3-project-context.md` 和 `reports/live-model-20261020-s3-writeback-external/`。
 
 ## 阶段结论与后续
 
@@ -52,5 +52,5 @@ S3 已在 `E:\job\.tmp\codepilot-s3-external-repo` 验证完整流程：外部�
 
 ## 验证
 
-- NN 环境完整测试：`D:\Anaconda3\envs\NN\python.exe -m pytest -q`，**96 passed**。
+- NN 环境完整测试：`python -m pytest -q`，**96 passed**。
 - 源代码差异的 `git diff --check` 通过；归档的原始 pytest 日志保留测试工具输出的空白字符。

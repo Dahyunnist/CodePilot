@@ -1,0 +1,57 @@
+{
+  "benchmark": "CP-4 三仓库 Skill 开关配对试验",
+  "frozen_at": "2026-10-23",
+  "parent_manifest": "../cp3/fresh-holdout-2026-10-23.json",
+  "parent_manifest_sha256": "b87a51c991bf7ad04e26b440fedc25878a9c85ac46b4ef83e7532dd043f2471d",
+  "agent_code_git_sha": "9483255a888e2cb46d6046fb69d0bca331396b35",
+  "model": "deepseek-v4-flash",
+  "api_endpoint": "https://api.deepseek.com",
+  "execution": "docker",
+  "context_selector_enabled": true,
+  "pairing": "每题以指定 Skill 与 skill_id=none 配对；其余配置与案例哈希相同。",
+  "strict_acceptance": "Agent 正常 success，Agent 完整测试、独立可见测试和隐藏测试全部通过。",
+  "real_model_authorized": true,
+  "balance_preflight": "DeepSeek 官方只读接口返回 is_available=true；余额不写入仓库。",
+  "limits": {
+    "max_total_tokens_per_task": 20000,
+    "context_budget_chars": 12000,
+    "max_elapsed_seconds": 300,
+    "max_steps": 8,
+    "max_input_tokens_per_request": 22000,
+    "max_completion_tokens_per_request": 512,
+    "sdk_retries": 0,
+    "max_cost_reserve_usd_per_run": 0.06,
+    "run_count": 6,
+    "max_total_reserved_usd": 0.36,
+    "authorized_total_ceiling_usd": 0.50,
+    "peak_price_worst_case_total_usd": 0.3462912
+  },
+  "tasks": [
+    {
+      "task_id": "django__django-16379",
+      "repo": "django/django",
+      "base_commit": "1d0fa848e084cad62d0bb6bde3b51e4862558e57",
+      "docker_image": "swebench/sweb.eval.x86_64.django_1776_django-16379:latest",
+      "treatment_skill": "api-contract-check",
+      "test_command_override": ["python", "tests/runtests.py", "cache.tests"],
+      "hidden_test_command_override": ["python", "tests/runtests.py", "cache.tests"],
+      "test_command_reason": "该固定 Django 镜像没有 pytest；使用其受限原生测试入口运行 cache.tests。"
+    },
+    {
+      "task_id": "pytest-dev__pytest-7168",
+      "repo": "pytest-dev/pytest",
+      "base_commit": "4787fd64a4ca0dba5528b5651bddd254102fe9f3",
+      "docker_image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-7168:latest",
+      "treatment_skill": "pytest-failure-triage"
+    },
+    {
+      "task_id": "pydata__xarray-5131",
+      "repo": "pydata/xarray",
+      "base_commit": "e56905889c836c736152b11a7e6117a229715975",
+      "docker_image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-5131:latest",
+      "treatment_skill": "api-contract-check"
+    }
+  ],
+  "preflight_status": "pending_materialization_and_visible_hidden_baselines",
+  "scikit_learn_task": "excluded; its image was missing previously and must not be retried or pulled."
+}

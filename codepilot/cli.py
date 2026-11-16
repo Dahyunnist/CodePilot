@@ -20,6 +20,7 @@ from codepilot.mcp_client import HybridMCPToolRegistry, MCPClientError, MCPToolR
 from codepilot.report import format_run_report, write_markdown_report
 from codepilot.run_graph import resume_durable_run, start_durable_run
 from codepilot.schemas import RunResult, Task, ToolCall
+from codepilot.skills import SKILLS
 from codepilot.tools.registry import ToolRegistry
 from codepilot.tracing import TraceLogger
 from codepilot.workspace import WorkspaceError, WorkspaceManager
@@ -153,6 +154,7 @@ def _print_pending_approval(state: dict[str, object], run_id: str, state_db: Pat
     if isinstance(value, dict):
         print(f"审批基线：{value.get('base_commit', '未知')}")
         print(f"补丁 SHA-256：{value.get('patch_sha256', '未知')}")
+        print(f"审批有效期至：{value.get('expires_at', '未知')}")
         print(f"源仓库：{value.get('source', '未知')}")
     print(f"回写审批待处理。运行 ID：{run_id}")
     print(f"批准：codepilot resume --run-id {run_id} --approve --state-db {state_db}")
@@ -165,6 +167,9 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="运行一个仓库修复任务")
     run_parser.add_argument("--repo", required=True, type=Path, help="仓库路径")
     run_parser.add_argument("--task", required=True, help="用中文描述要修复的问题")
+    run_parser.add_argument(
+        "--skill", choices=tuple(SKILLS), help="可选的受限修复工作流"
+    )
     run_parser.add_argument("--test-command", required=True, help="pytest 测试命令")
     run_parser.add_argument("--max-steps", type=int, default=12, help="模型最多交互步数")
     run_parser.add_argument("--max-test-attempts", type=int, default=3, help="最多运行测试次数")
@@ -206,12 +211,25 @@ def main(
     args = build_parser().parse_args(argv)
     if args.command == "resume":
         try:
+            trace = TraceLogger(args.reports_root / "traces" / f"{args.run_id}.jsonl", args.run_id)
+            trace.event(
+                "resume_requested",
+                0,
+                decision="approve" if args.approve else "reject" if args.reject else "continue",
+            )
             state = resume_durable_run(
                 database=args.state_db,
                 manager=WorkspaceManager(Path(".tmp/workspaces")),
                 agent_factory=_resume_agent_factory(args.reports_root),
                 run_id=args.run_id,
                 approved=True if args.approve else False if args.reject else None,
+                tracer=trace,
+            )
+            trace.event(
+                "checkpoint_resume",
+                0,
+                phase="approval" if args.approve or args.reject else "interrupted_node",
+                outcome="waiting_approval" if "__interrupt__" in state else "resumed",
             )
             result = RunResult.model_validate(state["result"])
             if "__interrupt__" in state:
@@ -245,6 +263,7 @@ def main(
     run_id = uuid.uuid4().hex
     try:
         workspace_manager = WorkspaceManager(args.workspace_root)
+        model = model_client or ModelClient(ModelConfig.from_env())
         workspace = workspace_manager.prepare(
             repo, run_id, require_clean_source=args.apply_to_repo
         )
@@ -252,13 +271,13 @@ def main(
             repo_path=workspace.path,
             instruction=args.task,
             test_command=shlex.split(args.test_command, posix=False),
+            skill_id=args.skill,
             max_steps=args.max_steps,
             max_test_attempts=args.max_test_attempts,
             max_elapsed_seconds=args.max_elapsed,
             max_total_tokens=args.max_tokens,
             max_context_chars=args.context_budget_chars,
         )
-        model = model_client or ModelClient(ModelConfig.from_env())
         tools = (
             ToolRegistry(
                 workspace.path,
@@ -325,6 +344,7 @@ def main(
             "reports_root": str(args.reports_root),
             "tool_backend": args.tool_backend,
         },
+        tracer=trace,
     )
     result = RunResult.model_validate(state["result"])
     if "__interrupt__" in state:

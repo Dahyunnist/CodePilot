@@ -18,7 +18,7 @@ S3 检查路径、密钥、Docker 失败、超时和临时工作区。找到两�
 
 ## 5. 测试结果与证据
 
-NN 环境 `D:\Anaconda3\envs\NN\python.exe -m pytest -q`：55 项通过。覆盖大小写敏感路径、符号链接/junction 越界、Docker 不可用、容器清理再次超时、API key 遮蔽、run ID 路径遍历及 clone 半成品清理。未执行额外 Docker 集成评测；当前执行器无法连接 Docker named pipe，错误已由单测覆盖。
+NN 环境 `python -m pytest -q`：55 项通过。覆盖大小写敏感路径、符号链接/junction 越界、Docker 不可用、容器清理再次超时、API key 遮蔽、run ID 路径遍历及 clone 半成品清理。未执行额外 Docker 集成评测；当前执行器无法连接 Docker named pipe，错误已由单测覆盖。
 
 ## 6. 10–20 分钟小实验
 

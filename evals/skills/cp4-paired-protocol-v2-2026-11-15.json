@@ -1,0 +1,76 @@
+{
+  "protocol_id": "cp4-skill-paired-prereg-v2",
+  "schema_version": 2,
+  "status": "preregistered-blocked-not-executed",
+  "source_revision": "f695b32a7221183695136105fea030007e174bf3",
+  "model_configuration": {
+    "model_id": null,
+    "endpoint_sha256": null,
+    "status": "blocked_pending_model_preflight"
+  },
+  "runtime_configuration": {
+    "runtime_digest": null,
+    "reason": "CP4 fixtures do not pin a Docker image; runtime must be selected and frozen before execution"
+  },
+  "budget_configuration": {
+    "authorized_campaign_cap_usd": "0.50",
+    "campaign_reserve_usd": null,
+    "status": "blocked_pending_fresh_balance_and_full_reserve"
+  },
+  "budget_configuration_sha256": "be36ec146a66a7e65aa57c3df15783831bd8290928ff8b593f2a9ba727a73312",
+  "model_calls": 0,
+  "claims_skill_improvement": false,
+  "pairing": {
+    "dimension": "skill",
+    "pairs": [
+      {
+        "case_id": "skill-pytest-config",
+        "baseline_skill_id": "none",
+        "treatment_skill_id": "pytest-failure-triage"
+      },
+      {
+        "case_id": "skill-api-pagination",
+        "baseline_skill_id": "none",
+        "treatment_skill_id": "api-contract-check"
+      }
+    ],
+    "hold_constant": [
+      "model and provider endpoint",
+      "agent source revision and worktree diff",
+      "case metadata, repository tree, visible tests and hidden tests",
+      "execution mode and pinned Docker image digest",
+      "ContextSelector setting and version",
+      "verification mode, step/token/time/context limits",
+      "temperature and per-request completion limits"
+    ],
+    "primary_outcomes": [
+      "strict accepted status",
+      "independent visible and hidden test status",
+      "failure type",
+      "estimated API cost and elapsed time"
+    ],
+    "interpretation": "Two-case pilot only. Report every pair, including failures. No aggregate capability claim."
+  },
+  "frozen_inputs_sha256": {
+    "codepilot/agent.py": "69ea1739a0d52d550e9db3aaf5237fda67f7c652151eaab461031f81a591b477",
+    "codepilot/prompts.py": "f4f6e3608b1339745ee5afe8e0baab5071c532df7963fb786a756954c156aa2b",
+    "codepilot/skills.py": "a5595b9a78078224ca15a7523f317b1a7cc75c2ebadec77998f01f767c4fee90",
+    "evals/compare_live_runs.py": "25282bc83c2c6a8d5945e0bdf86912c1eb69c2acf2186cd59d88577fc6f2654f",
+    "evals/live_runner.py": "40a56f947e486dc37208062315c0e0fa4585ba68e0bd4ea65b9f52e56058a5de",
+    "evals/skills/ablation.py": "0b9cabb97ad5108a74f8120d378267b1c924e49fc65f17a34ce1cac8d303fccb",
+    "evals/skills/cases/skill-api-pagination/case.json": "3cd5ee43a2ebe63ee2a239cbac9fac236812443a3e309ca208eb6752cf47495f",
+    "evals/skills/cases/skill-pytest-config/case.json": "dd9c13274588535d1382faa75ab52e1c93abfd264f1a98b1cd51fb5c70179b63",
+    "evals/skills/paired-smoke.json": "d064b30c392fb33c0bdc68b9472182cda07b1b47c7f29171abe079d634396093",
+    "tests/test_cp4_skill_freeze.py": "65bd01ec535f8f1d002a5082619db205707f95ac9ec16311aa48cf210934cf85",
+    "tests/test_live_runner.py": "ff62719e4724acf5c32e6f134be63109c536a679f7e98bf6d219dd253a79841b",
+    "tests/test_live_shared_manifest.py": "10756f83229a3e6bfe5e872052e3ccf689a4445cbacc148b04a9ac450e053029",
+    "tests/test_skills.py": "2f1545594f1419040bcf2cc8b5d64b4529fd93d2b5bd09600c7434da75918f80"
+  },
+  "blockers": [
+    "fresh provider balance unavailable",
+    "model identity and endpoint must be pinned without storing credentials",
+    "runtime digest is not pinned",
+    "full reserve must fit within the existing USD 0.50 cap"
+  ],
+  "protocol_sha256": "4335a78d90577f90512a252ce4099d67ec4440000aa8d828bfb3de1c4e5bdca3"
+}
